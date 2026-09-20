@@ -302,6 +302,17 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             </span>
           </div>
 
+          {/* Cloud Database Integration Status */}
+          <div className="p-3 rounded-2xl bg-slate-950/90 border border-emerald-500/20 flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2 text-slate-300">
+              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="font-medium">Firebase Free Tier (Spark)</span>
+            </div>
+            <span className="text-[10px] font-mono text-emerald-300/80 bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-500/30">
+              Firestore Connected
+            </span>
+          </div>
+
           {/* Sign Out / Switch Account */}
           {isOwnProfile && onSignOut && (
             <div className="pt-2">

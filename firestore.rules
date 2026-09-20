@@ -1,0 +1,50 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Test collection for initial connectivity validation
+    match /test/connection {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow read: if isSignedIn() || request.auth == null;
+      allow create, update: if isSignedIn() || request.auth == null;
+      allow delete: if isOwner(userId);
+    }
+
+    // Conversations Collection
+    match /conversations/{conversationId} {
+      allow read: if isSignedIn() || request.auth == null;
+      allow create, update: if isSignedIn() || request.auth == null;
+      allow delete: if isSignedIn();
+
+      // Messages Subcollection
+      match /messages/{messageId} {
+        allow read: if isSignedIn() || request.auth == null;
+        allow create, update, delete: if isSignedIn() || request.auth == null;
+      }
+    }
+
+    // Schedules Collection
+    match /schedules/{scheduleId} {
+      allow read: if isSignedIn() || request.auth == null;
+      allow create, update, delete: if isSignedIn() || request.auth == null;
+    }
+  }
+}

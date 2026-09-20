@@ -1,0 +1,87 @@
+{
+  "entities": {
+    "UserAccount": {
+      "title": "UserAccount",
+      "description": "User account and profile details for Cuddles messenger",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique user account ID" },
+        "name": { "type": "string", "description": "User display name or nickname" },
+        "email": { "type": "string", "format": "email", "description": "User email address" },
+        "avatar": { "type": "string", "description": "User avatar image URL or data string" },
+        "status": { "type": "string", "description": "User status message" },
+        "moodEmoji": { "type": "string", "description": "Current mood emoji" },
+        "bio": { "type": "string", "description": "Short bio or sweet thought" },
+        "partnerNickname": { "type": "string", "description": "Special nickname for lover" },
+        "partnerAnniversary": { "type": "string", "description": "Anniversary date" },
+        "createdAt": { "type": "string", "description": "Account registration timestamp" }
+      },
+      "required": ["id", "name", "email"]
+    },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "Chat thread between lovers or friends",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Conversation ID" },
+        "participantIds": { "type": "array", "description": "List of participant user IDs" },
+        "lastMessageText": { "type": "string", "description": "Preview of last message sent" },
+        "lastMessageTime": { "type": "string", "description": "Timestamp of last message" },
+        "updatedAt": { "type": "string", "description": "Last update ISO timestamp" }
+      },
+      "required": ["id", "participantIds"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Encrypted message, voice note, video note, or attachment",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique message ID" },
+        "conversationId": { "type": "string", "description": "Associated conversation ID" },
+        "senderId": { "type": "string", "description": "UID of the message sender" },
+        "senderName": { "type": "string", "description": "Display name of sender" },
+        "text": { "type": "string", "description": "Message content or media label" },
+        "type": { "type": "string", "description": "Type of message: text, voice, video_note, image, or document" },
+        "mediaUrl": { "type": "string", "description": "Ephemeral or local media URL" },
+        "durationSeconds": { "type": "number", "description": "Audio or video note duration in seconds" },
+        "timestamp": { "type": "string", "description": "Creation timestamp" },
+        "priority": { "type": "string", "description": "normal or urgent" },
+        "createdAt": { "type": "string", "description": "ISO timestamp for auto-purge pruning" }
+      },
+      "required": ["id", "conversationId", "senderId", "type", "timestamp"]
+    },
+    "DaySchedule": {
+      "title": "DaySchedule",
+      "description": "Scheduled activity for quiet delivery and availability status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Schedule block ID" },
+        "userId": { "type": "string", "description": "User ID of schedule owner" },
+        "title": { "type": "string", "description": "Activity name" },
+        "category": { "type": "string", "description": "Activity category: sleep, work, date, commute, gym, available" },
+        "startTime": { "type": "string", "description": "Start time string" },
+        "endTime": { "type": "string", "description": "End time string" },
+        "isBusy": { "type": "boolean", "description": "Whether user is busy" }
+      },
+      "required": ["id", "userId", "title", "category"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserAccount" },
+      "description": "Stores user profiles and account credentials"
+    },
+    "/conversations/{conversationId}": {
+      "schema": { "$ref": "#/entities/Conversation" },
+      "description": "Stores active conversation threads"
+    },
+    "/conversations/{conversationId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/Message" },
+      "description": "Stores chat messages in subcollection under conversations"
+    },
+    "/schedules/{scheduleId}": {
+      "schema": { "$ref": "#/entities/DaySchedule" },
+      "description": "Stores lover schedule blocks"
+    }
+  }
+}

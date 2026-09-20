@@ -25,6 +25,14 @@ import {
   setActiveAccountId,
   getStoredAccounts
 } from './lib/storage';
+import {
+  testConnection,
+  ensureFirebaseAuth,
+  syncUserToFirestore,
+  syncMessageToFirestore,
+  syncConversationToFirestore,
+  subscribeToConversationMessages
+} from './lib/firebase';
 import { encryptMessage } from './lib/encryption';
 import { playSentSound, playReceivedSound, playUrgentSound } from './lib/audio';
 
@@ -130,6 +138,10 @@ export default function App() {
 
   // 14-Day Auto-Purge of Ephemeral Online Text Messages on Startup
   useEffect(() => {
+    // Validate connection to Firestore on boot (as required by Firebase skill)
+    testConnection();
+    ensureFirebaseAuth();
+
     try {
       const { cleanedCount, updatedMap } = purgeOldMessages(messagesMap, AUTO_PURGE_DAYS);
       if (cleanedCount > 0) {
@@ -140,6 +152,28 @@ export default function App() {
       console.error('Error running auto-purge', e);
     }
   }, []);
+
+  // Real-time listener for active conversation messages via Firebase Firestore
+  useEffect(() => {
+    if (!activeConversationId) return;
+    const unsubscribe = subscribeToConversationMessages(activeConversationId, (cloudMsgs) => {
+      if (cloudMsgs && cloudMsgs.length > 0) {
+        setMessagesMap((prev) => {
+          const currentList = prev[activeConversationId] || [];
+          const currentIds = new Set(currentList.map((m) => m.id));
+          const newOnes = cloudMsgs.filter((m) => !currentIds.has(m.id));
+          if (newOnes.length === 0) return prev;
+          return {
+            ...prev,
+            [activeConversationId]: [...currentList, ...newOnes]
+          };
+        });
+      }
+    });
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [activeConversationId]);
 
   // Synchronize state with LocalStorage
   useEffect(() => {
@@ -224,6 +258,9 @@ export default function App() {
       ...prev,
       [activeConversation.id]: [...(prev[activeConversation.id] || []), newMessage]
     }));
+
+    // Sync message to Firebase Firestore
+    syncMessageToFirestore(newMessage);
 
     // Update conversation last message preview
     setConversations((prev) =>
@@ -352,6 +389,17 @@ export default function App() {
       };
       saveStoredData(STORAGE_KEYS.MESSAGES, nextMap);
       return nextMap;
+    });
+
+    // Sync media message to Firestore (keeping payload lightweight for free tier Spark)
+    syncMessageToFirestore({
+      ...newMessage,
+      attachment: newMessage.attachment
+        ? {
+            ...newMessage.attachment,
+            url: (url && url.length < 50000) ? url : ''
+          }
+        : undefined
     });
 
     setConversations((prev) =>
@@ -767,6 +815,7 @@ export default function App() {
           };
           setCurrentUser(userProfile);
           saveStoredData(STORAGE_KEYS.USER, userProfile);
+          syncUserToFirestore(userProfile);
         }}
       />
     );
