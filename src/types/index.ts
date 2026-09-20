@@ -1,0 +1,159 @@
+export type RelationshipType = 'partner' | 'friend';
+
+export interface UserAccount {
+  id: string;
+  email: string;
+  password: string;
+  name: string;
+  avatar: string;
+  createdAt: string;
+  partnerNickname?: string;
+  partnerAnniversary?: string;
+  status?: string;
+  moodEmoji?: string;
+  safetyFingerprint: string;
+  bio?: string;
+  location?: string;
+  currentSchedule?: DayScheduleStatus;
+}
+
+export interface DayScheduleStatus {
+  isBusy: boolean;
+  activityTitle: string;
+  untilTime: string;
+  category?: string;
+}
+
+export interface UserProfile {
+  id: string;
+  email?: string;
+  name: string;
+  avatar: string;
+  status: string; // e.g., 'Thinking of you 💕' or 'Available'
+  moodEmoji?: string;
+  online: boolean;
+  lastSeen?: string;
+  relationshipType: RelationshipType;
+  partnerAnniversary?: string; // Only for partners
+  partnerNickname?: string;
+  safetyFingerprint: string;
+  verifiedKey?: boolean;
+  currentSchedule?: DayScheduleStatus;
+  bio?: string;
+  location?: string;
+}
+
+export type MessageType = 'text' | 'image' | 'voice' | 'video_note' | 'gif' | 'system' | 'document' | 'video';
+export type MessagePriority = 'normal' | 'urgent' | 'emergency';
+
+export interface MediaAttachment {
+  type: MessageType;
+  url: string;
+  thumbnailUrl?: string;
+  durationSeconds?: number;
+  fileName?: string;
+  fileSizeBytes?: number;
+  fileSize?: string;
+  mimeType?: string;
+  isStoredLocally?: boolean; // Media stored on device
+  isDownloadedToDevice?: boolean;
+  isPurgedFromOnlineDatabase?: boolean;
+  downloadedAt?: string;
+}
+
+export interface EncryptedPayload {
+  ciphertext: string;
+  iv: string;
+  salt: string;
+  isEncrypted: boolean;
+}
+
+export interface MessageReaction {
+  emoji: string;
+  count: number;
+  userIds: string[];
+}
+
+export interface Message {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  senderName: string;
+  senderAvatar: string;
+  timestamp: string;
+  createdAtISO?: string; // For 14-day auto purge calculations
+  type: MessageType;
+  text?: string;
+  encryptedPayload?: EncryptedPayload;
+  decryptedContent?: string;
+  attachment?: MediaAttachment;
+  status: 'sending' | 'sent' | 'delivered' | 'read';
+  priority?: MessagePriority;
+  deliveredSilently?: boolean;
+  reactions?: MessageReaction[];
+  replyTo?: {
+    id: string;
+    senderName: string;
+    text: string;
+  };
+  expiresAt?: string; // Ephemeral messages
+}
+
+export interface Conversation {
+  id: string;
+  title: string;
+  avatar?: string;
+  isGroup: boolean;
+  participantIds: string[];
+  partnerIds: string[]; // Track which participants are partners
+  createdAt: string;
+  lastMessage?: {
+    text: string;
+    timestamp: string;
+    senderName: string;
+    unreadCount: number;
+  };
+  isE2EESecure: boolean;
+  disappearingTimerMinutes?: number; // 0 = off, 5, 1440, etc.
+  sharedKeyFingerprint: string;
+  pinned?: boolean;
+}
+
+export interface CallParticipant {
+  id: string;
+  name: string;
+  avatar: string;
+  isMuted: boolean;
+  isVideoOff: boolean;
+  isSpeaking: boolean;
+  isLocal: boolean;
+  stream?: MediaStream | null;
+  relationshipType?: RelationshipType;
+}
+
+export interface ActiveCall {
+  id: string;
+  conversationId: string;
+  conversationTitle: string;
+  isGroup: boolean;
+  callType: 'audio' | 'video';
+  status: 'ringing' | 'connected' | 'ended';
+  startedAt: string;
+  participants: CallParticipant[];
+  isScreenSharing?: boolean;
+}
+
+export interface ScheduleEvent {
+  id: string;
+  title: string;
+  description?: string;
+  dateTime: string;
+  endTime?: string;
+  isBusySlot?: boolean;
+  category: 'day_routine' | 'work_focus' | 'sleep' | 'partner_date' | 'anniversary' | 'group_call' | 'hangout' | 'reminder';
+  targetGroup: 'partners' | 'friends' | 'all';
+  attendeeIds: string[];
+  color: string;
+  remindMinutesBefore: number;
+  ownerId?: string;
+}

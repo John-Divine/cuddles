@@ -1,0 +1,12 @@
+{
+  "name": "Cuddles - Private Partners & Friends Messenger",
+  "description": "End-to-end encrypted messaging, interactive video notes, day schedules with smart quiet delivery, and responsive group calls for partners and close friends.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
+
