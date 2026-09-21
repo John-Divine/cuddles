@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Mic,
   MicOff,
@@ -6,17 +6,16 @@ import {
   VideoOff,
   PhoneOff,
   RefreshCw,
-  Share2,
   Users,
   Grid,
-  Maximize2,
   Minimize2,
   Volume2,
   ShieldCheck,
   UserPlus,
   Heart,
   Plus,
-  Check
+  Repeat,
+  AlertCircle
 } from 'lucide-react';
 import { ActiveCall, CallParticipant, UserProfile } from '../../types';
 import { playConnectSound, playEndCallSound, stopRingtone } from '../../lib/audio';
@@ -41,14 +40,87 @@ export const CallModal: React.FC<CallModalProps> = ({
   onAddParticipantToCall
 }) => {
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
-  const [layoutMode, setLayoutMode] = useState<'grid' | 'speaker'>('grid');
-  const [activeSpeakerId, setActiveSpeakerId] = useState<string>('partner_elena');
+  const [isPiPSwapped, setIsPiPSwapped] = useState(false); // Swap self and remote in 1-on-1 calls (WhatsApp style)
   const [showParticipantsDrawer, setShowParticipantsDrawer] = useState(false);
   const [showAddParticipantModal, setShowAddParticipantModal] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
+  const [cameraState, setCameraState] = useState<'loading' | 'ready' | 'error' | 'fallback'>('loading');
+  const [cameraErrorMessage, setCameraErrorMessage] = useState<string | null>(null);
 
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const [streamVersion, setStreamVersion] = useState(0); // Triggers re-bind when stream arrives
+
+  // Safely attach stream to video element
+  const setVideoRef = useCallback((node: HTMLVideoElement | null) => {
+    localVideoRef.current = node;
+    if (node && localStreamRef.current) {
+      node.srcObject = localStreamRef.current;
+      node.play().catch((e) => console.log('Autoplay handled:', e));
+    }
+  }, [streamVersion]);
+
+  // Request camera and microphone with progressive fallbacks
+  const startCamera = async () => {
+    if (call.callType !== 'video') return;
+    setCameraState('loading');
+    setCameraErrorMessage(null);
+
+    // Stop previous tracks if any
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((t) => t.stop());
+      localStreamRef.current = null;
+    }
+
+    let stream: MediaStream | null = null;
+
+    // Attempt 1: Video + Audio with preferred facingMode
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: facingMode } },
+        audio: true
+      });
+    } catch (err1) {
+      console.warn('getUserMedia audio+video failed, falling back to video only:', err1);
+      // Attempt 2: Video only with facingMode
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: facingMode } },
+          audio: false
+        });
+      } catch (err2) {
+        console.warn('getUserMedia facingMode video failed, falling back to basic video:', err2);
+        // Attempt 3: Basic video only
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false
+          });
+        } catch (err3: any) {
+          console.warn('All webcam access attempts failed:', err3);
+          setCameraState('error');
+          setCameraErrorMessage(
+            err3?.name === 'NotAllowedError'
+              ? 'Camera permission denied. Please allow camera access in browser.'
+              : 'Webcam not available or in use by another app.'
+          );
+          return;
+        }
+      }
+    }
+
+    if (stream) {
+      localStreamRef.current = stream;
+      setCameraState('ready');
+      setStreamVersion((v) => v + 1);
+
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+        localVideoRef.current.muted = true;
+        localVideoRef.current.play().catch((err) => console.log('Play warning:', err));
+      }
+    }
+  };
 
   // Local camera stream initialization
   useEffect(() => {
@@ -56,20 +128,7 @@ export const CallModal: React.FC<CallModalProps> = ({
     playConnectSound();
 
     if (call.callType === 'video') {
-      navigator.mediaDevices.getUserMedia({
-        video: { facingMode },
-        audio: true
-      })
-        .then((stream) => {
-          localStreamRef.current = stream;
-          if (localVideoRef.current) {
-            localVideoRef.current.srcObject = stream;
-            localVideoRef.current.muted = true;
-          }
-        })
-        .catch((err) => {
-          console.warn('Camera stream error:', err);
-        });
+      startCamera();
     }
 
     const durationTimer = setInterval(() => {
@@ -80,9 +139,19 @@ export const CallModal: React.FC<CallModalProps> = ({
       clearInterval(durationTimer);
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach((track) => track.stop());
+        localStreamRef.current = null;
       }
     };
   }, [call.callType, facingMode]);
+
+  // Keep video element attached if participant renders change
+  useEffect(() => {
+    if (localVideoRef.current && localStreamRef.current) {
+      localVideoRef.current.srcObject = localStreamRef.current;
+      localVideoRef.current.muted = true;
+      localVideoRef.current.play().catch(() => {});
+    }
+  }, [isPiPSwapped, call.participants.length]);
 
   const handleFlipCamera = () => {
     setFacingMode((prev) => (prev === 'user' ? 'environment' : 'user'));
@@ -100,22 +169,133 @@ export const CallModal: React.FC<CallModalProps> = ({
   };
 
   const localParticipant = call.participants.find((p) => p.isLocal);
+  const remoteParticipants = call.participants.filter((p) => !p.isLocal);
+  const isGroupCall = call.participants.length >= 3;
   const existingParticipantIds = new Set(call.participants.map((p) => p.id));
   const contactsToAdd = availableContacts.filter((c) => !existingParticipantIds.has(c.id));
 
-  // Determine grid template based on participant count
-  const getGridColsClass = () => {
-    const count = call.participants.length;
-    if (count <= 1) return 'grid-cols-1';
-    if (count === 2) return 'grid-cols-1 sm:grid-cols-2';
-    if (count <= 4) return 'grid-cols-2';
-    return 'grid-cols-2 sm:grid-cols-3';
+  // Renders the local user's live video stream or avatar fallback
+  const renderLocalVideoTile = (isFloatingPiP: boolean = false) => {
+    const isVideoOff = localParticipant?.isVideoOff;
+
+    return (
+      <div className={`relative w-full h-full bg-slate-950 flex items-center justify-center overflow-hidden`}>
+        {call.callType === 'video' && !isVideoOff ? (
+          <>
+            <video
+              ref={setVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className={`w-full h-full object-cover transition-transform ${
+                facingMode === 'user' ? '-scale-x-100' : ''
+              }`}
+            />
+            {/* If camera is loading or permission error */}
+            {cameraState === 'loading' && (
+              <div className="absolute inset-0 bg-slate-900/90 flex flex-col items-center justify-center gap-2 p-3 text-center">
+                <div className="w-8 h-8 border-2 border-rose-500 border-t-transparent rounded-full animate-spin" />
+                <span className="text-xs text-rose-200 font-medium">Starting camera...</span>
+              </div>
+            )}
+            {cameraState === 'error' && (
+              <div className="absolute inset-0 bg-slate-900/95 flex flex-col items-center justify-center gap-2 p-3 text-center">
+                <AlertCircle className="w-8 h-8 text-amber-400" />
+                <span className="text-xs text-slate-300 font-medium">
+                  {isFloatingPiP ? 'Camera blocked' : (cameraErrorMessage || 'Camera access issue')}
+                </span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    startCamera();
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold shadow"
+                >
+                  Retry Camera
+                </button>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="flex flex-col items-center justify-center p-4">
+            <img
+              src={localParticipant?.avatar}
+              alt="You"
+              className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover ring-2 ring-rose-500 shadow-xl"
+            />
+            <span className="text-xs text-slate-300 mt-2 font-medium">Camera Off</span>
+          </div>
+        )}
+
+        {/* Floating PiP overlay badge */}
+        <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between p-1 px-2 rounded-xl bg-black/60 backdrop-blur-md text-[11px] text-white">
+          <span className="truncate font-medium">You</span>
+          {isFloatingPiP && (
+            <span className="text-[10px] text-rose-300 flex items-center gap-0.5">
+              <Repeat className="w-3 h-3" />
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Renders a remote participant's view
+  const renderRemoteParticipantTile = (participant: CallParticipant, isFloatingPiP: boolean = false) => {
+    const isSpeaking = participant.isSpeaking;
+
+    return (
+      <div className={`relative w-full h-full bg-slate-950 flex items-center justify-center overflow-hidden`}>
+        {call.callType === 'video' && !participant.isVideoOff ? (
+          <div className="relative w-full h-full flex items-center justify-center">
+            <img
+              src={participant.avatar}
+              alt={participant.name}
+              className="w-full h-full object-cover filter brightness-95"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center p-4">
+            <div className="relative">
+              <img
+                src={participant.avatar}
+                alt={participant.name}
+                className={`w-20 h-20 sm:w-28 sm:h-28 rounded-full object-cover ring-4 ${
+                  isSpeaking ? 'ring-rose-400 animate-pulse' : 'ring-slate-700'
+                } shadow-2xl`}
+              />
+              {isSpeaking && (
+                <div className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-rose-600 text-white shadow">
+                  <Volume2 className="w-3.5 h-3.5 animate-bounce" />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Remote participant name label */}
+        <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between p-1.5 px-3 rounded-2xl bg-black/65 backdrop-blur-md text-xs border border-white/10">
+          <span className="font-semibold text-white truncate max-w-[140px] flex items-center gap-1.5">
+            {participant.name}
+            {participant.relationshipType === 'partner' && <span className="text-rose-400 text-xs">💕</span>}
+          </span>
+          <div className="flex items-center gap-1.5">
+            {participant.isMuted && (
+              <span className="p-1 rounded-full bg-rose-500/80 text-white">
+                <MicOff className="w-3 h-3" />
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-2xl flex flex-col justify-between text-slate-100 select-none animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col justify-between text-slate-100 select-none animate-in fade-in duration-300">
       {/* Top Header Bar */}
-      <div className="p-3 sm:p-4 flex items-center justify-between border-b border-rose-950/40 bg-slate-900/60 z-20">
+      <div className="p-3 sm:p-4 flex items-center justify-between border-b border-rose-950/40 bg-slate-900/80 backdrop-blur-md z-30">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-500/20 text-rose-300 text-xs font-semibold border border-rose-500/30">
             <Heart className="w-3.5 h-3.5 fill-current text-rose-400" />
@@ -125,13 +305,13 @@ export const CallModal: React.FC<CallModalProps> = ({
           <div>
             <h3 className="font-bold text-sm sm:text-base text-white flex items-center gap-2">
               <span>{call.conversationTitle}</span>
-              {call.participants.length > 2 ? (
+              {isGroupCall ? (
                 <span className="px-2 py-0.5 rounded-full bg-indigo-500/30 text-indigo-300 text-[11px] font-semibold">
                   Group Call ({call.participants.length})
                 </span>
               ) : (
                 <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-[11px] font-medium">
-                  1-on-1 Call
+                  WhatsApp Style 1-on-1
                 </span>
               )}
             </h3>
@@ -179,87 +359,53 @@ export const CallModal: React.FC<CallModalProps> = ({
         </div>
       </div>
 
-      {/* Main Video/Audio Grid Area */}
-      <div className="flex-1 p-2 sm:p-4 overflow-hidden relative flex items-center justify-center">
-        <div className={`grid ${getGridColsClass()} gap-3 w-full h-full max-h-[82vh]`}>
-          {call.participants.map((participant) => {
-            const isLocal = participant.isLocal;
-            const isSpeaking = participant.isSpeaking;
+      {/* Main Video Presentation Stage */}
+      <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-black">
+        {/* CASE 1: 1-on-1 WhatsApp Style Layout (Big Remote + Small Picture-in-Picture Self) */}
+        {!isGroupCall ? (
+          <div className="relative w-full h-full flex items-center justify-center">
+            {/* BIG MAIN SCREEN: Shows Remote by default, or Local if swapped */}
+            <div className="w-full h-full">
+              {isPiPSwapped
+                ? renderLocalVideoTile(false)
+                : renderRemoteParticipantTile(remoteParticipants[0] || (localParticipant as CallParticipant), false)}
+            </div>
 
-            return (
+            {/* SMALL FLOATING PiP WINDOW: Shows Local by default, or Remote if swapped */}
+            <div
+              onClick={() => setIsPiPSwapped(!isPiPSwapped)}
+              className="absolute top-4 right-4 sm:top-6 sm:right-6 w-32 h-44 sm:w-40 sm:h-56 rounded-3xl overflow-hidden shadow-2xl border-2 border-rose-400/60 ring-4 ring-black/40 cursor-pointer z-30 transition-all hover:scale-105 active:scale-95 group"
+              title="Tap to swap screens (WhatsApp style)"
+            >
+              {isPiPSwapped
+                ? renderRemoteParticipantTile(remoteParticipants[0] || (localParticipant as CallParticipant), true)
+                : renderLocalVideoTile(true)}
+
+              {/* Tap to swap indicator pill */}
+              <div className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-rose-300 opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-sm">
+                <Repeat className="w-3.5 h-3.5" />
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* CASE 2: Group Call Layout (3+ participants) -> Multi-person Grid */
+          <div className="p-2 sm:p-4 w-full h-full max-h-[82vh] grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {call.participants.map((participant) => (
               <div
                 key={participant.id}
-                className={`relative rounded-3xl overflow-hidden bg-slate-900/90 border transition-all flex items-center justify-center shadow-xl ${
-                  isSpeaking
-                    ? 'border-rose-500/80 ring-2 ring-rose-500/40'
-                    : 'border-slate-800/80'
-                }`}
+                className="relative rounded-3xl overflow-hidden border border-slate-800/80 shadow-xl bg-slate-900"
               >
-                {/* Visual Video Content */}
-                {call.callType === 'video' && !participant.isVideoOff ? (
-                  <div className="relative w-full h-full flex items-center justify-center">
-                    {isLocal ? (
-                      <video
-                        ref={localVideoRef}
-                        autoPlay
-                        playsInline
-                        muted
-                        className={`w-full h-full object-cover ${facingMode === 'user' ? '-scale-x-100' : ''}`}
-                      />
-                    ) : (
-                      <img
-                        src={participant.avatar}
-                        alt={participant.name}
-                        className="w-full h-full object-cover filter brightness-90"
-                      />
-                    )}
-                    {/* Simulated romantic call lighting gradient */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/20 pointer-events-none" />
-                  </div>
-                ) : (
-                  /* Audio-only or Video-muted view */
-                  <div className="flex flex-col items-center justify-center p-4">
-                    <div className="relative">
-                      <img
-                        src={participant.avatar}
-                        alt={participant.name}
-                        className={`w-20 h-20 sm:w-28 sm:h-28 rounded-full object-cover ring-4 ${
-                          isSpeaking ? 'ring-rose-400 animate-pulse' : 'ring-slate-700'
-                        } shadow-2xl`}
-                      />
-                      {isSpeaking && (
-                        <div className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-rose-600 text-white shadow">
-                          <Volume2 className="w-3.5 h-3.5 animate-bounce" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Participant Label overlay */}
-                <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between p-1.5 px-3 rounded-2xl bg-black/65 backdrop-blur-md text-xs border border-white/10">
-                  <span className="font-semibold text-white truncate max-w-[140px] flex items-center gap-1.5">
-                    {participant.name} {isLocal && '(You)'}
-                    {participant.relationshipType === 'partner' && (
-                      <span className="text-rose-400 text-xs">💕</span>
-                    )}
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    {participant.isMuted && (
-                      <span className="p-1 rounded-full bg-rose-500/80 text-white">
-                        <MicOff className="w-3 h-3" />
-                      </span>
-                    )}
-                  </div>
-                </div>
+                {participant.isLocal
+                  ? renderLocalVideoTile(false)
+                  : renderRemoteParticipantTile(participant, false)}
               </div>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        )}
 
-        {/* Participants Drawer (Mobile / Desktop) */}
+        {/* Participants Drawer */}
         {showParticipantsDrawer && (
-          <div className="absolute right-2 top-2 bottom-2 w-72 bg-slate-900/95 border border-rose-900/40 rounded-2xl p-4 shadow-2xl backdrop-blur-xl z-30 flex flex-col animate-in slide-in-from-right-4 duration-200">
+          <div className="absolute right-2 top-2 bottom-2 w-72 bg-slate-900/95 border border-rose-900/40 rounded-2xl p-4 shadow-2xl backdrop-blur-xl z-40 flex flex-col animate-in slide-in-from-right-4 duration-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <h4 className="font-semibold text-sm text-white flex items-center gap-2">
                 <Users className="w-4 h-4 text-rose-400" />
@@ -314,9 +460,9 @@ export const CallModal: React.FC<CallModalProps> = ({
           </div>
         )}
 
-        {/* Add People Modal (converts 1-on-1 into Group Call) */}
+        {/* Add People Modal (Turns 1-on-1 into Group Call) */}
         {showAddParticipantModal && (
-          <div className="absolute inset-0 z-40 bg-black/75 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="absolute inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4">
             <div className="w-full max-w-sm rounded-3xl bg-slate-900 border border-rose-900/40 p-5 shadow-2xl animate-in zoom-in-95 duration-200">
               <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                 <div>
@@ -324,7 +470,7 @@ export const CallModal: React.FC<CallModalProps> = ({
                     <UserPlus className="w-4 h-4 text-rose-400" />
                     Add to Call
                   </h4>
-                  <p className="text-[11px] text-slate-400">Turn this into a group call</p>
+                  <p className="text-[11px] text-slate-400">Expand to a group call (3+ people)</p>
                 </div>
                 <button
                   onClick={() => setShowAddParticipantModal(false)}
@@ -336,7 +482,7 @@ export const CallModal: React.FC<CallModalProps> = ({
 
               <div className="mt-3 max-h-60 overflow-y-auto space-y-2 pr-1">
                 {contactsToAdd.length === 0 ? (
-                  <p className="text-xs text-slate-400 text-center py-4">All partners and friends are already in this call!</p>
+                  <p className="text-xs text-slate-400 text-center py-4">All contacts are already in this call!</p>
                 ) : (
                   contactsToAdd.map((contact) => (
                     <div
@@ -371,8 +517,8 @@ export const CallModal: React.FC<CallModalProps> = ({
         )}
       </div>
 
-      {/* Bottom Floating Controls Bar - Responsive for Mobile Touch */}
-      <div className="p-4 sm:pb-6 flex items-center justify-center gap-2.5 sm:gap-4 bg-gradient-to-t from-slate-900/95 via-slate-900/80 to-transparent z-20">
+      {/* Bottom Floating Controls Bar */}
+      <div className="p-4 sm:pb-6 flex items-center justify-center gap-2.5 sm:gap-4 bg-gradient-to-t from-slate-950 via-slate-900/90 to-transparent z-30">
         {/* Mic Toggle */}
         <button
           onClick={onToggleMute}
@@ -409,7 +555,7 @@ export const CallModal: React.FC<CallModalProps> = ({
           </button>
         )}
 
-        {/* Add People Button in bottom bar */}
+        {/* Add People Button */}
         {contactsToAdd.length > 0 && onAddParticipantToCall && (
           <button
             onClick={() => setShowAddParticipantModal(true)}
@@ -420,7 +566,7 @@ export const CallModal: React.FC<CallModalProps> = ({
           </button>
         )}
 
-        {/* Flip Camera (for mobile video calls) */}
+        {/* Flip Camera */}
         {call.callType === 'video' && (
           <button
             onClick={handleFlipCamera}
@@ -428,6 +574,17 @@ export const CallModal: React.FC<CallModalProps> = ({
             title="Flip camera"
           >
             <RefreshCw className="w-5 h-5 sm:w-6 sm:h-6" />
+          </button>
+        )}
+
+        {/* WhatsApp-Style Screen Swap Button (in 1-on-1 calls) */}
+        {!isGroupCall && call.callType === 'video' && (
+          <button
+            onClick={() => setIsPiPSwapped(!isPiPSwapped)}
+            className="p-3.5 sm:p-4 rounded-2xl sm:rounded-full bg-slate-800 hover:bg-slate-700 text-rose-300 border border-rose-500/30 shadow-lg active:scale-95"
+            title="Swap big & small screen"
+          >
+            <Repeat className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
         )}
 

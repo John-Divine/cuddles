@@ -30,9 +30,11 @@ import {
   ensureFirebaseAuth,
   syncUserToFirestore,
   syncMessageToFirestore,
+  purgeMessageMediaFromFirestore,
   syncConversationToFirestore,
   subscribeToConversationMessages
 } from './lib/firebase';
+import { saveMediaToDeviceVault } from './lib/deviceMediaStorage';
 import { encryptMessage } from './lib/encryption';
 import { playSentSound, playReceivedSound, playUrgentSound } from './lib/audio';
 
@@ -311,6 +313,10 @@ export default function App() {
   // Download Attachment Handler (Auto-Purge from online database upon download to device)
   const handleDownloadAttachment = (messageId: string) => {
     if (!activeConversation) return;
+
+    // Purge media payload from cloud Firestore so nothing lingers on the server
+    purgeMessageMediaFromFirestore(activeConversation.id, messageId);
+
     setMessagesMap((prev) => {
       const list = prev[activeConversation.id] || [];
       const updated = list.map((m) => {
@@ -381,6 +387,14 @@ export default function App() {
       },
       status: 'sent'
     };
+
+    // Save media to device IndexedDB vault for permanent offline availability
+    saveMediaToDeviceVault(
+      newMessage.id,
+      url,
+      type,
+      attachmentMeta?.fileName || `cuddles_${type}_${Date.now()}`
+    );
 
     setMessagesMap((prev) => {
       const nextMap = {

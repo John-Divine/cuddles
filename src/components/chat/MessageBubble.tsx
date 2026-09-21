@@ -15,9 +15,14 @@ import {
   HardDrive,
   Maximize2,
   CheckCircle2,
-  CloudOff
+  CloudOff,
+  X
 } from 'lucide-react';
 import { Message } from '../../types';
+import {
+  downloadMediaToDeviceGallery,
+  saveMediaToDeviceVault
+} from '../../lib/deviceMediaStorage';
 
 interface MessageBubbleProps {
   message: Message;
@@ -47,9 +52,38 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [showImageZoom, setShowImageZoom] = useState(false);
+  const [justSavedNotification, setJustSavedNotification] = useState<string | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const videoNoteRef = useRef<HTMLVideoElement | null>(null);
+
+  // Universal Media Save & Purge Trigger
+  const handleSaveMedia = async (
+    msg: Message,
+    mediaKind: 'image' | 'voice' | 'video_note' | 'document' | 'video'
+  ) => {
+    if (!msg.attachment?.url) return;
+    const url = msg.attachment.url;
+
+    let defaultName = msg.attachment.fileName || `cuddles_${mediaKind}_${Date.now()}`;
+    let mime = msg.attachment.mimeType;
+
+    if (mediaKind === 'image' && !defaultName.includes('.')) defaultName += '.jpg';
+    if (mediaKind === 'voice' && !defaultName.includes('.')) defaultName += '.webm';
+    if (mediaKind === 'video_note' && !defaultName.includes('.')) defaultName += '.webm';
+
+    // 1. Save to device IndexedDB
+    await saveMediaToDeviceVault(msg.id, url, mediaKind, defaultName);
+
+    // 2. Trigger native download to gallery/disk
+    const res = await downloadMediaToDeviceGallery(url, defaultName, mime);
+
+    // 3. Purge from online database payload
+    onDownloadAttachment?.(msg.id);
+
+    setJustSavedNotification(res.success ? 'Saved to Gallery • Purged from Cloud' : 'Saved locally');
+    setTimeout(() => setJustSavedNotification(null), 3000);
+  };
 
   // Voice note controls
   const toggleAudio = () => {
@@ -61,6 +95,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       audioRef.current.playbackRate = audioSpeed;
       audioRef.current.play().catch(() => {});
       setIsPlayingAudio(true);
+
+      // Auto-save to device & trigger purge on first play for receiver
+      if (!isMe && !message.attachment?.isDownloadedToDevice) {
+        handleSaveMedia(message, 'voice');
+      }
     }
   };
 
@@ -85,20 +124,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     } else {
       videoNoteRef.current.play().catch(() => {});
       setIsPlayingVideoNote(true);
+
+      // Auto-save to device & trigger purge on first play for receiver
+      if (!isMe && !message.attachment?.isDownloadedToDevice) {
+        handleSaveMedia(message, 'video_note');
+      }
     }
-  };
-
-  // Handle document download to device & purge online database
-  const handleDownloadDocument = (msg: Message) => {
-    if (!msg.attachment?.url) return;
-    const a = document.createElement('a');
-    a.href = msg.attachment.url;
-    a.download = msg.attachment.fileName || 'cuddles-attachment';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-
-    onDownloadAttachment?.(msg.id);
   };
 
   return (
@@ -154,106 +185,152 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             {/* Content: IMAGE */}
             {message.type === 'image' && message.attachment && (
               <div className="space-y-1.5">
-                <div
-                  className="rounded-xl overflow-hidden cursor-pointer max-w-xs"
-                  onClick={() => setShowImageZoom(true)}
-                >
+                <div className="relative rounded-xl overflow-hidden cursor-pointer max-w-xs group/img">
                   <img
                     src={message.attachment.url}
                     alt="attachment"
+                    onClick={() => setShowImageZoom(true)}
                     className="w-full max-h-60 object-cover hover:scale-102 transition-transform duration-200"
                   />
+
+                  {/* Explicit Save to Gallery button on Image */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSaveMedia(message, 'image');
+                    }}
+                    className="absolute bottom-2 right-2 px-2.5 py-1.5 rounded-xl bg-black/75 hover:bg-black/90 text-white backdrop-blur-md shadow-lg transition-transform active:scale-95 flex items-center gap-1.5 text-[11px] font-bold border border-white/20"
+                    title="Save to Gallery / File Storage"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Save to Gallery</span>
+                  </button>
                 </div>
                 {message.text && (
                   <p className="text-xs text-slate-200 pt-1">{message.text}</p>
+                )}
+                {/* Saved status indicator */}
+                {message.attachment.isDownloadedToDevice && (
+                  <div className="text-[10px] text-emerald-300 flex items-center gap-1 font-medium pt-0.5">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                    <span>Saved to device • Cloud purged</span>
+                  </div>
                 )}
               </div>
             )}
 
             {/* Content: GIF */}
             {message.type === 'gif' && message.attachment && (
-              <div className="rounded-xl overflow-hidden max-w-xs">
+              <div className="rounded-xl overflow-hidden max-w-xs relative group/gif">
                 <img
                   src={message.attachment.url}
                   alt="GIF"
                   className="w-full object-cover max-h-56"
                 />
+                <button
+                  onClick={() => handleSaveMedia(message, 'image')}
+                  className="absolute bottom-2 right-2 p-1.5 rounded-lg bg-black/70 hover:bg-black/90 text-white backdrop-blur-sm shadow text-[10px] flex items-center gap-1 font-medium"
+                  title="Save GIF to device"
+                >
+                  <Download className="w-3 h-3" />
+                  <span>Save</span>
+                </button>
               </div>
             )}
 
             {/* Content: VOICE NOTE */}
             {message.type === 'voice' && message.attachment && (
-              <div className="flex items-center gap-3 py-1 min-w-[210px] sm:min-w-[240px]">
-                <audio
-                  ref={audioRef}
-                  src={message.attachment.url}
-                  onTimeUpdate={() => {
-                    if (audioRef.current) {
-                      setAudioProgress(
-                        (audioRef.current.currentTime / (audioRef.current.duration || 1)) * 100
-                      );
-                    }
-                  }}
-                  onEnded={() => {
-                    setIsPlayingAudio(false);
-                    setAudioProgress(0);
-                  }}
-                  className="hidden"
-                />
+              <div className="flex flex-col gap-1.5 py-1 min-w-[220px] sm:min-w-[260px]">
+                <div className="flex items-center gap-3">
+                  <audio
+                    ref={audioRef}
+                    src={message.attachment.url}
+                    onTimeUpdate={() => {
+                      if (audioRef.current) {
+                        setAudioProgress(
+                          (audioRef.current.currentTime / (audioRef.current.duration || 1)) * 100
+                        );
+                      }
+                    }}
+                    onEnded={() => {
+                      setIsPlayingAudio(false);
+                      setAudioProgress(0);
+                    }}
+                    className="hidden"
+                  />
 
-                <button
-                  onClick={toggleAudio}
-                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
-                    isMe
-                      ? 'bg-white text-indigo-700 hover:bg-slate-100'
-                      : 'bg-indigo-600 text-white hover:bg-indigo-500'
-                  }`}
-                >
-                  {isPlayingAudio ? (
-                    <Pause className="w-4 h-4 fill-current" />
-                  ) : (
-                    <Play className="w-4 h-4 fill-current ml-0.5" />
-                  )}
-                </button>
+                  <button
+                    onClick={toggleAudio}
+                    className={`w-9 h-9 rounded-full flex items-center justify-center transition-all shadow ${
+                      isMe
+                        ? 'bg-white text-rose-700 hover:bg-slate-100'
+                        : 'bg-rose-600 text-white hover:bg-rose-500'
+                    }`}
+                  >
+                    {isPlayingAudio ? (
+                      <Pause className="w-4 h-4 fill-current" />
+                    ) : (
+                      <Play className="w-4 h-4 fill-current ml-0.5" />
+                    )}
+                  </button>
 
-                {/* Waveform Scrubber */}
-                <div className="flex-1 flex flex-col justify-center gap-1">
-                  <div className="flex items-center gap-0.5 h-6">
-                    {[20, 45, 75, 30, 90, 60, 40, 80, 50, 65, 35, 85, 70, 40, 60, 30, 90, 50].map((h, i) => {
-                      const isActive = (i / 18) * 100 <= audioProgress;
-                      return (
-                        <div
-                          key={i}
-                          className={`w-1 rounded-full transition-colors ${
-                            isActive
-                              ? isMe
-                                ? 'bg-white'
-                                : 'bg-indigo-400'
-                              : isMe
-                              ? 'bg-white/40'
-                              : 'bg-slate-600'
-                          }`}
-                          style={{ height: `${h}%` }}
-                        />
-                      );
-                    })}
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] text-slate-300">
-                    <span>
-                      0:{Math.floor(message.attachment.durationSeconds || 12).toString().padStart(2, '0')}
-                    </span>
-                    <button
-                      onClick={cycleSpeed}
-                      className="font-bold text-[10px] px-1 rounded bg-black/20 hover:bg-black/40"
-                    >
-                      {audioSpeed}x
-                    </button>
+                  {/* Waveform Scrubber */}
+                  <div className="flex-1 flex flex-col justify-center gap-1">
+                    <div className="flex items-center gap-0.5 h-6">
+                      {[20, 45, 75, 30, 90, 60, 40, 80, 50, 65, 35, 85, 70, 40, 60, 30, 90, 50].map((h, i) => {
+                        const isActive = (i / 18) * 100 <= audioProgress;
+                        return (
+                          <div
+                            key={i}
+                            className={`w-1 rounded-full transition-colors ${
+                              isActive
+                                ? isMe
+                                  ? 'bg-white'
+                                  : 'bg-rose-400'
+                                : isMe
+                                ? 'bg-white/40'
+                                : 'bg-slate-600'
+                            }`}
+                            style={{ height: `${h}%` }}
+                          />
+                        );
+                      })}
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] text-slate-300">
+                      <span>
+                        0:{Math.floor(message.attachment.durationSeconds || 12).toString().padStart(2, '0')}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={cycleSpeed}
+                          className="font-bold text-[10px] px-1 rounded bg-black/20 hover:bg-black/40 text-white"
+                        >
+                          {audioSpeed}x
+                        </button>
+                        {/* Explicit Save Audio / Download Button */}
+                        <button
+                          onClick={() => handleSaveMedia(message, 'voice')}
+                          className="p-1 rounded bg-black/25 hover:bg-black/45 text-white transition-colors"
+                          title="Save Audio to device & gallery"
+                        >
+                          <Download className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
+
+                {/* Downloaded status badge */}
+                {message.attachment.isDownloadedToDevice && (
+                  <span className="text-[10px] text-emerald-300 flex items-center gap-1 font-medium pl-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                    Saved on device • Cloud purged
+                  </span>
+                )}
               </div>
             )}
 
-            {/* Content: DOCUMENT or ATTACHED VIDEO (Max 50MB with instant online purge on download) */}
+            {/* Content: DOCUMENT or ATTACHED VIDEO */}
             {(message.type === 'document' || message.type === 'video') && message.attachment && (
               <div className="space-y-2 py-1 min-w-[220px] sm:min-w-[270px]">
                 <div className="flex items-start gap-3 p-2.5 rounded-xl bg-black/25 border border-white/10">
@@ -272,7 +349,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                       {message.attachment.fileSize || 'Attachment'}
                     </span>
 
-                    {/* Status badge: Downloaded to device vs Online relay */}
+                    {/* Status badge */}
                     <div className="mt-1 flex items-center gap-1 text-[10px]">
                       {message.attachment.isDownloadedToDevice ? (
                         <span className="text-emerald-400 flex items-center gap-1 font-medium">
@@ -293,10 +370,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                   <p className="text-xs text-slate-200 px-1">{message.text}</p>
                 )}
 
-                {/* Download / Save Button */}
+                {/* Explicit Download / Save Button */}
                 <div className="pt-0.5">
                   <button
-                    onClick={() => handleDownloadDocument(message)}
+                    onClick={() => handleSaveMedia(message, message.type as any)}
                     className={`w-full py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow active:scale-98 ${
                       message.attachment.isDownloadedToDevice
                         ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
@@ -306,17 +383,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     <Download className="w-3.5 h-3.5" />
                     {message.attachment.isDownloadedToDevice
                       ? 'Saved to Device (Download Again)'
-                      : 'Download & Purge from Online Cloud'}
+                      : 'Download to Device & Purge Cloud'}
                   </button>
                 </div>
               </div>
             )}
 
-            {/* Content: CIRCULAR VIDEO NOTE (Improved Telegram style) */}
+            {/* Content: CIRCULAR VIDEO NOTE */}
             {message.type === 'video_note' && message.attachment && (
               <div className="relative flex flex-col items-center my-1 group/vnote">
                 <div
-                  className="relative w-44 h-44 sm:w-52 sm:h-52 rounded-full overflow-hidden border-4 border-indigo-500/80 shadow-2xl cursor-pointer bg-black"
+                  className="relative w-44 h-44 sm:w-52 sm:h-52 rounded-full overflow-hidden border-4 border-rose-500/80 shadow-2xl cursor-pointer bg-black"
                   onClick={toggleVideoNote}
                 >
                   <video
@@ -369,7 +446,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     )}
                   </svg>
 
-                  {/* Fullscreen Modal Pop-up pill */}
+                  {/* Fullscreen Pop-up button */}
                   {onOpenVideoNoteModal && (
                     <button
                       onClick={(e) => {
@@ -383,13 +460,26 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     </button>
                   )}
 
-                  {/* Mute/Sound toggle pill */}
+                  {/* Explicit Save to Gallery / Download button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSaveMedia(message, 'video_note');
+                    }}
+                    className="absolute top-2 left-10 p-1.5 rounded-full bg-rose-600/90 text-white hover:bg-rose-500 backdrop-blur-sm shadow"
+                    title="Save Video Note to Gallery / Device"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                  </button>
+
+                  {/* Mute/Sound toggle button */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       setIsVideoNoteMuted(!isVideoNoteMuted);
                     }}
                     className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white hover:bg-black/80 backdrop-blur-sm"
+                    title={isVideoNoteMuted ? 'Unmute' : 'Mute'}
                   >
                     {isVideoNoteMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
                   </button>
@@ -398,6 +488,24 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                   <div className="absolute bottom-2 px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-sm text-[10px] font-mono text-white font-semibold">
                     0:{Math.floor(message.attachment.durationSeconds || 9).toString().padStart(2, '0')}
                   </div>
+                </div>
+
+                {/* Video Note Device Status pill */}
+                <div className="mt-1 flex items-center gap-1">
+                  {message.attachment.isDownloadedToDevice ? (
+                    <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-medium bg-slate-900/80 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                      Saved on device • Cloud purged
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => handleSaveMedia(message, 'video_note')}
+                      className="text-[10px] text-rose-300 hover:text-white flex items-center gap-1 bg-slate-900/80 px-2 py-0.5 rounded-full border border-rose-500/30 transition-colors"
+                    >
+                      <Download className="w-3 h-3" />
+                      Save to Gallery
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -429,6 +537,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               </div>
             )}
           </div>
+
+          {/* Toast on save */}
+          {justSavedNotification && (
+            <div className="absolute -top-7 left-0 right-0 mx-auto w-max px-2.5 py-1 rounded-full bg-slate-900 border border-emerald-500/40 text-emerald-300 text-[10px] font-semibold shadow-xl backdrop-blur-md flex items-center gap-1 animate-in fade-in slide-in-from-bottom-2 duration-150 z-20">
+              <HardDrive className="w-3 h-3 text-emerald-400" />
+              <span>{justSavedNotification}</span>
+            </div>
+          )}
 
           {/* Reactions Pill Display */}
           {message.reactions && message.reactions.length > 0 && (
@@ -489,17 +605,48 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         </div>
       </div>
 
-      {/* Image Zoom Modal */}
+      {/* Image Zoom Modal with explicit Save to Gallery button */}
       {showImageZoom && message.attachment && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-md"
+          className="fixed inset-0 z-[99999] flex flex-col items-center justify-between bg-black/95 p-4 sm:p-6 backdrop-blur-xl animate-in fade-in duration-200"
           onClick={() => setShowImageZoom(false)}
         >
-          <img
-            src={message.attachment.url}
-            alt="Zoomed"
-            className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl"
-          />
+          <div
+            className="w-full max-w-2xl flex items-center justify-between z-10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="text-xs text-slate-300 font-medium">{message.senderName} • Photo</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleSaveMedia(message, 'image')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold shadow-lg active:scale-95 transition-all"
+                title="Save Photo to Gallery / Files"
+              >
+                <Download className="w-4 h-4" />
+                <span>Save to Gallery</span>
+              </button>
+              <button
+                onClick={() => setShowImageZoom(false)}
+                className="p-2 rounded-full bg-slate-800 hover:bg-slate-700 text-white"
+                title="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-1 flex items-center justify-center p-2 max-w-4xl max-h-[80vh]">
+            <img
+              src={message.attachment.url}
+              alt="Zoomed"
+              className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl ring-1 ring-white/10"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+
+          <div className="text-center text-xs text-slate-400 z-10">
+            Ephemeral Photo • Saved to local device vault & purged from cloud upon download
+          </div>
         </div>
       )}
     </div>

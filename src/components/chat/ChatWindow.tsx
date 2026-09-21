@@ -302,6 +302,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         <VideoNotePlayerModal
           message={selectedVideoNote}
           onClose={() => setSelectedVideoNote(null)}
+          onDownloadAttachment={onDownloadAttachment}
         />
       )}
 

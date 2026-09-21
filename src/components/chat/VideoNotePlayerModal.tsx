@@ -1,19 +1,42 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { X, Play, Pause, Volume2, VolumeX, RotateCcw, ShieldCheck, Heart } from 'lucide-react';
+import {
+  X,
+  Play,
+  Pause,
+  Volume2,
+  VolumeX,
+  RotateCcw,
+  ShieldCheck,
+  Heart,
+  Download,
+  CheckCircle2,
+  HardDrive
+} from 'lucide-react';
 import { Message } from '../../types';
+import {
+  downloadMediaToDeviceGallery,
+  saveMediaToDeviceVault
+} from '../../lib/deviceMediaStorage';
 
 interface VideoNotePlayerModalProps {
   message: Message;
   onClose: () => void;
+  onDownloadAttachment?: (messageId: string) => void;
 }
 
-export const VideoNotePlayerModal: React.FC<VideoNotePlayerModalProps> = ({ message, onClose }) => {
+export const VideoNotePlayerModal: React.FC<VideoNotePlayerModalProps> = ({
+  message,
+  onClose,
+  onDownloadAttachment
+}) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(message.attachment?.durationSeconds || 0);
+  const [isSaved, setIsSaved] = useState(!!message.attachment?.isDownloadedToDevice);
+  const [statusNotification, setStatusNotification] = useState<string | null>(null);
 
   const videoUrl = message.attachment?.url;
 
@@ -28,6 +51,20 @@ export const VideoNotePlayerModal: React.FC<VideoNotePlayerModalProps> = ({ mess
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  // When played by receiver, save to device vault & trigger ephemeral cloud purge
+  useEffect(() => {
+    if (videoUrl && !isSaved) {
+      saveMediaToDeviceVault(
+        message.id,
+        videoUrl,
+        'video_note',
+        `cuddles_videonote_${message.id}.webm`
+      );
+      // Notify parent to purge cloud database payload
+      onDownloadAttachment?.(message.id);
+    }
+  }, [message.id, videoUrl]);
 
   const togglePlay = () => {
     if (!videoRef.current) return;
@@ -66,6 +103,29 @@ export const VideoNotePlayerModal: React.FC<VideoNotePlayerModalProps> = ({ mess
     setIsPlaying(true);
   };
 
+  const handleSaveToGallery = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!videoUrl) return;
+
+    setStatusNotification('Saving to Gallery & Local Storage...');
+    const filename = `cuddles_videonote_${Date.now()}.webm`;
+
+    // 1. Save to device IndexedDB vault
+    await saveMediaToDeviceVault(message.id, videoUrl, 'video_note', filename);
+
+    // 2. Download directly to device photos/gallery/disk
+    const res = await downloadMediaToDeviceGallery(videoUrl, filename, 'video/webm');
+
+    // 3. Trigger cloud purge
+    onDownloadAttachment?.(message.id);
+    setIsSaved(true);
+    setStatusNotification(res.success ? 'Saved to Gallery • Cloud Purged' : 'Saved locally');
+
+    setTimeout(() => {
+      setStatusNotification(null);
+    }, 3500);
+  };
+
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
     const s = Math.floor(secs % 60);
@@ -101,14 +161,38 @@ export const VideoNotePlayerModal: React.FC<VideoNotePlayerModalProps> = ({ mess
           </div>
         </div>
 
-        <button
-          onClick={onClose}
-          className="p-2.5 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer border border-slate-700/60 shadow-lg"
-          aria-label="Close video note"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Explicit Save to Gallery / Download File Button */}
+          <button
+            onClick={handleSaveToGallery}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold shadow-lg transition-all active:scale-95 ${
+              isSaved
+                ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40'
+                : 'bg-rose-600 hover:bg-rose-500 text-white'
+            }`}
+            title="Save video note to device gallery / storage"
+          >
+            {isSaved ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Download className="w-4 h-4" />}
+            <span>{isSaved ? 'Saved to Device' : 'Save to Gallery'}</span>
+          </button>
+
+          <button
+            onClick={onClose}
+            className="p-2.5 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer border border-slate-700/60 shadow-lg"
+            aria-label="Close video note"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
       </div>
+
+      {/* Toast Notification */}
+      {statusNotification && (
+        <div className="fixed top-16 z-50 px-4 py-2 rounded-full bg-slate-900/90 border border-rose-500/40 text-rose-200 text-xs font-medium shadow-2xl backdrop-blur-md flex items-center gap-2 animate-in slide-in-from-top duration-200">
+          <HardDrive className="w-4 h-4 text-rose-400" />
+          <span>{statusNotification}</span>
+        </div>
+      )}
 
       {/* Center: Circular Video Note Pop-Up */}
       <div
@@ -172,9 +256,16 @@ export const VideoNotePlayerModal: React.FC<VideoNotePlayerModalProps> = ({ mess
           </div>
         </div>
 
-        {/* Time Progress Label */}
-        <div className="mt-4 px-3.5 py-1 rounded-full bg-slate-900/80 border border-slate-700 text-xs font-mono text-slate-200">
-          {formatTime(currentTime)} / {formatTime(duration)}
+        {/* Time Progress Label & Storage Status */}
+        <div className="mt-4 flex items-center gap-2">
+          <div className="px-3.5 py-1 rounded-full bg-slate-900/80 border border-slate-700 text-xs font-mono text-slate-200">
+            {formatTime(currentTime)} / {formatTime(duration)}
+          </div>
+
+          <div className="flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-950/60 border border-emerald-600/40 text-[11px] text-emerald-300">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Ephemeral Vault</span>
+          </div>
         </div>
       </div>
 
@@ -205,6 +296,15 @@ export const VideoNotePlayerModal: React.FC<VideoNotePlayerModalProps> = ({ mess
           title={isMuted ? 'Unmute' : 'Mute'}
         >
           {isMuted ? <VolumeX className="w-5 h-5 text-rose-400" /> : <Volume2 className="w-5 h-5" />}
+        </button>
+
+        {/* Save to Gallery Button */}
+        <button
+          onClick={handleSaveToGallery}
+          className="p-3 rounded-full bg-slate-800/80 hover:bg-slate-700 text-rose-300 hover:text-white transition-colors border border-rose-500/40 shadow"
+          title="Save to Gallery / File Storage"
+        >
+          <Download className="w-5 h-5" />
         </button>
       </div>
     </div>

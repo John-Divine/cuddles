@@ -195,6 +195,28 @@ export async function syncMessageToFirestore(message: Message): Promise<void> {
 }
 
 /**
+ * Purge media payload from Firestore message so heavy files don't linger on the server
+ */
+export async function purgeMessageMediaFromFirestore(
+  conversationId: string,
+  messageId: string
+): Promise<void> {
+  const path = `conversations/${conversationId}/messages/${messageId}`;
+  try {
+    const msgRef = doc(db, 'conversations', messageId.startsWith('conv_') ? conversationId : conversationId, 'messages', messageId);
+    await updateDoc(msgRef, {
+      'attachment.url': '',
+      'attachment.isPurgedFromOnlineDatabase': true,
+      'attachment.isDownloadedToDevice': true,
+      'attachment.purgedAt': new Date().toISOString()
+    });
+    console.log(`Media payload purged from cloud database for message: ${messageId}`);
+  } catch (err) {
+    console.warn('Could not purge message media from Firestore (may already be offline/removed):', err);
+  }
+}
+
+/**
  * Real-time listener for messages in an active conversation
  */
 export function subscribeToConversationMessages(
