@@ -251,6 +251,37 @@ export function subscribeToConversationMessages(
 }
 
 /**
+ * Purge online messages older than 15 days from Firestore so nothing lingers indefinitely online,
+ * while leaving local client messages completely intact on device storage.
+ */
+export async function purgeExpiredOnlineMessagesFromFirestore(
+  conversationId: string,
+  olderThanDays: number = 15
+): Promise<number> {
+  const cutoffTime = new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000).toISOString();
+  try {
+    const messagesRef = collection(db, 'conversations', conversationId, 'messages');
+    const snapshot = await getDocs(messagesRef);
+    let deletedCount = 0;
+    for (const docSnap of snapshot.docs) {
+      const data = docSnap.data();
+      const time = data.createdAtISO || data.timestamp;
+      if (time && time < cutoffTime) {
+        await deleteDoc(doc(db, 'conversations', conversationId, 'messages', docSnap.id));
+        deletedCount++;
+      }
+    }
+    if (deletedCount > 0) {
+      console.log(`[Online Retention] Purged ${deletedCount} messages older than 15 days from Firestore: ${conversationId}`);
+    }
+    return deletedCount;
+  } catch (err) {
+    console.warn('Online purge error (may be offline):', err);
+    return 0;
+  }
+}
+
+/**
  * Sync schedule to Firestore
  */
 export async function syncScheduleToFirestore(schedule: ScheduleEvent): Promise<void> {

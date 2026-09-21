@@ -1,21 +1,23 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   X,
   Play,
   Pause,
   Volume2,
   VolumeX,
-  RotateCcw,
-  ShieldCheck,
-  Heart,
   Download,
+  RotateCcw,
   CheckCircle2,
-  HardDrive
+  Heart,
+  ShieldCheck,
+  HardDrive,
+  Sparkles
 } from 'lucide-react';
 import { Message } from '../../types';
 import {
   downloadMediaToDeviceGallery,
-  saveMediaToDeviceVault
+  saveMediaToDeviceVault,
+  getMediaFromDeviceVault
 } from '../../lib/deviceMediaStorage';
 
 interface VideoNotePlayerModalProps {
@@ -37,8 +39,21 @@ export const VideoNotePlayerModal: React.FC<VideoNotePlayerModalProps> = ({
   const [duration, setDuration] = useState(message.attachment?.durationSeconds || 0);
   const [isSaved, setIsSaved] = useState(!!message.attachment?.isDownloadedToDevice);
   const [statusNotification, setStatusNotification] = useState<string | null>(null);
+  const [videoUrl, setVideoUrl] = useState<string>(message.attachment?.url || '');
+  const [isAutoplayMutedBlocked, setIsAutoplayMutedBlocked] = useState(false);
 
-  const videoUrl = message.attachment?.url;
+  // If initial URL is empty or was purged from cloud, look in local device vault
+  useEffect(() => {
+    async function checkVault() {
+      if (!videoUrl) {
+        const vaultData = await getMediaFromDeviceVault(message.id);
+        if (vaultData) {
+          setVideoUrl(vaultData);
+        }
+      }
+    }
+    checkVault();
+  }, [message.id, videoUrl]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -47,10 +62,39 @@ export const VideoNotePlayerModal: React.FC<VideoNotePlayerModalProps> = ({
         e.preventDefault();
         togglePlay();
       }
+      if (e.key === 'm' || e.key === 'M') {
+        toggleMute();
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [isPlaying, isMuted]);
+
+  // Robust video autoplay handler with fallback if browser blocks unmuted audio
+  useEffect(() => {
+    if (videoRef.current && videoUrl) {
+      const playPromise = videoRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            setIsPlaying(true);
+            setIsAutoplayMutedBlocked(false);
+          })
+          .catch((err) => {
+            console.warn('Browser prevented unmuted autoplay, falling back to muted play:', err);
+            if (videoRef.current) {
+              videoRef.current.muted = true;
+              setIsMuted(true);
+              setIsAutoplayMutedBlocked(true);
+              videoRef.current
+                .play()
+                .then(() => setIsPlaying(true))
+                .catch(() => setIsPlaying(false));
+            }
+          });
+      }
+    }
+  }, [videoUrl]);
 
   // When played by receiver, save to device vault & trigger ephemeral cloud purge
   useEffect(() => {
@@ -69,19 +113,38 @@ export const VideoNotePlayerModal: React.FC<VideoNotePlayerModalProps> = ({
   const togglePlay = () => {
     if (!videoRef.current) return;
     if (videoRef.current.paused) {
-      videoRef.current.play();
-      setIsPlaying(true);
+      videoRef.current
+        .play()
+        .then(() => setIsPlaying(true))
+        .catch(() => {
+          if (videoRef.current) {
+            videoRef.current.muted = true;
+            setIsMuted(true);
+            videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+          }
+        });
     } else {
       videoRef.current.pause();
       setIsPlaying(false);
     }
   };
 
-  const toggleMute = (e: React.MouseEvent) => {
+  const toggleMute = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!videoRef.current) return;
+    const newMuted = !isMuted;
+    videoRef.current.muted = newMuted;
+    setIsMuted(newMuted);
+    setIsAutoplayMutedBlocked(false);
+  };
+
+  const unmuteAndPlay = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!videoRef.current) return;
-    videoRef.current.muted = !isMuted;
-    setIsMuted(!isMuted);
+    videoRef.current.muted = false;
+    setIsMuted(false);
+    setIsAutoplayMutedBlocked(false);
+    videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
   };
 
   const handleTimeUpdate = () => {
@@ -99,15 +162,14 @@ export const VideoNotePlayerModal: React.FC<VideoNotePlayerModalProps> = ({
     e.stopPropagation();
     if (!videoRef.current) return;
     videoRef.current.currentTime = 0;
-    videoRef.current.play();
-    setIsPlaying(true);
+    videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
   };
 
   const handleSaveToGallery = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!videoUrl) return;
 
-    setStatusNotification('Saving to Gallery & Local Storage...');
+    setStatusNotification('Saving to Gallery & Device Storage...');
     const filename = `cuddles_videonote_${Date.now()}.webm`;
 
     // 1. Save to device IndexedDB vault
@@ -119,7 +181,7 @@ export const VideoNotePlayerModal: React.FC<VideoNotePlayerModalProps> = ({
     // 3. Trigger cloud purge
     onDownloadAttachment?.(message.id);
     setIsSaved(true);
-    setStatusNotification(res.success ? 'Saved to Gallery • Cloud Purged' : 'Saved locally');
+    setStatusNotification(res.success ? 'Saved to Gallery • Cloud Purged' : 'Saved to Device Vault');
 
     setTimeout(() => {
       setStatusNotification(null);
@@ -234,7 +296,6 @@ export const VideoNotePlayerModal: React.FC<VideoNotePlayerModalProps> = ({
               <video
                 ref={videoRef}
                 src={videoUrl}
-                autoPlay
                 playsInline
                 loop
                 onTimeUpdate={handleTimeUpdate}
@@ -242,7 +303,18 @@ export const VideoNotePlayerModal: React.FC<VideoNotePlayerModalProps> = ({
                 className="w-full h-full object-cover"
               />
             ) : (
-              <div className="text-xs text-slate-400 p-4 text-center">Video preview unavailable</div>
+              <div className="text-xs text-slate-400 p-4 text-center">Video preview loading...</div>
+            )}
+
+            {/* Tap to Unmute Overlay if browser blocked audio */}
+            {isAutoplayMutedBlocked && (
+              <button
+                onClick={unmuteAndPlay}
+                className="absolute top-4 px-3 py-1.5 rounded-full bg-rose-600/90 hover:bg-rose-500 text-white text-xs font-bold shadow-lg backdrop-blur-md flex items-center gap-1.5 animate-bounce z-20"
+              >
+                <VolumeX className="w-3.5 h-3.5" />
+                <span>Tap to Unmute</span>
+              </button>
             )}
 
             {/* Play/Pause Overlay on Click/Pause */}
@@ -292,19 +364,14 @@ export const VideoNotePlayerModal: React.FC<VideoNotePlayerModalProps> = ({
 
         <button
           onClick={toggleMute}
-          className="p-3 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-200 hover:text-white transition-colors border border-slate-700/60 shadow"
+          className={`p-3 rounded-full transition-colors border shadow ${
+            isMuted
+              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+              : 'bg-slate-800/80 hover:bg-slate-700 text-slate-200 hover:text-white border-slate-700/60'
+          }`}
           title={isMuted ? 'Unmute' : 'Mute'}
         >
-          {isMuted ? <VolumeX className="w-5 h-5 text-rose-400" /> : <Volume2 className="w-5 h-5" />}
-        </button>
-
-        {/* Save to Gallery Button */}
-        <button
-          onClick={handleSaveToGallery}
-          className="p-3 rounded-full bg-slate-800/80 hover:bg-slate-700 text-rose-300 hover:text-white transition-colors border border-rose-500/40 shadow"
-          title="Save to Gallery / File Storage"
-        >
-          <Download className="w-5 h-5" />
+          {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
         </button>
       </div>
     </div>

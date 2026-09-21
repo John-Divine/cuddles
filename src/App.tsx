@@ -32,7 +32,8 @@ import {
   syncMessageToFirestore,
   purgeMessageMediaFromFirestore,
   syncConversationToFirestore,
-  subscribeToConversationMessages
+  subscribeToConversationMessages,
+  purgeExpiredOnlineMessagesFromFirestore
 } from './lib/firebase';
 import { saveMediaToDeviceVault } from './lib/deviceMediaStorage';
 import { encryptMessage } from './lib/encryption';
@@ -156,8 +157,13 @@ export default function App() {
   }, []);
 
   // Real-time listener for active conversation messages via Firebase Firestore
+  // Text messages disappear after 15 days online, while local client messages are kept permanently
   useEffect(() => {
     if (!activeConversationId) return;
+
+    // Purge messages older than 15 days from the online cloud database
+    purgeExpiredOnlineMessagesFromFirestore(activeConversationId, 15);
+
     const unsubscribe = subscribeToConversationMessages(activeConversationId, (cloudMsgs) => {
       if (cloudMsgs && cloudMsgs.length > 0) {
         setMessagesMap((prev) => {

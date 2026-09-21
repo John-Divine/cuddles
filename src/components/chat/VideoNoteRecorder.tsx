@@ -22,6 +22,7 @@ export const VideoNoteRecorder: React.FC<VideoNoteRecorderProps> = ({ onComplete
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const recordedBlobRef = useRef<Blob | null>(null);
   const timerRef = useRef<number | null>(null);
 
   // Stop current tracks helper
@@ -77,6 +78,7 @@ export const VideoNoteRecorder: React.FC<VideoNoteRecorderProps> = ({ onComplete
 
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: mimeType });
+        recordedBlobRef.current = blob;
         const url = URL.createObjectURL(blob);
         setReviewUrl(url);
         setRecordedDuration((prev) => (prev > 0 ? prev : 1));
@@ -146,8 +148,16 @@ export const VideoNoteRecorder: React.FC<VideoNoteRecorderProps> = ({ onComplete
 
   // Confirm and send video note
   const handleSend = () => {
-    if (reviewUrl) {
-      onComplete(reviewUrl, Math.max(1, recordedDuration));
+    const dur = Math.max(1, recordedDuration);
+    if (recordedBlobRef.current) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUrl = reader.result as string;
+        onComplete(dataUrl, dur);
+      };
+      reader.readAsDataURL(recordedBlobRef.current);
+    } else if (reviewUrl) {
+      onComplete(reviewUrl, dur);
     }
   };
 

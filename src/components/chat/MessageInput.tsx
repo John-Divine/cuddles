@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import {
   ArrowUp,
   Image as ImageIcon,
+  Camera,
   Mic,
   Video,
   Smile,
@@ -15,6 +16,7 @@ import {
 import { GifPicker } from './GifPicker';
 import { VoiceRecorder } from './VoiceRecorder';
 import { VideoNoteRecorder } from './VideoNoteRecorder';
+import { CameraCaptureModal } from './CameraCaptureModal';
 import { MessagePriority, MessageType } from '../../types';
 
 interface MessageInputProps {
@@ -65,6 +67,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [showGifPicker, setShowGifPicker] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [isRecordingVideoNote, setIsRecordingVideoNote] = useState(false);
+  const [isTakingPhoto, setIsTakingPhoto] = useState(false);
   const [pendingImage, setPendingImage] = useState<string | null>(null);
   const [pendingDocument, setPendingDocument] = useState<PendingDocument | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -171,6 +174,22 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             onSendMedia('video_note', url, duration);
           }}
           onCancel={() => setIsRecordingVideoNote(false)}
+        />
+      )}
+
+      {/* Camera Capture Modal (take photo with live camera viewfinder) */}
+      {isTakingPhoto && (
+        <CameraCaptureModal
+          onCapture={(imageDataUrl, caption) => {
+            setIsTakingPhoto(false);
+            if (caption && caption.trim()) {
+              onSendMedia('image', imageDataUrl, undefined, { fileName: `photo_${Date.now()}.jpg` });
+              onSendMessage(caption.trim(), isUrgent ? 'urgent' : 'normal');
+            } else {
+              onSendMedia('image', imageDataUrl, undefined, { fileName: `photo_${Date.now()}.jpg` });
+            }
+          }}
+          onClose={() => setIsTakingPhoto(false)}
         />
       )}
 
@@ -284,6 +303,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           <div className="flex items-end gap-1.5 sm:gap-2">
             {/* Attachment Actions */}
             <div className="flex items-center gap-0.5 pb-1">
+              <button
+                onClick={() => setIsTakingPhoto(true)}
+                className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 active:scale-95 transition-all"
+                title="Take Photo with Camera"
+              >
+                <Camera className="w-5 h-5" />
+              </button>
+
               <button
                 onClick={() => imageInputRef.current?.click()}
                 className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 active:scale-95 transition-all"

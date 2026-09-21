@@ -18,6 +18,7 @@ import { Conversation, Message, UserProfile, MessagePriority, MessageType } from
 import { MessageBubble } from './MessageBubble';
 import { MessageInput } from './MessageInput';
 import { VideoNotePlayerModal } from './VideoNotePlayerModal';
+import { VideoPlayerModal } from './VideoPlayerModal';
 import { SafetyNumberModal } from '../security/SafetyNumberModal';
 import { AUTO_PURGE_DAYS } from '../../lib/storage';
 
@@ -65,6 +66,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [showSafetyModal, setShowSafetyModal] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const [selectedVideoNote, setSelectedVideoNote] = useState<Message | null>(null);
+  const [selectedVideoFile, setSelectedVideoFile] = useState<Message | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const scrollToBottom = () => {
@@ -269,6 +271,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             isMe={msg.senderId === currentUser.id}
             onAddReaction={onAddReaction}
             onOpenVideoNoteModal={(videoMsg) => setSelectedVideoNote(videoMsg)}
+            onOpenVideoModal={(videoMsg) => setSelectedVideoFile(videoMsg)}
             onDownloadAttachment={onDownloadAttachment}
           />
         ))}
@@ -302,6 +305,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         <VideoNotePlayerModal
           message={selectedVideoNote}
           onClose={() => setSelectedVideoNote(null)}
+          onDownloadAttachment={onDownloadAttachment}
+        />
+      )}
+
+      {/* General Video File Fullscreen Player Modal */}
+      {selectedVideoFile && (
+        <VideoPlayerModal
+          message={selectedVideoFile}
+          onClose={() => setSelectedVideoFile(null)}
           onDownloadAttachment={onDownloadAttachment}
         />
       )}

@@ -432,7 +432,7 @@ const STORAGE_KEYS = {
   ACTIVE_ACCOUNT_ID: 'cuddles_active_account_id'
 };
 
-export const AUTO_PURGE_DAYS = 14; // Automatically empties cloud/text messages older than 14 days
+export const AUTO_PURGE_DAYS = 15; // Online text messages expire after 15 days, but local texts remain permanently intact
 
 export function getStoredAccounts(): UserAccount[] {
   return loadStoredData<UserAccount[]>(STORAGE_KEYS.ACCOUNTS, []);
@@ -517,34 +517,16 @@ export function registerNewAccount(params: {
 }
 
 /**
- * Ephemeral retention engine: Empties messages older than 14 days (13-15 days policy)
- * to keep database/storage footprint minimal and free.
+ * Retention policy: All text messages are retained locally permanently on the device,
+ * allowing the user to view their full message history seamlessly like nothing happened.
+ * Only the online cloud database purges messages older than 15 days.
  */
 export function purgeOldMessages(
   messagesMap: Record<string, Message[]>,
-  olderThanDays: number = AUTO_PURGE_DAYS
+  _olderThanDays: number = AUTO_PURGE_DAYS
 ): { cleanedCount: number; updatedMap: Record<string, Message[]> } {
-  const cutoffTime = Date.now() - olderThanDays * 24 * 60 * 60 * 1000;
-  let cleanedCount = 0;
-  const updatedMap: Record<string, Message[]> = {};
-
-  for (const [convId, list] of Object.entries(messagesMap)) {
-    const retained = list.filter((msg) => {
-      // Keep recent messages or media saved locally on device
-      if (msg.attachment?.isStoredLocally) return true;
-      if (msg.createdAtISO) {
-        const msgTime = new Date(msg.createdAtISO).getTime();
-        if (msgTime < cutoffTime) {
-          cleanedCount++;
-          return false;
-        }
-      }
-      return true;
-    });
-    updatedMap[convId] = retained;
-  }
-
-  return { cleanedCount, updatedMap };
+  // Local messages are never purged; they stay on the user's device permanently.
+  return { cleanedCount: 0, updatedMap: messagesMap };
 }
 
 export function loadStoredData<T>(key: string, fallback: T): T {

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Play,
   Pause,
@@ -21,7 +21,8 @@ import {
 import { Message } from '../../types';
 import {
   downloadMediaToDeviceGallery,
-  saveMediaToDeviceVault
+  saveMediaToDeviceVault,
+  getMediaFromDeviceVault
 } from '../../lib/deviceMediaStorage';
 
 interface MessageBubbleProps {
@@ -29,6 +30,7 @@ interface MessageBubbleProps {
   isMe: boolean;
   onAddReaction: (messageId: string, emoji: string) => void;
   onOpenVideoNoteModal?: (msg: Message) => void;
+  onOpenVideoModal?: (msg: Message) => void;
   onDownloadAttachment?: (messageId: string) => void;
 }
 
@@ -39,16 +41,34 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   isMe,
   onAddReaction,
   onOpenVideoNoteModal,
+  onOpenVideoModal,
   onDownloadAttachment
 }) => {
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [audioSpeed, setAudioSpeed] = useState<number>(1);
   const [audioProgress, setAudioProgress] = useState(0);
 
+  // Media source resolution (fallback to IndexedDB vault if cloud purged)
+  const [resolvedMediaUrl, setResolvedMediaUrl] = useState<string>(message.attachment?.url || '');
+
+  useEffect(() => {
+    if (!resolvedMediaUrl && message.attachment) {
+      getMediaFromDeviceVault(message.id).then((vaultData) => {
+        if (vaultData) setResolvedMediaUrl(vaultData);
+      });
+    }
+  }, [message.id, resolvedMediaUrl, message.attachment]);
+
   // Video note state
   const [isPlayingVideoNote, setIsPlayingVideoNote] = useState(false);
   const [isVideoNoteMuted, setIsVideoNoteMuted] = useState(false);
   const [videoProgress, setVideoProgress] = useState(0);
+
+  // Video file (regular attachment) state
+  const [isPlayingVideoFile, setIsPlayingVideoFile] = useState(false);
+  const [isVideoFileMuted, setIsVideoFileMuted] = useState(false);
+  const [videoFileProgress, setVideoFileProgress] = useState(0);
+  const [videoFileDuration, setVideoFileDuration] = useState(message.attachment?.durationSeconds || 0);
 
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [showImageZoom, setShowImageZoom] = useState(false);
@@ -56,6 +76,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const videoNoteRef = useRef<HTMLVideoElement | null>(null);
+  const videoFileRef = useRef<HTMLVideoElement | null>(null);
 
   // Universal Media Save & Purge Trigger
   const handleSaveMedia = async (
@@ -111,23 +132,60 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     }
   };
 
-  // Video note controls
+  // Video note inline controls
   const toggleVideoNote = () => {
-    if (onOpenVideoNoteModal) {
-      onOpenVideoNoteModal(message);
-      return;
-    }
     if (!videoNoteRef.current) return;
     if (isPlayingVideoNote) {
       videoNoteRef.current.pause();
       setIsPlayingVideoNote(false);
     } else {
-      videoNoteRef.current.play().catch(() => {});
-      setIsPlayingVideoNote(true);
+      const playPromise = videoNoteRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            setIsPlayingVideoNote(true);
+          })
+          .catch(() => {
+            // Autoplay with sound restricted, fallback to muted play
+            if (videoNoteRef.current) {
+              videoNoteRef.current.muted = true;
+              setIsVideoNoteMuted(true);
+              videoNoteRef.current.play().then(() => setIsPlayingVideoNote(true)).catch(() => {});
+            }
+          });
+      }
 
       // Auto-save to device & trigger purge on first play for receiver
       if (!isMe && !message.attachment?.isDownloadedToDevice) {
         handleSaveMedia(message, 'video_note');
+      }
+    }
+  };
+
+  // Video file controls
+  const toggleVideoFilePlay = () => {
+    if (!videoFileRef.current) return;
+    if (isPlayingVideoFile) {
+      videoFileRef.current.pause();
+      setIsPlayingVideoFile(false);
+    } else {
+      const playPromise = videoFileRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            setIsPlayingVideoFile(true);
+          })
+          .catch(() => {
+            if (videoFileRef.current) {
+              videoFileRef.current.muted = true;
+              setIsVideoFileMuted(true);
+              videoFileRef.current.play().then(() => setIsPlayingVideoFile(true)).catch(() => {});
+            }
+          });
+      }
+
+      if (!isMe && !message.attachment?.isDownloadedToDevice) {
+        handleSaveMedia(message, 'video');
       }
     }
   };
@@ -330,16 +388,128 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               </div>
             )}
 
-            {/* Content: DOCUMENT or ATTACHED VIDEO */}
-            {(message.type === 'document' || message.type === 'video') && message.attachment && (
+            {/* Content: ATTACHED VIDEO FILE (IN-APP PLAYABLE) */}
+            {message.type === 'video' && message.attachment && (
+              <div className="space-y-2 py-1 min-w-[260px] sm:min-w-[320px] max-w-sm">
+                <div className="relative rounded-2xl overflow-hidden bg-black aspect-video border border-rose-500/20 shadow-xl group/videofile">
+                  <video
+                    ref={videoFileRef}
+                    src={resolvedMediaUrl || message.attachment.url}
+                    playsInline
+                    loop
+                    muted={isVideoFileMuted}
+                    onTimeUpdate={() => {
+                      if (videoFileRef.current) {
+                        const curr = videoFileRef.current.currentTime;
+                        const dur = videoFileRef.current.duration || videoFileDuration || 1;
+                        setVideoFileProgress((curr / dur) * 100);
+                        if (!videoFileDuration && videoFileRef.current.duration) {
+                          setVideoFileDuration(videoFileRef.current.duration);
+                        }
+                      }
+                    }}
+                    onEnded={() => setIsPlayingVideoFile(false)}
+                    className="w-full h-full object-cover cursor-pointer"
+                    onClick={toggleVideoFilePlay}
+                  />
+
+                  {/* Play / Pause Center Overlay */}
+                  {!isPlayingVideoFile && (
+                    <div
+                      className="absolute inset-0 bg-black/40 flex items-center justify-center cursor-pointer"
+                      onClick={toggleVideoFilePlay}
+                    >
+                      <div className="w-14 h-14 rounded-full bg-rose-600/90 hover:bg-rose-500 text-white flex items-center justify-center shadow-2xl transition-transform hover:scale-110 active:scale-95">
+                        <Play className="w-7 h-7 fill-white ml-0.5" />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Top Bar: Expand / Fullscreen & Mute */}
+                  <div className="absolute top-2 left-2 right-2 flex items-center justify-between z-10 opacity-90 group-hover/videofile:opacity-100 transition-opacity">
+                    <span className="px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-sm text-[10px] text-white font-medium truncate max-w-[150px]">
+                      {message.attachment.fileName || 'Video'}
+                    </span>
+
+                    <div className="flex items-center gap-1.5">
+                      {/* Mute button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (videoFileRef.current) {
+                            videoFileRef.current.muted = !isVideoFileMuted;
+                            setIsVideoFileMuted(!isVideoFileMuted);
+                          }
+                        }}
+                        className="p-1.5 rounded-full bg-black/60 text-white hover:bg-black/80 backdrop-blur-sm transition-colors"
+                        title={isVideoFileMuted ? 'Unmute' : 'Mute'}
+                      >
+                        {isVideoFileMuted ? <VolumeX className="w-3.5 h-3.5 text-amber-400" /> : <Volume2 className="w-3.5 h-3.5" />}
+                      </button>
+
+                      {/* Fullscreen modal button */}
+                      {onOpenVideoModal && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenVideoModal(message);
+                          }}
+                          className="p-1.5 rounded-full bg-black/60 text-white hover:bg-black/80 backdrop-blur-sm transition-colors"
+                          title="Open Video in Fullscreen Player"
+                        >
+                          <Maximize2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Bottom Timeline Bar */}
+                  <div className="absolute bottom-0 inset-x-0 h-1 bg-white/20">
+                    <div
+                      className="h-full bg-rose-500 transition-all duration-100"
+                      style={{ width: `${videoFileProgress}%` }}
+                    />
+                  </div>
+                </div>
+
+                {message.text && (
+                  <p className="text-xs text-slate-200 px-1">{message.text}</p>
+                )}
+
+                {/* Video File Actions & Status */}
+                <div className="flex items-center justify-between gap-2 pt-0.5 px-0.5">
+                  <div className="text-[10px] text-slate-300">
+                    {message.attachment.isDownloadedToDevice ? (
+                      <span className="text-emerald-400 flex items-center gap-1 font-medium">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Saved on device
+                      </span>
+                    ) : (
+                      <span className="text-amber-300 flex items-center gap-1">
+                        <CloudOff className="w-3.5 h-3.5" />
+                        Purges online on save
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => handleSaveMedia(message, 'video')}
+                    className="py-1 px-2.5 rounded-lg text-[11px] font-bold flex items-center gap-1 bg-rose-600 hover:bg-rose-500 text-white shadow transition-all active:scale-95"
+                    title="Save video file to Gallery / Storage"
+                  >
+                    <Download className="w-3 h-3" />
+                    <span>Save to Gallery</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Content: DOCUMENT ATTACHMENT */}
+            {message.type === 'document' && message.attachment && (
               <div className="space-y-2 py-1 min-w-[220px] sm:min-w-[270px]">
                 <div className="flex items-start gap-3 p-2.5 rounded-xl bg-black/25 border border-white/10">
                   <div className="p-2.5 rounded-lg bg-rose-500/20 text-rose-300 shrink-0">
-                    {message.type === 'video' ? (
-                      <Film className="w-5 h-5" />
-                    ) : (
-                      <FileText className="w-5 h-5" />
-                    )}
+                    <FileText className="w-5 h-5" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <span className="font-semibold text-xs text-white block truncate" title={message.attachment.fileName}>
@@ -373,7 +543,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 {/* Explicit Download / Save Button */}
                 <div className="pt-0.5">
                   <button
-                    onClick={() => handleSaveMedia(message, message.type as any)}
+                    onClick={() => handleSaveMedia(message, 'document')}
                     className={`w-full py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow active:scale-98 ${
                       message.attachment.isDownloadedToDevice
                         ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
@@ -398,7 +568,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 >
                   <video
                     ref={videoNoteRef}
-                    src={message.attachment.url}
+                    src={resolvedMediaUrl || message.attachment.url}
                     playsInline
                     loop
                     muted={isVideoNoteMuted}
