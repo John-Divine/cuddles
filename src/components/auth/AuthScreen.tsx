@@ -13,7 +13,10 @@ import {
   UserPlus,
   LogIn,
   Camera,
-  Sparkle
+  Sparkle,
+  Download,
+  Smartphone,
+  Apple
 } from 'lucide-react';
 import {
   registerNewAccount,
@@ -24,6 +27,9 @@ import {
 } from '../../lib/storage';
 import { syncUserToFirestore } from '../../lib/firebase';
 import { UserAccount } from '../../types';
+import { PWAInstallBanner } from '../pwa/PWAInstallBanner';
+import { PWAInstallModal } from '../pwa/PWAInstallModal';
+import { usePWAInstall } from '../../hooks/usePWAInstall';
 
 interface AuthScreenProps {
   onAuthenticated: (account: UserAccount) => void;
@@ -49,6 +55,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [customAvatar, setCustomAvatar] = useState<string | null>(null);
+  const [showInstallModal, setShowInstallModal] = useState(false);
+  const { isInstalled, isInstallable, platformName, isIOS, isAndroid } = usePWAInstall();
 
   const existingAccounts = getStoredAccounts();
 
@@ -159,12 +167,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
   };
 
   return (
-    <div className="min-h-screen w-screen bg-gradient-to-b from-slate-950 via-slate-900 to-rose-950/40 text-slate-100 flex flex-col items-center justify-center p-4 sm:p-6 overflow-y-auto overflow-x-hidden selection:bg-rose-500 selection:text-white">
+    <div className="min-h-screen w-screen bg-gradient-to-b from-slate-950 via-slate-900 to-rose-950/40 text-slate-100 flex flex-col overflow-y-auto overflow-x-hidden selection:bg-rose-500 selection:text-white">
+      {/* PWA Install Banner at the top of Auth Screen */}
+      <PWAInstallBanner onOpenModal={() => setShowInstallModal(true)} />
+
       {/* Decorative ambient background glows */}
       <div className="fixed top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 bg-rose-600/15 rounded-full blur-3xl pointer-events-none -z-10 animate-pulse-ring" />
       <div className="fixed bottom-10 right-1/4 w-80 h-80 bg-pink-600/10 rounded-full blur-3xl pointer-events-none -z-10" />
 
-      <div className="w-full max-w-md my-auto flex flex-col py-6">
+      <div className="w-full max-w-md mx-auto my-auto flex flex-col py-6 px-4 sm:px-6">
         {/* Cuddles Brand Header */}
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-3xl bg-gradient-to-tr from-rose-600 via-pink-600 to-amber-500 p-0.5 shadow-xl shadow-rose-600/25 mb-3">
@@ -421,7 +432,33 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
             </div>
           </div>
         )}
+        {/* Install Cuddles Web App Button */}
+        {!isInstalled && (
+          <div className="mt-4 text-center">
+            <button
+              type="button"
+              onClick={() => setShowInstallModal(true)}
+              className="w-full py-2.5 px-4 rounded-2xl bg-gradient-to-r from-slate-900/90 to-rose-950/40 hover:from-slate-850 hover:to-rose-900/50 border border-rose-500/30 text-rose-200 hover:text-white text-xs font-semibold flex items-center justify-between transition-all cursor-pointer shadow-lg"
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center">
+                  <Download className="w-3.5 h-3.5" />
+                </div>
+                <span>Install Cuddles on {platformName}</span>
+              </div>
+              <span className="text-[10px] bg-rose-500/20 text-rose-300 font-bold px-2 py-0.5 rounded-full border border-rose-500/30">
+                Standalone App
+              </span>
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* PWA Install Modal */}
+      <PWAInstallModal
+        isOpen={showInstallModal}
+        onClose={() => setShowInstallModal(false)}
+      />
     </div>
   );
 };

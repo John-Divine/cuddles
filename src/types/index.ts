@@ -54,11 +54,14 @@ export interface ContactRequest {
   senderAvatar: string;
   receiverId: string;
   receiverUsername: string;
+  receiverName?: string;
+  receiverAvatar?: string;
   relationshipType: RelationshipType;
   partnerNickname?: string;
   partnerAnniversary?: string;
   status: 'pending' | 'accepted' | 'declined';
   createdAt: string;
+  respondedAt?: string;
 }
 
 export type MessageType = 'text' | 'image' | 'voice' | 'video_note' | 'gif' | 'system' | 'document' | 'video';
@@ -174,6 +177,10 @@ export interface CallSignal {
   createdAt: string;
   endedAt?: string;
   answeredBy?: string;
+  offer?: { type: string; sdp: string };
+  answer?: { type: string; sdp: string };
+  callerCandidates?: any[];
+  calleeCandidates?: any[];
 }
 
 export interface ScheduleEvent {

@@ -53,8 +53,12 @@ service cloud.firestore {
       allow create, update, delete: if isSignedIn() || request.auth == null;
     }
 
-    // Calls Collection (Real-time audio & video call signaling)
+    // Calls Collection (Real-time audio & video call signaling and ICE exchange)
     match /calls/{callId} {
+      allow read: if isSignedIn() || request.auth == null;
+      allow create, update, delete: if isSignedIn() || request.auth == null;
+    }
+    match /calls/{callId}/{document=**} {
       allow read: if isSignedIn() || request.auth == null;
       allow create, update, delete: if isSignedIn() || request.auth == null;
     }

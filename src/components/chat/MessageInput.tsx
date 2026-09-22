@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   ArrowUp,
   Image as ImageIcon,
@@ -11,7 +11,8 @@ import {
   X,
   Zap,
   BellRing,
-  Moon
+  Moon,
+  Plus
 } from 'lucide-react';
 import { GifPicker } from './GifPicker';
 import { VoiceRecorder } from './VoiceRecorder';
@@ -72,10 +73,29 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [pendingDocument, setPendingDocument] = useState<PendingDocument | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [isUrgent, setIsUrgent] = useState(false);
+  const [showPlusMenu, setShowPlusMenu] = useState(false);
 
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const docInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const plusMenuRef = useRef<HTMLDivElement | null>(null);
+
+  // Close plus menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (plusMenuRef.current && !plusMenuRef.current.contains(e.target as Node)) {
+        setShowPlusMenu(false);
+      }
+    };
+    if (showPlusMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [showPlusMenu]);
 
   const handleSend = () => {
     if (pendingDocument) {
@@ -300,10 +320,126 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           />
 
           {/* Main Input Row */}
-          <div className="flex items-end gap-1.5 sm:gap-2">
-            {/* Attachment Actions */}
-            <div className="flex items-center gap-0.5 pb-1">
+          <div className="flex items-end gap-1.5 sm:gap-2 relative">
+            {/* Mobile Plus (+) Button & Expandable Action Menu */}
+            <div className="relative pb-0.5 sm:hidden" ref={plusMenuRef}>
               <button
+                type="button"
+                onClick={() => setShowPlusMenu(!showPlusMenu)}
+                className={`w-10 h-10 rounded-2xl flex items-center justify-center border transition-all active:scale-95 shadow-sm ${
+                  showPlusMenu
+                    ? 'bg-rose-500/20 text-rose-400 border-rose-500/50 rotate-45'
+                    : 'bg-slate-800/90 text-slate-300 hover:text-white border-slate-700/70 hover:bg-slate-700/80'
+                }`}
+                title="Options & Attachments"
+                aria-label="Add attachment"
+              >
+                <Plus className="w-5 h-5 transition-transform duration-200" />
+              </button>
+
+              {/* Mobile Attachments Popup Menu */}
+              {showPlusMenu && (
+                <div className="absolute bottom-12 left-0 w-52 rounded-2xl bg-slate-900/95 border border-slate-700 shadow-2xl p-1.5 z-50 backdrop-blur-xl animate-in fade-in slide-in-from-bottom-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPlusMenu(false);
+                      setIsTakingPhoto(true);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left hover:bg-slate-800 text-slate-200 text-xs transition-colors"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-rose-500/15 text-rose-400 flex items-center justify-center">
+                      <Camera className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="font-semibold">Take Photo</div>
+                      <div className="text-[10px] text-slate-400">Camera snapshot</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPlusMenu(false);
+                      imageInputRef.current?.click();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left hover:bg-slate-800 text-slate-200 text-xs transition-colors"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-pink-500/15 text-pink-400 flex items-center justify-center">
+                      <ImageIcon className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="font-semibold">Photo Library</div>
+                      <div className="text-[10px] text-slate-400">Send photos & images</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPlusMenu(false);
+                      docInputRef.current?.click();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left hover:bg-slate-800 text-slate-200 text-xs transition-colors"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-indigo-500/15 text-indigo-400 flex items-center justify-center">
+                      <Paperclip className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="font-semibold">Document / Video</div>
+                      <div className="text-[10px] text-slate-400">Files up to 50MB</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPlusMenu(false);
+                      setShowGifPicker(true);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left hover:bg-slate-800 text-slate-200 text-xs transition-colors"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-purple-500/15 text-purple-400 flex items-center justify-center">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="font-semibold">Cuddle GIF</div>
+                      <div className="text-[10px] text-slate-400">Romantic reactions</div>
+                    </div>
+                  </button>
+
+                  <div className="my-1 border-t border-slate-800" />
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsUrgent(!isUrgent);
+                      setShowPlusMenu(false);
+                    }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left text-xs transition-colors ${
+                      isUrgent
+                        ? 'bg-rose-500/20 text-rose-300'
+                        : 'hover:bg-slate-800 text-slate-300'
+                    }`}
+                  >
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                      isUrgent ? 'bg-rose-500 text-white' : 'bg-amber-500/15 text-amber-400'
+                    }`}>
+                      <Zap className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="font-semibold">{isUrgent ? 'Urgent Enabled' : 'Urgent Mode'}</div>
+                      <div className="text-[10px] text-slate-400">Bypasses quiet schedule</div>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Desktop Direct Action Icons */}
+            <div className="hidden sm:flex items-center gap-0.5 pb-1">
+              <button
+                type="button"
                 onClick={() => setIsTakingPhoto(true)}
                 className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 active:scale-95 transition-all"
                 title="Take Photo with Camera"
@@ -312,6 +448,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               </button>
 
               <button
+                type="button"
                 onClick={() => imageInputRef.current?.click()}
                 className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 active:scale-95 transition-all"
                 title="Attach Photo (Max 50MB)"
@@ -320,6 +457,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               </button>
 
               <button
+                type="button"
                 onClick={() => docInputRef.current?.click()}
                 className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 active:scale-95 transition-all"
                 title="Attach Document or Video (Max 50MB)"
@@ -328,6 +466,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               </button>
 
               <button
+                type="button"
                 onClick={() => setShowGifPicker(!showGifPicker)}
                 className="p-2 rounded-xl text-slate-400 hover:text-purple-400 hover:bg-slate-800/80 active:scale-95 transition-all"
                 title="Send Cuddle GIF"
@@ -337,6 +476,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
               {/* Quick Urgent / Priority Toggle */}
               <button
+                type="button"
                 onClick={() => setIsUrgent(!isUrgent)}
                 className={`p-2 rounded-xl active:scale-95 transition-all ${
                   isUrgent
@@ -372,10 +512,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             </div>
 
             {/* Action Buttons: If text entered -> Distinctive Upward Speed Send Button. If empty -> Mic & Video Note */}
-            <div className="flex items-center gap-1 pb-1">
+            <div className="flex items-center gap-1 pb-0.5 sm:pb-1 shrink-0">
               {text.trim() || pendingImage || pendingDocument ? (
                 /* Distinctive Send Button with Modern ArrowUp Icon inside romantic glowing gradient */
                 <button
+                  type="button"
                   onClick={handleSend}
                   className={`w-10 h-10 rounded-2xl text-white flex items-center justify-center shadow-lg active:scale-95 transition-all ${
                     isUrgent
@@ -391,18 +532,22 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 <>
                   {/* Video Note Button */}
                   <button
+                    type="button"
                     onClick={() => setIsRecordingVideoNote(true)}
-                    className="p-2.5 rounded-2xl bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 active:scale-95 border border-slate-700/60 shadow-sm transition-all"
+                    className="w-10 h-10 sm:w-auto sm:h-auto sm:p-2.5 rounded-2xl bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 active:scale-95 border border-slate-700/60 shadow-sm transition-all flex items-center justify-center"
                     title="Record Circular Video Note"
+                    aria-label="Record Video Note"
                   >
                     <Video className="w-4.5 h-4.5" />
                   </button>
 
                   {/* Voice Note Button */}
                   <button
+                    type="button"
                     onClick={() => setIsRecordingVoice(true)}
-                    className="p-2.5 rounded-2xl bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 active:scale-95 border border-slate-700/60 shadow-sm transition-all"
+                    className="w-10 h-10 sm:w-auto sm:h-auto sm:p-2.5 rounded-2xl bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 active:scale-95 border border-slate-700/60 shadow-sm transition-all flex items-center justify-center"
                     title="Record Voice Note"
+                    aria-label="Record Voice Note"
                   >
                     <Mic className="w-4.5 h-4.5" />
                   </button>

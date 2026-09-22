@@ -230,9 +230,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const isBusy = recipient?.currentSchedule?.isBusy ?? false;
 
   return (
-    <main className="flex-1 flex flex-col h-full bg-slate-950 text-slate-100 relative overflow-hidden">
-      {/* Header */}
-      <header className="p-3 sm:px-4 bg-slate-900/95 border-b border-rose-950/40 flex items-center justify-between gap-2 z-20 backdrop-blur-xl">
+    <main className="flex-1 flex flex-col h-full min-h-0 bg-slate-950 text-slate-100 relative overflow-hidden">
+      {/* Header - Fixed & Locked at top */}
+      <header className="shrink-0 sticky top-0 p-2.5 sm:p-3 sm:px-4 bg-slate-900/95 border-b border-rose-950/40 flex items-center justify-between gap-2 z-30 backdrop-blur-xl">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           {/* Mobile hamburger menu */}
           <button
@@ -377,7 +377,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
       {/* Recipient Busy & Focus Schedule Banner */}
       {isBusy && recipient && (
-        <div className="bg-amber-950/50 border-b border-amber-600/30 px-3.5 py-2 flex items-center justify-between gap-2 text-xs text-amber-200 z-10 animate-in slide-in-from-top-2">
+        <div className="shrink-0 bg-amber-950/50 border-b border-amber-600/30 px-3.5 py-2 flex items-center justify-between gap-2 text-xs text-amber-200 z-10 animate-in slide-in-from-top-2">
           <div className="flex items-center gap-2 truncate">
             <Moon className="w-4 h-4 text-amber-400 shrink-0" />
             <span className="truncate">
@@ -392,13 +392,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       )}
 
       {/* Ephemeral Text & Device Media Notice */}
-      <div className="bg-slate-900/60 border-b border-rose-950/30 px-3 py-1 text-center text-[11px] text-slate-400 flex items-center justify-center gap-1.5">
+      <div className="shrink-0 bg-slate-900/60 border-b border-rose-950/30 px-3 py-1 text-center text-[11px] text-slate-400 flex items-center justify-center gap-1.5">
         <HardDrive className="w-3 h-3 text-rose-400" />
         <span>Media stored on device • Online texts auto-purge every {AUTO_PURGE_DAYS} days</span>
       </div>
 
-      {/* Messages Scroll Area */}
-      <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-2">
+      {/* Messages Scroll Area - Scrollable with min-h-0 */}
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-2 sm:p-4 space-y-2">
         {/* E2EE Guarantee Banner */}
         <div className="my-3 p-3 max-w-sm mx-auto rounded-2xl bg-slate-900/80 border border-slate-800 text-center text-xs text-slate-400 shadow-sm flex flex-col items-center gap-1.5">
           <div className="w-7 h-7 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
@@ -440,14 +440,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Message Input Bottom Bar */}
-      <MessageInput
-        onSendMessage={onSendMessage}
-        onSendMedia={onSendMedia}
-        recipientIsBusy={isBusy}
-        recipientName={recipient?.name}
-        recipientActivity={recipient?.currentSchedule?.activityTitle}
-      />
+      {/* Message Input Bottom Bar - Locked & Sticky at bottom */}
+      <footer className="shrink-0 sticky bottom-0 z-20 w-full">
+        <MessageInput
+          onSendMessage={onSendMessage}
+          onSendMedia={onSendMedia}
+          recipientIsBusy={isBusy}
+          recipientName={recipient?.name}
+          recipientActivity={recipient?.currentSchedule?.activityTitle}
+        />
+      </footer>
 
       {/* Video Note Fullscreen Player Modal */}
       {selectedVideoNote && (

@@ -16,10 +16,12 @@ import {
   Moon,
   HardDrive,
   Bell,
-  UserPlus
+  UserPlus,
+  Download
 } from 'lucide-react';
 import { Conversation, UserProfile } from '../../types';
 import { AUTO_PURGE_DAYS } from '../../lib/storage';
+import { usePWAInstall } from '../../hooks/usePWAInstall';
 
 interface SidebarProps {
   conversations: Conversation[];
@@ -35,6 +37,7 @@ interface SidebarProps {
   onOpenProfileModal: () => void;
   onOpenRequestsModal?: () => void;
   onOpenAddContactModal?: () => void;
+  onOpenInstallModal?: () => void;
   onStartCall: (conversationId: string, type: 'audio' | 'video') => void;
   isMobileOpen?: boolean;
   onCloseMobile?: () => void;
@@ -54,10 +57,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenProfileModal,
   onOpenRequestsModal,
   onOpenAddContactModal,
+  onOpenInstallModal,
   onStartCall,
   isMobileOpen = false,
   onCloseMobile,
 }) => {
+  const { isInstalled, platformName } = usePWAInstall();
   const [activeTab, setActiveTab] = useState<'all' | 'partners' | 'groups' | 'friends'>('all');
   const [search, setSearch] = useState('');
 
@@ -350,6 +355,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
           })
         )}
       </div>
+
+      {/* PWA Install Button on Any Device */}
+      {!isInstalled && onOpenInstallModal && (
+        <div className="px-3 py-2 border-t border-rose-950/40 bg-gradient-to-r from-rose-950/30 to-slate-900">
+          <button
+            type="button"
+            onClick={onOpenInstallModal}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-800/80 hover:bg-rose-900/40 border border-rose-500/30 text-xs text-rose-200 hover:text-white transition-all cursor-pointer shadow-sm"
+          >
+            <div className="flex items-center gap-2">
+              <Download className="w-3.5 h-3.5 text-rose-400" />
+              <span className="font-semibold">Install App</span>
+            </div>
+            <span className="text-[10px] bg-rose-500/20 text-rose-300 font-bold px-1.5 py-0.5 rounded-md border border-rose-500/30">
+              {platformName}
+            </span>
+          </button>
+        </div>
+      )}
 
       {/* Bottom Footer Actions */}
       <div className="p-3 border-t border-rose-950/40 bg-slate-950/70 flex items-center justify-between text-xs text-slate-400">

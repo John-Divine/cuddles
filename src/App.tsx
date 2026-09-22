@@ -71,6 +71,7 @@ import { ProfileModal } from './components/profile/ProfileModal';
 import { AddContactModal } from './components/contacts/AddContactModal';
 import { RequestsModal } from './components/contacts/RequestsModal';
 import { PWAInstallBanner } from './components/pwa/PWAInstallBanner';
+import { PWAInstallModal } from './components/pwa/PWAInstallModal';
 import { OfflineIndicator } from './components/pwa/OfflineIndicator';
 
 export default function App() {
@@ -187,6 +188,7 @@ export default function App() {
   const [showPartnersModal, setShowPartnersModal] = useState(false);
   const [showFriendsModal, setShowFriendsModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [showInstallModal, setShowInstallModal] = useState(false);
   const [viewingProfile, setViewingProfile] = useState<{
     user: UserProfile;
     isOwn: boolean;
@@ -1247,7 +1249,7 @@ export default function App() {
   return (
     <div className="flex flex-col h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden select-none font-sans antialiased">
       {/* PWA In-App Install Banner & Offline Notice */}
-      <PWAInstallBanner />
+      <PWAInstallBanner onOpenModal={() => setShowInstallModal(true)} />
       <OfflineIndicator />
 
       {/* Main Container */}
@@ -1273,6 +1275,7 @@ export default function App() {
             setAddContactType('friend');
             setShowAddContactModal(true);
           }}
+          onOpenInstallModal={() => setShowInstallModal(true)}
           onStartCall={(convId, type) => {
             setActiveConversationId(convId);
             handleStartCall(type);
@@ -1559,6 +1562,12 @@ export default function App() {
           onClose={() => setViewingProfile(null)}
         />
       )}
+
+      {/* PWA Install Modal */}
+      <PWAInstallModal
+        isOpen={showInstallModal}
+        onClose={() => setShowInstallModal(false)}
+      />
     </div>
   );
 }

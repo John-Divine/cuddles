@@ -14,10 +14,14 @@ import {
   Sun,
   MapPin,
   Calendar,
-  LogOut
+  LogOut,
+  Download,
+  Smartphone
 } from 'lucide-react';
 import { UserProfile, DayScheduleStatus } from '../../types';
 import { AUTO_PURGE_DAYS } from '../../lib/storage';
+import { usePWAInstall } from '../../hooks/usePWAInstall';
+import { PWAInstallModal } from '../pwa/PWAInstallModal';
 
 interface ProfileModalProps {
   user: UserProfile;
@@ -41,6 +45,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [bio, setBio] = useState(user.bio || '');
   const [location, setLocation] = useState(user.location || '');
   const [partnerNickname, setPartnerNickname] = useState(user.partnerNickname || '');
+  const [showInstallModal, setShowInstallModal] = useState(false);
+  const { isInstalled, platformName } = usePWAInstall();
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -313,6 +319,28 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             </span>
           </div>
 
+          {/* PWA App Installation Option */}
+          {!isInstalled && (
+            <div className="p-3 rounded-2xl bg-gradient-to-r from-rose-950/40 via-slate-950 to-pink-950/30 border border-rose-500/30 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
+                  <Download className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="font-bold text-white block">Install on {platformName}</span>
+                  <span className="text-[11px] text-slate-400">Launch fullscreen from your home screen</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInstallModal(true)}
+                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-bold text-xs shadow-md shadow-rose-600/30 cursor-pointer transition-all active:scale-95"
+              >
+                Install
+              </button>
+            </div>
+          )}
+
           {/* Sign Out / Switch Account */}
           {isOwnProfile && onSignOut && (
             <div className="pt-2">
@@ -331,6 +359,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           )}
         </div>
       </div>
+
+      {/* PWA Install Modal */}
+      <PWAInstallModal
+        isOpen={showInstallModal}
+        onClose={() => setShowInstallModal(false)}
+      />
     </div>
   );
 };

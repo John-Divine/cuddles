@@ -14,7 +14,8 @@ import {
   onSnapshot,
   getDocFromServer,
   Unsubscribe,
-  serverTimestamp
+  serverTimestamp,
+  arrayUnion
 } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import firebaseConfigData from '../../firebase-applet-config.json';
@@ -417,14 +418,27 @@ export async function sendContactRequestToFirestore(request: ContactRequest): Pr
  */
 export async function updateContactRequestStatusInFirestore(
   requestId: string,
-  status: 'accepted' | 'declined'
+  status: 'accepted' | 'declined',
+  responderData?: {
+    receiverId?: string;
+    receiverName?: string;
+    receiverUsername?: string;
+    receiverAvatar?: string;
+  }
 ): Promise<void> {
   try {
     const reqRef = doc(db, 'contact_requests', requestId);
-    await updateDoc(reqRef, {
+    const updates: Record<string, any> = {
       status,
       respondedAt: new Date().toISOString()
-    });
+    };
+    if (responderData) {
+      if (responderData.receiverId) updates.receiverId = responderData.receiverId;
+      if (responderData.receiverName) updates.receiverName = responderData.receiverName;
+      if (responderData.receiverUsername) updates.receiverUsername = responderData.receiverUsername;
+      if (responderData.receiverAvatar) updates.receiverAvatar = responderData.receiverAvatar;
+    }
+    await updateDoc(reqRef, sanitizeForFirestore(updates));
     console.log(`Contact request ${requestId} updated to ${status}`);
   } catch (err) {
     console.warn('Could not update contact request status:', err);
@@ -598,3 +612,54 @@ export function subscribeToCallStatus(
     return () => {};
   }
 }
+
+/**
+ * Save WebRTC SDP Offer to Firestore
+ */
+export async function saveCallOffer(callId: string, offer: { type: string; sdp: string }): Promise<void> {
+  try {
+    const callRef = doc(db, 'calls', callId);
+    await updateDoc(callRef, {
+      offer: { type: offer.type, sdp: offer.sdp }
+    });
+    console.log(`[WebRTC] Saved SDP Offer for call ${callId}`);
+  } catch (err) {
+    console.warn('Could not save call offer in Firestore:', err);
+  }
+}
+
+/**
+ * Save WebRTC SDP Answer to Firestore
+ */
+export async function saveCallAnswer(callId: string, answer: { type: string; sdp: string }): Promise<void> {
+  try {
+    const callRef = doc(db, 'calls', callId);
+    await updateDoc(callRef, {
+      answer: { type: answer.type, sdp: answer.sdp },
+      status: 'connected'
+    });
+    console.log(`[WebRTC] Saved SDP Answer for call ${callId}`);
+  } catch (err) {
+    console.warn('Could not save call answer in Firestore:', err);
+  }
+}
+
+/**
+ * Add ICE candidate to Firestore
+ */
+export async function addCallIceCandidate(
+  callId: string,
+  role: 'caller' | 'callee',
+  candidate: any
+): Promise<void> {
+  try {
+    const callRef = doc(db, 'calls', callId);
+    const field = role === 'caller' ? 'callerCandidates' : 'calleeCandidates';
+    await updateDoc(callRef, {
+      [field]: arrayUnion(candidate)
+    });
+  } catch (err) {
+    console.warn(`Could not add ${role} ICE candidate:`, err);
+  }
+}
+
