@@ -2,6 +2,7 @@ import { UserProfile, Conversation, Message, ScheduleEvent, UserAccount } from '
 
 export const CURRENT_USER: UserProfile = {
   id: 'user_me',
+  username: 'alex',
   name: 'Alex Rivera',
   email: 'alex@cuddles.app',
   avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
@@ -469,16 +470,20 @@ export function setActiveAccountId(id: string | null): void {
   }
 }
 
-export function authenticateAccount(email: string, pass: string): UserAccount | null {
+export function authenticateAccount(identifier: string, pass: string): UserAccount | null {
   const accounts = getStoredAccounts();
+  const clean = identifier.trim().replace(/^@/, '').toLowerCase();
   const found = accounts.find(
-    (a) => a.email.toLowerCase() === email.trim().toLowerCase() && a.password === pass
+    (a) =>
+      (a.email.toLowerCase() === clean || (a.username && a.username.toLowerCase() === clean)) &&
+      a.password === pass
   );
   return found || null;
 }
 
 export function registerNewAccount(params: {
   name: string;
+  username?: string;
   email: string;
   password: string;
   avatar?: string;
@@ -488,17 +493,39 @@ export function registerNewAccount(params: {
 }): UserAccount {
   const id = 'acc_' + Date.now();
   const hex = Math.random().toString(16).substring(2, 10).toUpperCase();
+  
+  // Clean or derive username
+  let cleanUsername = (params.username || '')
+    .trim()
+    .replace(/^@/, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '');
+
+  if (!cleanUsername) {
+    cleanUsername = params.name.trim().toLowerCase().replace(/[^a-z0-9]/g, '') || 'user' + Math.floor(Math.random() * 1000);
+  }
+
+  // Ensure unique username
+  const existingAccounts = getStoredAccounts();
+  let candidateUsername = cleanUsername;
+  let counter = 1;
+  while (existingAccounts.some((a) => a.username && a.username.toLowerCase() === candidateUsername)) {
+    candidateUsername = `${cleanUsername}${counter++}`;
+  }
+
   const newAccount: UserAccount = {
     id,
+    username: candidateUsername,
     name: params.name.trim(),
     email: params.email.trim().toLowerCase(),
     password: params.password,
     avatar:
       params.avatar ||
-      `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
+      `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(candidateUsername)}`,
     createdAt: new Date().toISOString(),
+    contactIds: [],
     safetyFingerprint: hex,
-    bio: params.bio || 'In an intimate sanctuary with my favorite person.',
+    bio: params.bio || 'In a private sanctuary with my favorite people.',
     partnerNickname: params.partnerNickname || 'My Love',
     partnerAnniversary: params.partnerAnniversary,
     status: 'Here with you 💕',
@@ -514,6 +541,48 @@ export function registerNewAccount(params: {
   saveStoredAccount(newAccount);
   setActiveAccountId(id);
   return newAccount;
+}
+
+/**
+ * Account-isolated storage helpers
+ * Guarantees that users only see their own contacts, conversations, and messages.
+ * No demo accounts leak into real registered accounts!
+ */
+export function getUserScopedKey(userId: string, key: string): string {
+  return `cuddles_user_${userId}_${key}`;
+}
+
+export function getUserContacts(userId: string): UserProfile[] {
+  if (userId === 'user_me') {
+    return loadStoredData<UserProfile[]>(getUserScopedKey(userId, 'contacts'), INITIAL_CONTACTS);
+  }
+  return loadStoredData<UserProfile[]>(getUserScopedKey(userId, 'contacts'), []);
+}
+
+export function saveUserContacts(userId: string, contacts: UserProfile[]): void {
+  saveStoredData(getUserScopedKey(userId, 'contacts'), contacts);
+}
+
+export function getUserConversations(userId: string): Conversation[] {
+  if (userId === 'user_me') {
+    return loadStoredData<Conversation[]>(getUserScopedKey(userId, 'conversations'), INITIAL_CONVERSATIONS);
+  }
+  return loadStoredData<Conversation[]>(getUserScopedKey(userId, 'conversations'), []);
+}
+
+export function saveUserConversations(userId: string, conversations: Conversation[]): void {
+  saveStoredData(getUserScopedKey(userId, 'conversations'), conversations);
+}
+
+export function getUserMessages(userId: string): Record<string, Message[]> {
+  if (userId === 'user_me') {
+    return loadStoredData<Record<string, Message[]>>(getUserScopedKey(userId, 'messages'), INITIAL_MESSAGES);
+  }
+  return loadStoredData<Record<string, Message[]>>(getUserScopedKey(userId, 'messages'), {});
+}
+
+export function saveUserMessages(userId: string, messages: Record<string, Message[]>): void {
+  saveStoredData(getUserScopedKey(userId, 'messages'), messages);
 }
 
 /**

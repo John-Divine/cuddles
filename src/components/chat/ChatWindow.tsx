@@ -12,7 +12,12 @@ import {
   Moon,
   User,
   Zap,
-  HardDrive
+  HardDrive,
+  Heart,
+  UserPlus,
+  Copy,
+  Check,
+  Inbox
 } from 'lucide-react';
 import { Conversation, Message, UserProfile, MessagePriority, MessageType } from '../../types';
 import { MessageBubble } from './MessageBubble';
@@ -23,7 +28,7 @@ import { SafetyNumberModal } from '../security/SafetyNumberModal';
 import { AUTO_PURGE_DAYS } from '../../lib/storage';
 
 interface ChatWindowProps {
-  conversation: Conversation;
+  conversation?: Conversation | null;
   messages: Message[];
   currentUser: UserProfile;
   recipient?: UserProfile;
@@ -46,6 +51,9 @@ interface ChatWindowProps {
   onToggleMobileSidebar: () => void;
   onViewProfile?: (user: UserProfile) => void;
   onUpdateDisappearingTimer?: (minutes: number) => void;
+  onOpenAddContactModal?: () => void;
+  pendingRequestsCount?: number;
+  onOpenRequestsModal?: () => void;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -54,6 +62,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   currentUser,
   recipient,
   typingUserNames = [],
+  pendingRequestsCount = 0,
   onSendMessage,
   onSendMedia,
   onAddReaction,
@@ -62,11 +71,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onToggleMobileSidebar,
   onViewProfile,
   onUpdateDisappearingTimer,
+  onOpenAddContactModal,
+  onOpenRequestsModal,
 }) => {
   const [showSafetyModal, setShowSafetyModal] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const [selectedVideoNote, setSelectedVideoNote] = useState<Message | null>(null);
   const [selectedVideoFile, setSelectedVideoFile] = useState<Message | null>(null);
+  const [copiedUsername, setCopiedUsername] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const scrollToBottom = () => {
@@ -76,6 +88,143 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   useEffect(() => {
     scrollToBottom();
   }, [messages.length, typingUserNames.length]);
+
+  const handleCopyUsername = () => {
+    if (currentUser.username) {
+      navigator.clipboard.writeText(`@${currentUser.username}`);
+      setCopiedUsername(true);
+      setTimeout(() => setCopiedUsername(false), 2000);
+    }
+  };
+
+  // If no conversation is open (e.g. newly registered user with 0 contacts)
+  if (!conversation) {
+    return (
+      <main className="flex-1 flex flex-col h-full bg-slate-950 text-slate-100 relative overflow-hidden">
+        {/* Mobile Header Bar */}
+        <header className="p-3 bg-slate-900/95 border-b border-rose-950/40 flex items-center justify-between lg:hidden">
+          <button
+            onClick={onToggleMobileSidebar}
+            className="p-2 -ml-1 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800"
+            title="Open chats"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+          <div className="flex items-center gap-1.5">
+            <Heart className="w-4 h-4 text-rose-500 fill-rose-500" />
+            <span className="text-xs font-bold text-white">Cuddles Sanctuary</span>
+          </div>
+          <div className="w-8" />
+        </header>
+
+        {/* Empty Sanctuary Welcome Area */}
+        <div className="flex-1 flex items-center justify-center p-6 overflow-y-auto">
+          <div className="max-w-md w-full text-center space-y-6 animate-in fade-in zoom-in-95 duration-200">
+            <div className="relative inline-block mx-auto">
+              <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-rose-500 via-pink-500 to-amber-500 p-1 shadow-xl shadow-rose-500/20">
+                <div className="w-full h-full bg-slate-900 rounded-[20px] flex items-center justify-center">
+                  <Heart className="w-9 h-9 text-rose-400 fill-rose-400 animate-pulse" />
+                </div>
+              </div>
+              <span className="absolute -bottom-1 -right-1 text-xl">✨</span>
+            </div>
+
+            <div className="space-y-2">
+              <h2 className="text-2xl font-black text-white tracking-tight">
+                Welcome to your Sanctuary, {currentUser.name}!
+              </h2>
+              <p className="text-xs text-slate-400 leading-relaxed max-w-sm mx-auto">
+                Cuddles is your strictly private space. All the people you see here are solely those you've added via username request and who accepted your invitation.
+              </p>
+            </div>
+
+            {/* Username Badge */}
+            {currentUser.username && (
+              <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 flex items-center justify-between gap-3 shadow-inner">
+                <div className="text-left">
+                  <p className="text-[10px] uppercase font-bold tracking-wider text-slate-500">
+                    Your Unique Cuddles ID
+                  </p>
+                  <p className="text-sm font-mono font-bold text-rose-400">
+                    @{currentUser.username}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopyUsername}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  {copiedUsername ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-emerald-400">Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copy</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {/* Action Call to Action */}
+            <div className="space-y-3 pt-2">
+              {onOpenAddContactModal && (
+                <button
+                  type="button"
+                  onClick={onOpenAddContactModal}
+                  className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-rose-600 via-pink-600 to-rose-600 hover:from-rose-500 hover:to-pink-500 text-white font-bold text-sm shadow-xl shadow-rose-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>Add Partner or Friend by @Username</span>
+                </button>
+              )}
+
+              {onOpenRequestsModal && (
+                <button
+                  type="button"
+                  onClick={onOpenRequestsModal}
+                  className="w-full py-2.5 px-4 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <Inbox className="w-4 h-4 text-rose-400" />
+                  <span>Connection Requests</span>
+                  {pendingRequestsCount > 0 && (
+                    <span className="px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-bold">
+                      {pendingRequestsCount} new
+                    </span>
+                  )}
+                </button>
+              )}
+
+              <div className="grid grid-cols-2 gap-2 text-left">
+                <div className="p-3 rounded-xl bg-slate-900/60 border border-rose-950/40 text-xs space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-rose-300 text-[11px]">
+                    <Heart className="w-3.5 h-3.5 fill-rose-400/40 text-rose-400" />
+                    <span>Partner Sanctuary</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400">
+                    Max 2 partners. Features shared anniversary counters & priority focus alert.
+                  </p>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-indigo-300 text-[11px]">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Unlimited Friends</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400">
+                    Full end-to-end encrypted messaging, voice notes, and video calls.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   const isPartnerChat = conversation.partnerIds && conversation.partnerIds.length > 0 && !conversation.isGroup;
   const isBusy = recipient?.currentSchedule?.isBusy ?? false;

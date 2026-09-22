@@ -22,6 +22,7 @@ import {
   setActiveAccountId,
   saveStoredAccount
 } from '../../lib/storage';
+import { syncUserToFirestore } from '../../lib/firebase';
 import { UserAccount } from '../../types';
 
 interface AuthScreenProps {
@@ -40,6 +41,7 @@ const AVATAR_PRESETS = [
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [partnerNickname, setPartnerNickname] = useState('');
@@ -63,14 +65,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
     reader.readAsDataURL(file);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-
-    if (!email.trim() || !email.includes('@')) {
-      setError('Please enter a valid email address.');
-      return;
-    }
 
     if (password.length < 4) {
       setError('Password must be at least 4 characters long.');
@@ -83,30 +80,56 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
         return;
       }
 
-      // Check if email already registered
+      const cleanUser = username.trim().replace(/^@/, '').toLowerCase();
+      if (!cleanUser || cleanUser.length < 3) {
+        setError('Please enter a username of at least 3 characters.');
+        return;
+      }
+
+      if (!email.trim() || !email.includes('@')) {
+        setError('Please enter a valid email address.');
+        return;
+      }
+
+      // Check if email or username already registered
       const accounts = getStoredAccounts();
       if (accounts.some((a) => a.email.toLowerCase() === email.trim().toLowerCase())) {
         setError('An account with this email already exists. Please switch to Log In.');
         return;
       }
+      if (accounts.some((a) => a.username && a.username.toLowerCase() === cleanUser)) {
+        setError(`@${cleanUser} is already taken. Please choose another username.`);
+        return;
+      }
 
       const newAccount = registerNewAccount({
         name: name.trim(),
+        username: cleanUser,
         email: email.trim(),
         password,
         avatar: customAvatar || selectedAvatar,
         partnerNickname: partnerNickname.trim() || undefined
       });
 
+      // Sync to Firestore so other users can find them by username
+      syncUserToFirestore(newAccount);
+
       setActiveAccountId(newAccount.id);
       onAuthenticated(newAccount);
     } else {
-      // Sign in
-      const account = authenticateAccount(email, password);
-      if (!account) {
-        setError('Incorrect email or password. If you do not have an account yet, please tap Create Account.');
+      // Sign in with email OR username
+      if (!email.trim()) {
+        setError('Please enter your email or @username.');
         return;
       }
+
+      const account = authenticateAccount(email, password);
+      if (!account) {
+        setError('Incorrect username/email or password. If you do not have an account yet, tap Create Account.');
+        return;
+      }
+      // Sync user to Firestore
+      syncUserToFirestore(account);
       setActiveAccountId(account.id);
       onAuthenticated(account);
     }
@@ -206,7 +229,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
                 {/* Full Name */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    Your Name or Nickname
+                    Your Name or Display Name
                   </label>
                   <div className="relative">
                     <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -215,10 +238,32 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
                       required
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="e.g. Julian, Maya, Darling"
+                      placeholder="e.g. Julian, Maya, Alex"
                       className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-800/80 border border-slate-700/80 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500"
                     />
                   </div>
+                </div>
+
+                {/* Unique Username */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-300">
+                      Unique Username
+                    </label>
+                    <span className="text-[11px] text-rose-400 font-medium">Used for friend & partner requests</span>
+                  </div>
+                  <div className="relative">
+                    <span className="text-slate-400 font-bold absolute left-3.5 top-1/2 -translate-y-1/2 text-sm select-none">@</span>
+                    <input
+                      type="text"
+                      required
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                      placeholder="username"
+                      className="w-full pl-8 pr-3.5 py-2.5 rounded-xl bg-slate-800/80 border border-slate-700/80 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 font-mono lowercase"
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1">Others can search and request to connect with you using @{username || 'username'}</p>
                 </div>
 
                 {/* Avatar Picker */}
@@ -277,19 +322,19 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
               </>
             )}
 
-            {/* Email Address */}
+            {/* Email Address or Username */}
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Email Address
+                {mode === 'signup' ? 'Email Address' : 'Email or @Username'}
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
-                  type="email"
+                  type={mode === 'signup' ? 'email' : 'text'}
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.com"
+                  placeholder={mode === 'signup' ? 'name@example.com' : 'name@example.com or @username'}
                   className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-800/80 border border-slate-700/80 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500"
                 />
               </div>

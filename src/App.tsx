@@ -8,7 +8,9 @@ import {
   MessagePriority,
   MessageType,
   DayScheduleStatus,
-  UserAccount
+  UserAccount,
+  ContactRequest,
+  RelationshipType
 } from './types';
 import {
   CURRENT_USER,
@@ -23,7 +25,13 @@ import {
   AUTO_PURGE_DAYS,
   getActiveAccountId,
   setActiveAccountId,
-  getStoredAccounts
+  getStoredAccounts,
+  getUserContacts,
+  saveUserContacts,
+  getUserConversations,
+  saveUserConversations,
+  getUserMessages,
+  saveUserMessages
 } from './lib/storage';
 import {
   testConnection,
@@ -33,7 +41,8 @@ import {
   purgeMessageMediaFromFirestore,
   syncConversationToFirestore,
   subscribeToConversationMessages,
-  purgeExpiredOnlineMessagesFromFirestore
+  purgeExpiredOnlineMessagesFromFirestore,
+  subscribeToContactRequests
 } from './lib/firebase';
 import { saveMediaToDeviceVault } from './lib/deviceMediaStorage';
 import { encryptMessage } from './lib/encryption';
@@ -49,6 +58,8 @@ import { PartnerModal } from './components/partners/PartnerModal';
 import { FriendsModal } from './components/friends/FriendsModal';
 import { SchedulePanel } from './components/schedule/SchedulePanel';
 import { ProfileModal } from './components/profile/ProfileModal';
+import { AddContactModal } from './components/contacts/AddContactModal';
+import { RequestsModal } from './components/contacts/RequestsModal';
 import { PWAInstallBanner } from './components/pwa/PWAInstallBanner';
 import { OfflineIndicator } from './components/pwa/OfflineIndicator';
 
@@ -70,6 +81,7 @@ export default function App() {
       if (matched) {
         return {
           id: matched.id,
+          username: matched.username,
           name: matched.name,
           email: matched.email,
           avatar: matched.avatar,
@@ -94,23 +106,47 @@ export default function App() {
     return loadStoredData(STORAGE_KEYS.USER, CURRENT_USER);
   });
 
-  // Contacts state
-  const [contacts, setContacts] = useState<UserProfile[]>(() =>
-    loadStoredData(STORAGE_KEYS.CONTACTS, INITIAL_CONTACTS)
-  );
+  // Contacts state - isolated strictly per account!
+  const [contacts, setContacts] = useState<UserProfile[]>(() => {
+    const id = getActiveAccountId();
+    if (id) {
+      return getUserContacts(id);
+    }
+    return [];
+  });
 
-  // Conversations state
-  const [conversations, setConversations] = useState<Conversation[]>(() =>
-    loadStoredData(STORAGE_KEYS.CONVERSATIONS, INITIAL_CONVERSATIONS)
-  );
-  const [activeConversationId, setActiveConversationId] = useState<string>(
-    conversations[0]?.id || 'conv_elena'
-  );
+  // Conversations state - isolated strictly per account!
+  const [conversations, setConversations] = useState<Conversation[]>(() => {
+    const id = getActiveAccountId();
+    if (id) {
+      return getUserConversations(id);
+    }
+    return [];
+  });
 
-  // Messages state
-  const [messagesMap, setMessagesMap] = useState<Record<string, Message[]>>(() =>
-    loadStoredData(STORAGE_KEYS.MESSAGES, INITIAL_MESSAGES)
-  );
+  const [activeConversationId, setActiveConversationId] = useState<string>(() => {
+    const id = getActiveAccountId();
+    if (id) {
+      const userConvs = getUserConversations(id);
+      return userConvs[0]?.id || '';
+    }
+    return '';
+  });
+
+  // Messages state - isolated strictly per account!
+  const [messagesMap, setMessagesMap] = useState<Record<string, Message[]>>(() => {
+    const id = getActiveAccountId();
+    if (id) {
+      return getUserMessages(id);
+    }
+    return {};
+  });
+
+  // Contact requests & Modals state
+  const [contactRequests, setContactRequests] = useState<ContactRequest[]>([]);
+  const [showAddContactModal, setShowAddContactModal] = useState(false);
+  const [addContactType, setAddContactType] = useState<RelationshipType>('friend');
+  const [showRequestsModal, setShowRequestsModal] = useState(false);
 
   // Schedules state
   const [schedules, setSchedules] = useState<ScheduleEvent[]>(() =>
@@ -138,6 +174,158 @@ export default function App() {
   // Mobile sidebar drawer
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [typingUsers, setTypingUsers] = useState<Record<string, string[]>>({});
+
+  // Account switching / login sync
+  useEffect(() => {
+    if (activeAccount) {
+      setCurrentUser({
+        id: activeAccount.id,
+        username: activeAccount.username,
+        name: activeAccount.name,
+        email: activeAccount.email,
+        avatar: activeAccount.avatar,
+        status: activeAccount.status || 'Ready for cuddles & chats ✨',
+        moodEmoji: activeAccount.moodEmoji || '💖',
+        online: true,
+        relationshipType: 'partner',
+        safetyFingerprint: activeAccount.safetyFingerprint || '9B2E74FA',
+        verifiedKey: true,
+        bio: activeAccount.bio || 'In a private sanctuary with my favorite people.',
+        partnerNickname: activeAccount.partnerNickname,
+        partnerAnniversary: activeAccount.partnerAnniversary,
+        currentSchedule: activeAccount.currentSchedule || {
+          isBusy: false,
+          activityTitle: 'Open & Available',
+          untilTime: '8:00 PM',
+          category: 'available'
+        }
+      });
+      const userContacts = getUserContacts(activeAccount.id);
+      const userConvs = getUserConversations(activeAccount.id);
+      const userMsgs = getUserMessages(activeAccount.id);
+
+      setContacts(userContacts);
+      setConversations(userConvs);
+      setMessagesMap(userMsgs);
+      setActiveConversationId(userConvs[0]?.id || '');
+    }
+  }, [activeAccount?.id]);
+
+  // Synchronize state with User-Scoped LocalStorage
+  useEffect(() => {
+    saveStoredData(STORAGE_KEYS.USER, currentUser);
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (activeAccount) {
+      saveUserContacts(activeAccount.id, contacts);
+    }
+  }, [contacts, activeAccount?.id]);
+
+  useEffect(() => {
+    if (activeAccount) {
+      saveUserConversations(activeAccount.id, conversations);
+    }
+  }, [conversations, activeAccount?.id]);
+
+  useEffect(() => {
+    if (activeAccount) {
+      saveUserMessages(activeAccount.id, messagesMap);
+    }
+  }, [messagesMap, activeAccount?.id]);
+
+  useEffect(() => {
+    saveStoredData(STORAGE_KEYS.SCHEDULES, schedules);
+  }, [schedules]);
+
+  // Real-time listener for contact requests in Firestore
+  useEffect(() => {
+    if (!activeAccount) return;
+
+    const unsubscribe = subscribeToContactRequests(
+      activeAccount.id,
+      activeAccount.username,
+      (reqs) => {
+        setContactRequests(reqs);
+
+        // When any request is accepted (outgoing accepted by recipient or incoming accepted),
+        // add to contacts and create conversation
+        reqs.forEach((req) => {
+          if (req.status === 'accepted') {
+            const isSender = req.senderId === activeAccount.id;
+            const otherId = isSender ? req.receiverId : req.senderId;
+            const otherUsername = isSender ? req.receiverUsername : req.senderUsername;
+            const otherName = isSender ? req.receiverUsername : req.senderName;
+            const otherAvatar = isSender
+              ? `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(req.receiverUsername)}`
+              : req.senderAvatar;
+
+            setContacts((prevContacts) => {
+              if (
+                prevContacts.some(
+                  (c) =>
+                    c.id === otherId ||
+                    (c.username && c.username.toLowerCase() === otherUsername.toLowerCase())
+                )
+              ) {
+                return prevContacts;
+              }
+
+              const newContact: UserProfile = {
+                id: otherId,
+                username: otherUsername,
+                name: otherName,
+                avatar: otherAvatar,
+                status:
+                  req.relationshipType === 'partner'
+                    ? 'Connected in Sanctuary 💕'
+                    : 'Connected as friends ✨',
+                moodEmoji: req.relationshipType === 'partner' ? '💖' : '✨',
+                online: true,
+                relationshipType: req.relationshipType,
+                partnerNickname: req.relationshipType === 'partner' ? req.partnerNickname : undefined,
+                partnerAnniversary: req.relationshipType === 'partner' ? req.partnerAnniversary : undefined,
+                safetyFingerprint: Math.random().toString(16).substring(2, 10).toUpperCase(),
+                verifiedKey: true
+              };
+              return [...prevContacts, newContact];
+            });
+
+            setConversations((prevConvs) => {
+              const existingConv = prevConvs.find(
+                (c) => !c.isGroup && c.participantIds.includes(otherId)
+              );
+              if (existingConv) return prevConvs;
+
+              const newConvId = `conv_${activeAccount.id}_${otherId}`;
+              const newConv: Conversation = {
+                id: newConvId,
+                title: otherName,
+                avatar: otherAvatar,
+                isGroup: false,
+                participantIds: [activeAccount.id, otherId],
+                partnerIds: req.relationshipType === 'partner' ? [otherId] : [],
+                createdAt: new Date().toISOString(),
+                isE2EESecure: true,
+                sharedKeyFingerprint: Math.random().toString(16).substring(2, 10).toUpperCase(),
+                lastMessage: {
+                  text: 'Connection accepted! Start chatting securely.',
+                  timestamp: 'Just now',
+                  senderName: 'Cuddles',
+                  unreadCount: 0
+                }
+              };
+              return [newConv, ...prevConvs];
+            });
+          }
+        });
+      }
+    );
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [activeAccount?.id, activeAccount?.username]);
 
   // 14-Day Auto-Purge of Ephemeral Online Text Messages on Startup
   useEffect(() => {
@@ -182,27 +370,6 @@ export default function App() {
       if (typeof unsubscribe === 'function') unsubscribe();
     };
   }, [activeConversationId]);
-
-  // Synchronize state with LocalStorage
-  useEffect(() => {
-    saveStoredData(STORAGE_KEYS.USER, currentUser);
-  }, [currentUser]);
-
-  useEffect(() => {
-    saveStoredData(STORAGE_KEYS.CONTACTS, contacts);
-  }, [contacts]);
-
-  useEffect(() => {
-    saveStoredData(STORAGE_KEYS.CONVERSATIONS, conversations);
-  }, [conversations]);
-
-  useEffect(() => {
-    saveStoredData(STORAGE_KEYS.MESSAGES, messagesMap);
-  }, [messagesMap]);
-
-  useEffect(() => {
-    saveStoredData(STORAGE_KEYS.SCHEDULES, schedules);
-  }, [schedules]);
 
   // Derived Partners & Friends lists
   const partners = contacts.filter((c) => c.relationshipType === 'partner');
@@ -308,12 +475,6 @@ export default function App() {
 
     // Realistic automated partner/friend response simulation
     simulatePartnerReply(activeConversation, text, priority, recipientIsBusy);
-  };
-
-  // Account Sign Out / Switch Handler
-  const handleSignOut = () => {
-    setActiveAccountId(null);
-    setActiveAccount(null);
   };
 
   // Download Attachment Handler (Auto-Purge from online database upon download to device)
@@ -805,6 +966,94 @@ export default function App() {
     (c) => !activeCall?.participants.some((p) => p.id === c.id)
   );
 
+  // Sign out
+  const handleSignOut = () => {
+    setActiveAccount(null);
+    setActiveAccountId(null);
+    setViewingProfile(null);
+    setContacts([]);
+    setConversations([]);
+    setMessagesMap({});
+    setActiveConversationId('');
+  };
+
+  // Accept Contact Request
+  const handleAcceptContactRequest = (req: ContactRequest) => {
+    if (!activeAccount) return;
+
+    const otherId = req.senderId;
+    const otherUsername = req.senderUsername;
+    const otherName = req.senderName;
+    const otherAvatar = req.senderAvatar;
+
+    setContacts((prevContacts) => {
+      if (
+        prevContacts.some(
+          (c) =>
+            c.id === otherId ||
+            (c.username && c.username.toLowerCase() === otherUsername.toLowerCase())
+        )
+      ) {
+        return prevContacts;
+      }
+
+      const newContact: UserProfile = {
+        id: otherId,
+        username: otherUsername,
+        name: otherName,
+        avatar: otherAvatar,
+        status:
+          req.relationshipType === 'partner'
+            ? 'Connected in Sanctuary 💕'
+            : 'Connected as friends ✨',
+        moodEmoji: req.relationshipType === 'partner' ? '💖' : '✨',
+        online: true,
+        relationshipType: req.relationshipType,
+        partnerNickname: req.relationshipType === 'partner' ? req.partnerNickname : undefined,
+        partnerAnniversary: req.relationshipType === 'partner' ? req.partnerAnniversary : undefined,
+        safetyFingerprint: Math.random().toString(16).substring(2, 10).toUpperCase(),
+        verifiedKey: true
+      };
+      return [...prevContacts, newContact];
+    });
+
+    const newConvId = `conv_${activeAccount.id}_${otherId}`;
+    setConversations((prevConvs) => {
+      const exists = prevConvs.find((c) => !c.isGroup && c.participantIds.includes(otherId));
+      if (exists) return prevConvs;
+
+      const newConv: Conversation = {
+        id: newConvId,
+        title: otherName,
+        avatar: otherAvatar,
+        isGroup: false,
+        participantIds: [activeAccount.id, otherId],
+        partnerIds: req.relationshipType === 'partner' ? [otherId] : [],
+        createdAt: new Date().toISOString(),
+        isE2EESecure: true,
+        sharedKeyFingerprint: Math.random().toString(16).substring(2, 10).toUpperCase(),
+        lastMessage: {
+          text: 'Request accepted! You are now connected.',
+          timestamp: 'Just now',
+          senderName: 'Cuddles',
+          unreadCount: 0
+        }
+      };
+      return [newConv, ...prevConvs];
+    });
+
+    setActiveConversationId(newConvId);
+  };
+
+  // Pending count for the active user
+  const pendingRequestsCount = contactRequests.filter(
+    (r) =>
+      r.status === 'pending' &&
+      (r.receiverId === activeAccount?.id ||
+        (r.receiverUsername &&
+          r.receiverUsername.toLowerCase() === (activeAccount?.username || '').toLowerCase()))
+  ).length;
+
   // If no account is logged in, show the clean Cuddles Authentication screen
   if (!activeAccount) {
     return (
@@ -814,6 +1063,7 @@ export default function App() {
           setActiveAccountId(account.id);
           const userProfile: UserProfile = {
             id: account.id,
+            username: account.username,
             name: account.name,
             email: account.email,
             avatar: account.avatar,
@@ -836,6 +1086,15 @@ export default function App() {
           setCurrentUser(userProfile);
           saveStoredData(STORAGE_KEYS.USER, userProfile);
           syncUserToFirestore(userProfile);
+
+          // Load user-scoped isolated data
+          const userContacts = getUserContacts(account.id);
+          const userConvs = getUserConversations(account.id);
+          const userMsgs = getUserMessages(account.id);
+          setContacts(userContacts);
+          setConversations(userConvs);
+          setMessagesMap(userMsgs);
+          setActiveConversationId(userConvs[0]?.id || '');
         }}
       />
     );
@@ -856,6 +1115,7 @@ export default function App() {
           partners={partners}
           friends={friends}
           currentUser={currentUser}
+          pendingRequestsCount={pendingRequestsCount}
           onSelectConversation={(id) => {
             setActiveConversationId(id);
             setIsMobileSidebarOpen(false);
@@ -864,6 +1124,11 @@ export default function App() {
           onOpenFriendsModal={() => setShowFriendsModal(true)}
           onOpenScheduleModal={() => setShowScheduleModal(true)}
           onOpenProfileModal={() => setViewingProfile({ user: currentUser, isOwn: true })}
+          onOpenRequestsModal={() => setShowRequestsModal(true)}
+          onOpenAddContactModal={() => {
+            setAddContactType('friend');
+            setShowAddContactModal(true);
+          }}
           onStartCall={(convId, type) => {
             setActiveConversationId(convId);
             handleStartCall(type);
@@ -887,6 +1152,7 @@ export default function App() {
           currentUser={currentUser}
           recipient={activeRecipient}
           typingUserNames={typingUsers[activeConversationId] || []}
+          pendingRequestsCount={pendingRequestsCount}
           onSendMessage={handleSendMessage}
           onSendMedia={handleSendMedia}
           onAddReaction={handleReaction}
@@ -894,6 +1160,11 @@ export default function App() {
           onStartCall={handleStartCall}
           onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
           onViewProfile={(user) => setViewingProfile({ user, isOwn: user.id === currentUser.id })}
+          onOpenAddContactModal={() => {
+            setAddContactType('friend');
+            setShowAddContactModal(true);
+          }}
+          onOpenRequestsModal={() => setShowRequestsModal(true)}
           onUpdateDisappearingTimer={(mins) => {
             setConversations((prev) =>
               prev.map((c) =>
@@ -956,6 +1227,11 @@ export default function App() {
             handleStartChatWithContact(id);
             handleStartCall(type);
           }}
+          onOpenAddPartnerModal={() => {
+            setShowPartnersModal(false);
+            setAddContactType('partner');
+            setShowAddContactModal(true);
+          }}
           onClose={() => setShowPartnersModal(false)}
         />
       )}
@@ -971,7 +1247,43 @@ export default function App() {
             handleStartChatWithContact(id);
             handleStartCall(type);
           }}
+          onOpenAddFriendModal={() => {
+            setShowFriendsModal(false);
+            setAddContactType('friend');
+            setShowAddContactModal(true);
+          }}
           onClose={() => setShowFriendsModal(false)}
+        />
+      )}
+
+      {/* Add Contact Modal */}
+      {showAddContactModal && activeAccount && (
+        <AddContactModal
+          isOpen={showAddContactModal}
+          onClose={() => setShowAddContactModal(false)}
+          currentUser={activeAccount}
+          currentPartnersCount={partners.length}
+          initialType={addContactType}
+          existingContacts={contacts}
+          onContactRequestSent={(req) => {
+            setContactRequests((prev) => [...prev.filter((r) => r.id !== req.id), req]);
+          }}
+        />
+      )}
+
+      {/* Contact Requests Modal */}
+      {showRequestsModal && activeAccount && (
+        <RequestsModal
+          isOpen={showRequestsModal}
+          onClose={() => setShowRequestsModal(false)}
+          currentUser={activeAccount}
+          requests={contactRequests}
+          onAcceptRequest={handleAcceptContactRequest}
+          onDeclineRequest={(req) => {
+            setContactRequests((prev) =>
+              prev.map((r) => (r.id === req.id ? { ...r, status: 'declined' } : r))
+            );
+          }}
         />
       )}
 

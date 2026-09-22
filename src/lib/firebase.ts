@@ -18,7 +18,7 @@ import {
 } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import firebaseConfigData from '../../firebase-applet-config.json';
-import { UserAccount, UserProfile, Message, Conversation, ScheduleEvent, MessageType } from '../types';
+import { UserAccount, UserProfile, Message, Conversation, ScheduleEvent, MessageType, ContactRequest } from '../types';
 
 export enum OperationType {
   CREATE = 'create',
@@ -294,5 +294,104 @@ export async function syncScheduleToFirestore(schedule: ScheduleEvent): Promise<
     }, { merge: true });
   } catch (err) {
     console.warn('Could not sync schedule to Firestore:', err);
+  }
+}
+
+/**
+ * Search user by username in Firestore (and fallback)
+ */
+export async function searchUserByUsernameInFirestore(username: string): Promise<UserAccount | null> {
+  const clean = username.trim().replace(/^@/, '').toLowerCase();
+  if (!clean) return null;
+
+  try {
+    const usersCol = collection(db, 'users');
+    const snapshot = await getDocs(usersCol);
+    for (const d of snapshot.docs) {
+      const data = d.data() as UserAccount;
+      if (data && data.username && data.username.toLowerCase() === clean) {
+        return data;
+      }
+      // Also match email prefix or id
+      if (data && data.email && data.email.toLowerCase().split('@')[0] === clean) {
+        return data;
+      }
+    }
+  } catch (err) {
+    console.warn('Search user by username error:', err);
+  }
+  return null;
+}
+
+/**
+ * Send contact request to Firestore
+ */
+export async function sendContactRequestToFirestore(request: ContactRequest): Promise<void> {
+  try {
+    const reqRef = doc(db, 'contact_requests', request.id);
+    await setDoc(reqRef, {
+      ...request,
+      updatedAt: new Date().toISOString()
+    });
+    console.log(`Contact request ${request.id} dispatched to ${request.receiverUsername}`);
+  } catch (err) {
+    console.warn('Could not dispatch contact request to Firestore:', err);
+  }
+}
+
+/**
+ * Update contact request status in Firestore
+ */
+export async function updateContactRequestStatusInFirestore(
+  requestId: string,
+  status: 'accepted' | 'declined'
+): Promise<void> {
+  try {
+    const reqRef = doc(db, 'contact_requests', requestId);
+    await updateDoc(reqRef, {
+      status,
+      respondedAt: new Date().toISOString()
+    });
+    console.log(`Contact request ${requestId} updated to ${status}`);
+  } catch (err) {
+    console.warn('Could not update contact request status:', err);
+  }
+}
+
+/**
+ * Real-time listener for contact requests relevant to the user
+ */
+export function subscribeToContactRequests(
+  userId: string,
+  userUsername: string,
+  onUpdate: (requests: ContactRequest[]) => void
+): Unsubscribe {
+  try {
+    const requestsCol = collection(db, 'contact_requests');
+    return onSnapshot(
+      requestsCol,
+      (snapshot) => {
+        const list: ContactRequest[] = [];
+        const cleanUser = userUsername.toLowerCase();
+        snapshot.forEach((d) => {
+          const data = d.data() as ContactRequest;
+          if (
+            data &&
+            (data.receiverId === userId ||
+              data.senderId === userId ||
+              (data.receiverUsername && data.receiverUsername.toLowerCase() === cleanUser))
+          ) {
+            list.push(data);
+          }
+        });
+        onUpdate(list);
+      },
+      (err) => {
+        console.warn('Contact requests listener warning:', err);
+      }
+    );
+  } catch (e) {
+    console.warn('Could not subscribe to contact requests:', e);
+    return () => {};
   }
 }

@@ -9,6 +9,7 @@ interface FriendsModalProps {
   onStartChat: (friendId: string) => void;
   onStartCall: (friendId: string, type: 'audio' | 'video') => void;
   onClose: () => void;
+  onOpenAddFriendModal?: () => void;
 }
 
 export const FriendsModal: React.FC<FriendsModalProps> = ({
@@ -18,6 +19,7 @@ export const FriendsModal: React.FC<FriendsModalProps> = ({
   onStartChat,
   onStartCall,
   onClose,
+  onOpenAddFriendModal,
 }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [search, setSearch] = useState('');
@@ -88,11 +90,18 @@ export const FriendsModal: React.FC<FriendsModalProps> = ({
             />
           </div>
           <button
-            onClick={() => setIsAdding(!isAdding)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow transition-colors"
+            onClick={() => {
+              if (onOpenAddFriendModal) {
+                onClose();
+                onOpenAddFriendModal();
+              } else {
+                setIsAdding(!isAdding);
+              }
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow transition-colors cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            Add Friend
+            Add Friend by @Username
           </button>
         </div>
 

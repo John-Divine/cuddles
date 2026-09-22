@@ -10,6 +10,7 @@ interface PartnerModalProps {
   onStartChat: (partnerId: string) => void;
   onStartCall: (partnerId: string, type: 'audio' | 'video') => void;
   onClose: () => void;
+  onOpenAddPartnerModal?: () => void;
 }
 
 export const PartnerModal: React.FC<PartnerModalProps> = ({
@@ -20,6 +21,7 @@ export const PartnerModal: React.FC<PartnerModalProps> = ({
   onStartChat,
   onStartCall,
   onClose,
+  onOpenAddPartnerModal,
 }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -214,11 +216,18 @@ export const PartnerModal: React.FC<PartnerModalProps> = ({
                 </div>
               ) : (
                 <button
-                  onClick={() => setIsAdding(true)}
-                  className="w-full py-3 rounded-xl border-2 border-dashed border-rose-500/30 hover:border-rose-500/60 text-rose-300 hover:text-rose-200 bg-rose-500/5 hover:bg-rose-500/10 flex items-center justify-center gap-2 text-xs font-semibold transition-all"
+                  onClick={() => {
+                    if (onOpenAddPartnerModal) {
+                      onClose();
+                      onOpenAddPartnerModal();
+                    } else {
+                      setIsAdding(true);
+                    }
+                  }}
+                  className="w-full py-3 rounded-xl border-2 border-dashed border-rose-500/30 hover:border-rose-500/60 text-rose-300 hover:text-rose-200 bg-rose-500/5 hover:bg-rose-500/10 flex items-center justify-center gap-2 text-xs font-semibold transition-all cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
-                  Add Partner ({partners.length}/2)
+                  Add Partner by @Username ({partners.length}/2)
                 </button>
               )}
             </div>

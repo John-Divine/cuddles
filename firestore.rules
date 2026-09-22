@@ -46,5 +46,11 @@ service cloud.firestore {
       allow read: if isSignedIn() || request.auth == null;
       allow create, update, delete: if isSignedIn() || request.auth == null;
     }
+
+    // Contact Requests Collection (Username friend/partner requests)
+    match /contact_requests/{requestId} {
+      allow read: if isSignedIn() || request.auth == null;
+      allow create, update, delete: if isSignedIn() || request.auth == null;
+    }
   }
 }

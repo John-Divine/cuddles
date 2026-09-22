@@ -2,11 +2,13 @@ export type RelationshipType = 'partner' | 'friend';
 
 export interface UserAccount {
   id: string;
+  username: string; // unique username e.g. "alex" or "sarah"
   email: string;
   password: string;
   name: string;
   avatar: string;
   createdAt: string;
+  contactIds?: string[]; // IDs of users this user has added & accepted
   partnerNickname?: string;
   partnerAnniversary?: string;
   status?: string;
@@ -26,6 +28,7 @@ export interface DayScheduleStatus {
 
 export interface UserProfile {
   id: string;
+  username?: string;
   email?: string;
   name: string;
   avatar: string;
@@ -41,6 +44,21 @@ export interface UserProfile {
   currentSchedule?: DayScheduleStatus;
   bio?: string;
   location?: string;
+}
+
+export interface ContactRequest {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderUsername: string;
+  senderAvatar: string;
+  receiverId: string;
+  receiverUsername: string;
+  relationshipType: RelationshipType;
+  partnerNickname?: string;
+  partnerAnniversary?: string;
+  status: 'pending' | 'accepted' | 'declined';
+  createdAt: string;
 }
 
 export type MessageType = 'text' | 'image' | 'voice' | 'video_note' | 'gif' | 'system' | 'document' | 'video';

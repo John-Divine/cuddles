@@ -14,7 +14,9 @@ import {
   ShieldCheck,
   UserCheck,
   Moon,
-  HardDrive
+  HardDrive,
+  Bell,
+  UserPlus
 } from 'lucide-react';
 import { Conversation, UserProfile } from '../../types';
 import { AUTO_PURGE_DAYS } from '../../lib/storage';
@@ -25,11 +27,14 @@ interface SidebarProps {
   partners: UserProfile[];
   friends: UserProfile[];
   currentUser: UserProfile;
+  pendingRequestsCount?: number;
   onSelectConversation: (id: string) => void;
   onOpenPartnersModal: () => void;
   onOpenFriendsModal: () => void;
   onOpenScheduleModal: () => void;
   onOpenProfileModal: () => void;
+  onOpenRequestsModal?: () => void;
+  onOpenAddContactModal?: () => void;
   onStartCall: (conversationId: string, type: 'audio' | 'video') => void;
   isMobileOpen?: boolean;
   onCloseMobile?: () => void;
@@ -41,11 +46,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   partners,
   friends,
   currentUser,
+  pendingRequestsCount = 0,
   onSelectConversation,
   onOpenPartnersModal,
   onOpenFriendsModal,
   onOpenScheduleModal,
   onOpenProfileModal,
+  onOpenRequestsModal,
+  onOpenAddContactModal,
   onStartCall,
   isMobileOpen = false,
   onCloseMobile,
@@ -85,12 +93,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 E2EE
               </span>
             </div>
-            <p className="text-[10px] text-rose-200/70 font-medium">Partners & Friends</p>
+            <p className="text-[10px] text-rose-200/70 font-medium">
+              @{currentUser.username || 'user'} • Sanctuary
+            </p>
           </div>
         </div>
 
-        {/* Action icons: Day Schedules & Profile */}
-        <div className="flex items-center gap-1.5">
+        {/* Action icons: Add contact, Requests, Day Schedules & Profile */}
+        <div className="flex items-center gap-1">
+          {onOpenAddContactModal && (
+            <button
+              onClick={onOpenAddContactModal}
+              className="p-2 rounded-xl text-slate-400 hover:text-rose-300 hover:bg-slate-800/80 transition-colors"
+              title="Add Contact by @Username"
+            >
+              <UserPlus className="w-4.5 h-4.5" />
+            </button>
+          )}
+
+          {onOpenRequestsModal && (
+            <button
+              onClick={onOpenRequestsModal}
+              className="relative p-2 rounded-xl text-slate-400 hover:text-rose-300 hover:bg-slate-800/80 transition-colors"
+              title="Contact Requests"
+            >
+              <Bell className="w-4.5 h-4.5" />
+              {pendingRequestsCount > 0 && (
+                <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-extrabold flex items-center justify-center ring-2 ring-slate-900 animate-pulse">
+                  {pendingRequestsCount}
+                </span>
+              )}
+            </button>
+          )}
+
           <button
             onClick={onOpenScheduleModal}
             className="p-2 rounded-xl text-slate-400 hover:text-rose-300 hover:bg-slate-800/80 transition-colors"
@@ -101,7 +136,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           <button
             onClick={onOpenProfileModal}
-            className="relative p-1 rounded-xl hover:ring-2 hover:ring-rose-500/50 transition-all"
+            className="relative p-1 rounded-xl hover:ring-2 hover:ring-rose-500/50 transition-all ml-0.5"
             title="Your Profile & Storage Settings"
           >
             <img
@@ -231,8 +266,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Conversation List */}
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
         {filteredConversations.length === 0 ? (
-          <div className="py-12 text-center text-xs text-slate-500">
-            No conversations in this view.
+          <div className="py-12 px-4 text-center text-xs text-slate-400 space-y-3">
+            <p className="font-semibold text-slate-300">No conversations yet</p>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              Connect with people by sending a partner or friend request to their @username!
+            </p>
+            {onOpenAddContactModal && (
+              <button
+                type="button"
+                onClick={onOpenAddContactModal}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white text-xs font-bold shadow-md shadow-rose-600/20 transition-all cursor-pointer"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>Add by @Username</span>
+              </button>
+            )}
           </div>
         ) : (
           filteredConversations.map((conv) => {
