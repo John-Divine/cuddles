@@ -18,7 +18,7 @@ import {
 } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import firebaseConfigData from '../../firebase-applet-config.json';
-import { UserAccount, UserProfile, Message, Conversation, ScheduleEvent, MessageType, ContactRequest } from '../types';
+import { UserAccount, UserProfile, Message, Conversation, ScheduleEvent, MessageType, ContactRequest, CallSignal } from '../types';
 
 export enum OperationType {
   CREATE = 'create',
@@ -27,6 +27,36 @@ export enum OperationType {
   LIST = 'list',
   GET = 'get',
   WRITE = 'write'
+}
+
+/**
+ * Remove undefined values recursively so Firestore setDoc / updateDoc never throws:
+ * "Unsupported field value: undefined"
+ */
+export function sanitizeForFirestore<T>(obj: T): T {
+  if (obj === null || obj === undefined) return null as unknown as T;
+  if (Array.isArray(obj)) {
+    return obj.map((item) => sanitizeForFirestore(item)).filter((item) => item !== undefined) as unknown as T;
+  }
+  if (typeof obj === 'object') {
+    const clean: Record<string, any> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== undefined) {
+        clean[key] = sanitizeForFirestore(value);
+      }
+    }
+    return clean as unknown as T;
+  }
+  return obj;
+}
+
+/**
+ * Deterministic conversation ID for two users so both User A and User B
+ * always connect to the exact same conversation document and messages subcollection.
+ */
+export function getDirectConversationId(userId1: string, userId2: string): string {
+  const sorted = [userId1, userId2].sort();
+  return `conv_${sorted[0]}_${sorted[1]}`;
 }
 
 export interface FirestoreErrorInfo {
@@ -129,12 +159,14 @@ export async function syncUserToFirestore(user: UserAccount | UserProfile): Prom
   const path = `users/${user.id}`;
   try {
     const userDocRef = doc(db, 'users', user.id);
-    await setDoc(userDocRef, {
+    const sanitized = sanitizeForFirestore({
       ...user,
       updatedAt: new Date().toISOString()
-    }, { merge: true });
+    });
+    await setDoc(userDocRef, sanitized, { merge: true });
+    console.log(`User synced to Firestore: ${user.id} (@${user.username})`);
   } catch (err) {
-    console.warn('Could not sync user to Firestore (fallback to local):', err);
+    console.warn('Could not sync user to Firestore:', err);
   }
 }
 
@@ -164,15 +196,20 @@ export async function syncConversationToFirestore(conv: Conversation): Promise<v
   const path = `conversations/${conv.id}`;
   try {
     const convRef = doc(db, 'conversations', conv.id);
-    await setDoc(convRef, {
+    const sanitized = sanitizeForFirestore({
       id: conv.id,
       title: conv.title || '',
+      avatar: conv.avatar || '',
       participantIds: conv.participantIds || [],
+      partnerIds: conv.partnerIds || [],
       isGroup: !!conv.isGroup,
-      lastMessageText: conv.lastMessage?.text || '',
-      lastMessageTime: conv.lastMessage?.timestamp || '',
+      isE2EESecure: !!conv.isE2EESecure,
+      sharedKeyFingerprint: conv.sharedKeyFingerprint || '',
+      lastMessage: conv.lastMessage || null,
+      disappearingTimerMinutes: conv.disappearingTimerMinutes || 0,
       updatedAt: new Date().toISOString()
-    }, { merge: true });
+    });
+    await setDoc(convRef, sanitized, { merge: true });
   } catch (err) {
     console.warn('Could not sync conversation to Firestore:', err);
   }
@@ -185,10 +222,11 @@ export async function syncMessageToFirestore(message: Message): Promise<void> {
   const path = `conversations/${message.conversationId}/messages/${message.id}`;
   try {
     const msgRef = doc(db, 'conversations', message.conversationId, 'messages', message.id);
-    await setDoc(msgRef, {
+    const sanitized = sanitizeForFirestore({
       ...message,
       createdAtISO: message.createdAtISO || new Date().toISOString()
     });
+    await setDoc(msgRef, sanitized);
   } catch (err) {
     console.warn('Could not sync message to Firestore:', err);
   }
@@ -234,11 +272,9 @@ export function subscribeToConversationMessages(
         snapshot.forEach((docSnap) => {
           msgs.push(docSnap.data() as Message);
         });
-        if (msgs.length > 0) {
-          // Sort messages by timestamp or createdAtISO locally
-          msgs.sort((a, b) => (a.createdAtISO || a.timestamp).localeCompare(b.createdAtISO || b.timestamp));
-          onUpdate(msgs);
-        }
+        // Sort messages chronologically by timestamp or createdAtISO
+        msgs.sort((a, b) => (a.createdAtISO || a.timestamp).localeCompare(b.createdAtISO || b.timestamp));
+        onUpdate(msgs);
       },
       (error) => {
         console.warn('Real-time listener notice on path:', path, error);
@@ -246,6 +282,36 @@ export function subscribeToConversationMessages(
     );
   } catch (err) {
     console.warn('Could not establish real-time listener:', err);
+    return () => {};
+  }
+}
+
+/**
+ * Real-time listener for user's conversations
+ */
+export function subscribeToUserConversations(
+  userId: string,
+  onUpdate: (conversations: Conversation[]) => void
+): Unsubscribe {
+  try {
+    const convsCol = collection(db, 'conversations');
+    return onSnapshot(
+      convsCol,
+      (snapshot) => {
+        const list: Conversation[] = [];
+        snapshot.forEach((d) => {
+          const data = d.data() as Conversation;
+          if (data && data.participantIds && data.participantIds.includes(userId)) {
+            list.push(data);
+          }
+        });
+        if (list.length > 0) {
+          onUpdate(list);
+        }
+      },
+      (err) => console.warn('Conversations listener warning:', err)
+    );
+  } catch (e) {
     return () => {};
   }
 }
@@ -288,17 +354,18 @@ export async function syncScheduleToFirestore(schedule: ScheduleEvent): Promise<
   const path = `schedules/${schedule.id}`;
   try {
     const schedRef = doc(db, 'schedules', schedule.id);
-    await setDoc(schedRef, {
+    const sanitized = sanitizeForFirestore({
       ...schedule,
       updatedAt: new Date().toISOString()
-    }, { merge: true });
+    });
+    await setDoc(schedRef, sanitized, { merge: true });
   } catch (err) {
     console.warn('Could not sync schedule to Firestore:', err);
   }
 }
 
 /**
- * Search user by username in Firestore (and fallback)
+ * Search user by username in Firestore
  */
 export async function searchUserByUsernameInFirestore(username: string): Promise<UserAccount | null> {
   const clean = username.trim().replace(/^@/, '').toLowerCase();
@@ -309,11 +376,16 @@ export async function searchUserByUsernameInFirestore(username: string): Promise
     const snapshot = await getDocs(usersCol);
     for (const d of snapshot.docs) {
       const data = d.data() as UserAccount;
-      if (data && data.username && data.username.toLowerCase() === clean) {
+      if (!data) continue;
+      const cleanDataUser = data.username?.trim().replace(/^@/, '').toLowerCase();
+      if (cleanDataUser === clean) {
         return data;
       }
       // Also match email prefix or id
-      if (data && data.email && data.email.toLowerCase().split('@')[0] === clean) {
+      if (data.email && data.email.toLowerCase().split('@')[0] === clean) {
+        return data;
+      }
+      if (data.id === clean) {
         return data;
       }
     }
@@ -329,11 +401,12 @@ export async function searchUserByUsernameInFirestore(username: string): Promise
 export async function sendContactRequestToFirestore(request: ContactRequest): Promise<void> {
   try {
     const reqRef = doc(db, 'contact_requests', request.id);
-    await setDoc(reqRef, {
+    const sanitized = sanitizeForFirestore({
       ...request,
       updatedAt: new Date().toISOString()
     });
-    console.log(`Contact request ${request.id} dispatched to ${request.receiverUsername}`);
+    await setDoc(reqRef, sanitized);
+    console.log(`Contact request ${request.id} dispatched to @${request.receiverUsername}`);
   } catch (err) {
     console.warn('Could not dispatch contact request to Firestore:', err);
   }
@@ -372,14 +445,15 @@ export function subscribeToContactRequests(
       requestsCol,
       (snapshot) => {
         const list: ContactRequest[] = [];
-        const cleanUser = userUsername.toLowerCase();
+        const cleanUser = userUsername.toLowerCase().trim().replace(/^@/, '');
         snapshot.forEach((d) => {
           const data = d.data() as ContactRequest;
+          if (!data) return;
+          const cleanReceiver = (data.receiverUsername || '').toLowerCase().trim().replace(/^@/, '');
           if (
-            data &&
-            (data.receiverId === userId ||
-              data.senderId === userId ||
-              (data.receiverUsername && data.receiverUsername.toLowerCase() === cleanUser))
+            data.receiverId === userId ||
+            data.senderId === userId ||
+            cleanReceiver === cleanUser
           ) {
             list.push(data);
           }
@@ -392,6 +466,135 @@ export function subscribeToContactRequests(
     );
   } catch (e) {
     console.warn('Could not subscribe to contact requests:', e);
+    return () => {};
+  }
+}
+
+// --- Real-Time Call Signaling Operations ---
+
+/**
+ * Initiate an audio/video call signal in Firestore
+ */
+export async function initiateCallInFirestore(call: CallSignal): Promise<void> {
+  try {
+    const callRef = doc(db, 'calls', call.id);
+    const sanitized = sanitizeForFirestore({
+      ...call,
+      updatedAt: new Date().toISOString()
+    });
+    await setDoc(callRef, sanitized);
+    console.log(`Call ${call.id} initiated in Firestore by ${call.callerName}`);
+  } catch (err) {
+    console.warn('Could not initiate call in Firestore:', err);
+  }
+}
+
+/**
+ * Real-time listener for incoming ringing calls directed at the active user
+ */
+export function subscribeToIncomingCalls(
+  userId: string,
+  onIncomingCall: (call: CallSignal) => void
+): Unsubscribe {
+  try {
+    const callsCol = collection(db, 'calls');
+    return onSnapshot(
+      callsCol,
+      (snapshot) => {
+        const now = Date.now();
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data() as CallSignal;
+          if (
+            data &&
+            data.status === 'ringing' &&
+            data.callerId !== userId &&
+            data.targetParticipantIds &&
+            data.targetParticipantIds.includes(userId)
+          ) {
+            const callTime = new Date(data.createdAt).getTime();
+            // Ring only if initiated within the last 60 seconds
+            if (!isNaN(callTime) && now - callTime < 60000) {
+              onIncomingCall(data);
+            }
+          }
+        });
+      },
+      (err) => console.warn('Incoming calls listener warning:', err)
+    );
+  } catch (e) {
+    console.warn('Could not subscribe to incoming calls:', e);
+    return () => {};
+  }
+}
+
+/**
+ * Answer an active call in Firestore
+ */
+export async function answerCallInFirestore(callId: string, userId: string): Promise<void> {
+  try {
+    const callRef = doc(db, 'calls', callId);
+    await updateDoc(callRef, {
+      status: 'connected',
+      answeredBy: userId,
+      answeredAt: new Date().toISOString()
+    });
+    console.log(`Call ${callId} answered in Firestore by ${userId}`);
+  } catch (err) {
+    console.warn('Could not answer call in Firestore:', err);
+  }
+}
+
+/**
+ * End or terminate a call in Firestore
+ */
+export async function endCallInFirestore(callId: string): Promise<void> {
+  try {
+    const callRef = doc(db, 'calls', callId);
+    await updateDoc(callRef, {
+      status: 'ended',
+      endedAt: new Date().toISOString()
+    });
+    console.log(`Call ${callId} marked as ended in Firestore`);
+  } catch (err) {
+    console.warn('Could not end call in Firestore:', err);
+  }
+}
+
+/**
+ * Decline an incoming call in Firestore
+ */
+export async function declineCallInFirestore(callId: string): Promise<void> {
+  try {
+    const callRef = doc(db, 'calls', callId);
+    await updateDoc(callRef, {
+      status: 'declined',
+      endedAt: new Date().toISOString()
+    });
+    console.log(`Call ${callId} declined in Firestore`);
+  } catch (err) {
+    console.warn('Could not decline call in Firestore:', err);
+  }
+}
+
+/**
+ * Listen to real-time status changes of an active call (e.g. other party answered or hung up)
+ */
+export function subscribeToCallStatus(
+  callId: string,
+  onUpdate: (call: CallSignal) => void
+): Unsubscribe {
+  try {
+    const callRef = doc(db, 'calls', callId);
+    return onSnapshot(
+      callRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          onUpdate(snapshot.data() as CallSignal);
+        }
+      },
+      (err) => console.warn('Call status listener notice:', err)
+    );
+  } catch (e) {
     return () => {};
   }
 }

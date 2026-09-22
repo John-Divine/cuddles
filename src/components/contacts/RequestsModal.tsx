@@ -36,13 +36,13 @@ export const RequestsModal: React.FC<RequestsModalProps> = ({
 
   if (!isOpen) return null;
 
-  const cleanCurrentUsername = currentUser.username?.toLowerCase() || '';
+  const cleanCurrentUsername = (currentUser.username || '').toLowerCase().trim().replace(/^@/, '');
 
   const incomingRequests = requests.filter(
     (r) =>
       r.status === 'pending' &&
       (r.receiverId === currentUser.id ||
-        (r.receiverUsername && r.receiverUsername.toLowerCase() === cleanCurrentUsername))
+        ((r.receiverUsername || '').toLowerCase().trim().replace(/^@/, '') === cleanCurrentUsername))
   );
 
   const outgoingRequests = requests.filter(

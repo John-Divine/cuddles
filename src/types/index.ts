@@ -161,6 +161,21 @@ export interface ActiveCall {
   isScreenSharing?: boolean;
 }
 
+export interface CallSignal {
+  id: string;
+  conversationId: string;
+  conversationTitle: string;
+  callerId: string;
+  callerName: string;
+  callerAvatar: string;
+  callType: 'audio' | 'video';
+  targetParticipantIds: string[];
+  status: 'ringing' | 'connected' | 'ended' | 'declined';
+  createdAt: string;
+  endedAt?: string;
+  answeredBy?: string;
+}
+
 export interface ScheduleEvent {
   id: string;
   title: string;

@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   UserProfile,
   Conversation,
   Message,
   ActiveCall,
+  CallSignal,
   ScheduleEvent,
   MessagePriority,
   MessageType,
@@ -42,11 +43,20 @@ import {
   syncConversationToFirestore,
   subscribeToConversationMessages,
   purgeExpiredOnlineMessagesFromFirestore,
-  subscribeToContactRequests
+  subscribeToContactRequests,
+  updateContactRequestStatusInFirestore,
+  initiateCallInFirestore,
+  subscribeToIncomingCalls,
+  answerCallInFirestore,
+  endCallInFirestore,
+  declineCallInFirestore,
+  subscribeToCallStatus,
+  getDirectConversationId,
+  subscribeToUserConversations
 } from './lib/firebase';
 import { saveMediaToDeviceVault } from './lib/deviceMediaStorage';
 import { encryptMessage } from './lib/encryption';
-import { playSentSound, playReceivedSound, playUrgentSound } from './lib/audio';
+import { playSentSound, playReceivedSound, playUrgentSound, playConnectSound, playEndCallSound } from './lib/audio';
 
 import { AuthScreen } from './components/auth/AuthScreen';
 import { Sidebar } from './components/layout/Sidebar';
@@ -157,9 +167,20 @@ export default function App() {
   const [activeCall, setActiveCall] = useState<ActiveCall | null>(null);
   const [isCallMinimized, setIsCallMinimized] = useState(false);
   const [incomingCall, setIncomingCall] = useState<{
+    callId: string;
     caller: UserProfile;
     conversation: Conversation;
     type: 'audio' | 'video';
+  } | null>(null);
+  const callStatusUnsubscribeRef = useRef<(() => void) | null>(null);
+
+  // Instant notification toast banner
+  const [notificationToast, setNotificationToast] = useState<{
+    id: string;
+    title: string;
+    message: string;
+    actionLabel?: string;
+    onAction?: () => void;
   } | null>(null);
 
   // Modals state
@@ -297,7 +318,7 @@ export default function App() {
               );
               if (existingConv) return prevConvs;
 
-              const newConvId = `conv_${activeAccount.id}_${otherId}`;
+              const newConvId = getDirectConversationId(activeAccount.id, otherId);
               const newConv: Conversation = {
                 id: newConvId,
                 title: otherName,
@@ -315,6 +336,7 @@ export default function App() {
                   unreadCount: 0
                 }
               };
+              syncConversationToFirestore(newConv);
               return [newConv, ...prevConvs];
             });
           }
@@ -326,6 +348,76 @@ export default function App() {
       if (typeof unsubscribe === 'function') unsubscribe();
     };
   }, [activeAccount?.id, activeAccount?.username]);
+
+  // Real-time listener for incoming call signals directed to active user
+  useEffect(() => {
+    if (!activeAccount) return;
+
+    const unsubscribe = subscribeToIncomingCalls(activeAccount.id, (callSignal) => {
+      // Ignore if user is already participating in this exact call
+      if (activeCall && activeCall.id === callSignal.id) return;
+
+      const callerContact = contacts.find((c) => c.id === callSignal.callerId) || {
+        id: callSignal.callerId,
+        username: callSignal.callerName.toLowerCase().replace(/\s+/g, ''),
+        name: callSignal.callerName,
+        avatar: callSignal.callerAvatar,
+        relationshipType: 'friend' as RelationshipType,
+        status: 'Calling you on Cuddles...',
+        moodEmoji: '📞',
+        online: true,
+        safetyFingerprint: 'CALL'
+      };
+
+      const matchedConv = conversations.find((c) => c.id === callSignal.conversationId) || {
+        id: callSignal.conversationId,
+        title: callSignal.callerName,
+        avatar: callSignal.callerAvatar,
+        isGroup: false,
+        participantIds: [activeAccount.id, callSignal.callerId],
+        partnerIds: [],
+        createdAt: new Date().toISOString(),
+        isE2EESecure: true,
+        sharedKeyFingerprint: 'CALL'
+      };
+
+      setIncomingCall({
+        callId: callSignal.id,
+        caller: callerContact,
+        conversation: matchedConv,
+        type: callSignal.callType
+      });
+    });
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [activeAccount?.id, contacts, conversations, activeCall]);
+
+  // Real-time listener for conversation updates
+  useEffect(() => {
+    if (!activeAccount) return;
+    const unsubscribe = subscribeToUserConversations(activeAccount.id, (cloudConvs) => {
+      if (cloudConvs && cloudConvs.length > 0) {
+        setConversations((prev) => {
+          const map = new Map<string, Conversation>();
+          prev.forEach((c) => map.set(c.id, c));
+          cloudConvs.forEach((c) => {
+            const existing = map.get(c.id);
+            if (existing) {
+              map.set(c.id, { ...existing, ...c });
+            } else {
+              map.set(c.id, c);
+            }
+          });
+          return Array.from(map.values());
+        });
+      }
+    });
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [activeAccount?.id]);
 
   // 14-Day Auto-Purge of Ephemeral Online Text Messages on Startup
   useEffect(() => {
@@ -345,7 +437,6 @@ export default function App() {
   }, []);
 
   // Real-time listener for active conversation messages via Firebase Firestore
-  // Text messages disappear after 15 days online, while local client messages are kept permanently
   useEffect(() => {
     if (!activeConversationId) return;
 
@@ -353,15 +444,27 @@ export default function App() {
     purgeExpiredOnlineMessagesFromFirestore(activeConversationId, 15);
 
     const unsubscribe = subscribeToConversationMessages(activeConversationId, (cloudMsgs) => {
-      if (cloudMsgs && cloudMsgs.length > 0) {
+      if (cloudMsgs) {
         setMessagesMap((prev) => {
           const currentList = prev[activeConversationId] || [];
-          const currentIds = new Set(currentList.map((m) => m.id));
-          const newOnes = cloudMsgs.filter((m) => !currentIds.has(m.id));
-          if (newOnes.length === 0) return prev;
+          const map = new Map<string, Message>();
+          currentList.forEach((m) => map.set(m.id, m));
+          let hasNewIncoming = false;
+          cloudMsgs.forEach((m) => {
+            const existed = map.has(m.id);
+            if (!existed && m.senderId !== activeAccount?.id) {
+              hasNewIncoming = true;
+            }
+            map.set(m.id, m);
+          });
+          if (hasNewIncoming) {
+            playReceivedSound();
+          }
+          const merged = Array.from(map.values());
+          merged.sort((a, b) => (a.createdAtISO || a.timestamp).localeCompare(b.createdAtISO || b.timestamp));
           return {
             ...prev,
-            [activeConversationId]: [...currentList, ...newOnes]
+            [activeConversationId]: merged
           };
         });
       }
@@ -369,7 +472,7 @@ export default function App() {
     return () => {
       if (typeof unsubscribe === 'function') unsubscribe();
     };
-  }, [activeConversationId]);
+  }, [activeConversationId, activeAccount?.id]);
 
   // Derived Partners & Friends lists
   const partners = contacts.filter((c) => c.relationshipType === 'partner');
@@ -750,9 +853,11 @@ export default function App() {
     }, replyDelay);
   };
 
-  // Start Group or 1-on-1 Call
-  const handleStartCall = (type: 'audio' | 'video') => {
-    if (!activeConversation) return;
+  // Start Group or 1-on-1 Call with synchronized real-time Firestore signaling
+  const handleStartCall = async (type: 'audio' | 'video') => {
+    if (!activeConversation || !activeAccount) return;
+
+    const targetParticipantIds = activeConversation.participantIds.filter((id) => id !== activeAccount.id);
 
     const callParticipants = activeConversation.participantIds.map((id) => {
       if (id === currentUser.id) {
@@ -780,8 +885,10 @@ export default function App() {
       };
     });
 
+    const callId = `call_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
     const newCall: ActiveCall = {
-      id: 'call_' + Date.now(),
+      id: callId,
       conversationId: activeConversation.id,
       conversationTitle: activeConversation.title,
       isGroup: activeConversation.isGroup,
@@ -793,6 +900,33 @@ export default function App() {
 
     setActiveCall(newCall);
     setIsCallMinimized(false);
+
+    // Write call signal to Firestore so recipients' devices ring immediately
+    const signal: CallSignal = {
+      id: callId,
+      conversationId: activeConversation.id,
+      conversationTitle: activeConversation.title,
+      callerId: activeAccount.id,
+      callerName: activeAccount.name,
+      callerAvatar: activeAccount.avatar,
+      callType: type,
+      targetParticipantIds,
+      status: 'ringing',
+      createdAt: new Date().toISOString()
+    };
+    await initiateCallInFirestore(signal);
+
+    // Listen for call events (e.g. participant ends or declines)
+    if (callStatusUnsubscribeRef.current) {
+      callStatusUnsubscribeRef.current();
+    }
+    callStatusUnsubscribeRef.current = subscribeToCallStatus(callId, (updatedCall) => {
+      if (updatedCall.status === 'ended' || updatedCall.status === 'declined') {
+        setActiveCall(null);
+        setIsCallMinimized(false);
+        playEndCallSound();
+      }
+    });
   };
 
   // Add Participant to Active Call (Expands single call to group call!)
@@ -853,10 +987,18 @@ export default function App() {
     });
   };
 
-  // End active call
+  // End active call and signal across Firestore
   const handleEndCall = () => {
+    if (activeCall) {
+      endCallInFirestore(activeCall.id);
+    }
+    if (callStatusUnsubscribeRef.current) {
+      callStatusUnsubscribeRef.current();
+      callStatusUnsubscribeRef.current = null;
+    }
     setActiveCall(null);
     setIsCallMinimized(false);
+    playEndCallSound();
   };
 
   // Partner Management: Add (Strict Max 2 enforcement)
@@ -978,8 +1120,10 @@ export default function App() {
   };
 
   // Accept Contact Request
-  const handleAcceptContactRequest = (req: ContactRequest) => {
+  const handleAcceptContactRequest = async (req: ContactRequest) => {
     if (!activeAccount) return;
+
+    await updateContactRequestStatusInFirestore(req.id, 'accepted');
 
     const otherId = req.senderId;
     const otherUsername = req.senderUsername;
@@ -1017,28 +1161,29 @@ export default function App() {
       return [...prevContacts, newContact];
     });
 
-    const newConvId = `conv_${activeAccount.id}_${otherId}`;
+    const newConvId = getDirectConversationId(activeAccount.id, otherId);
+    const newConv: Conversation = {
+      id: newConvId,
+      title: otherName,
+      avatar: otherAvatar,
+      isGroup: false,
+      participantIds: [activeAccount.id, otherId],
+      partnerIds: req.relationshipType === 'partner' ? [otherId] : [],
+      createdAt: new Date().toISOString(),
+      isE2EESecure: true,
+      sharedKeyFingerprint: Math.random().toString(16).substring(2, 10).toUpperCase(),
+      lastMessage: {
+        text: 'Request accepted! You are now connected.',
+        timestamp: 'Just now',
+        senderName: 'Cuddles',
+        unreadCount: 0
+      }
+    };
+    syncConversationToFirestore(newConv);
+
     setConversations((prevConvs) => {
       const exists = prevConvs.find((c) => !c.isGroup && c.participantIds.includes(otherId));
       if (exists) return prevConvs;
-
-      const newConv: Conversation = {
-        id: newConvId,
-        title: otherName,
-        avatar: otherAvatar,
-        isGroup: false,
-        participantIds: [activeAccount.id, otherId],
-        partnerIds: req.relationshipType === 'partner' ? [otherId] : [],
-        createdAt: new Date().toISOString(),
-        isE2EESecure: true,
-        sharedKeyFingerprint: Math.random().toString(16).substring(2, 10).toUpperCase(),
-        lastMessage: {
-          text: 'Request accepted! You are now connected.',
-          timestamp: 'Just now',
-          senderName: 'Cuddles',
-          unreadCount: 0
-        }
-      };
       return [newConv, ...prevConvs];
     });
 
@@ -1046,13 +1191,12 @@ export default function App() {
   };
 
   // Pending count for the active user
-  const pendingRequestsCount = contactRequests.filter(
-    (r) =>
-      r.status === 'pending' &&
-      (r.receiverId === activeAccount?.id ||
-        (r.receiverUsername &&
-          r.receiverUsername.toLowerCase() === (activeAccount?.username || '').toLowerCase()))
-  ).length;
+  const cleanActiveUser = (activeAccount?.username || '').toLowerCase().trim().replace(/^@/, '');
+  const pendingRequestsCount = contactRequests.filter((r) => {
+    if (r.status !== 'pending') return false;
+    const cleanReceiver = (r.receiverUsername || '').toLowerCase().trim().replace(/^@/, '');
+    return r.receiverId === activeAccount?.id || (cleanReceiver && cleanReceiver === cleanActiveUser);
+  }).length;
 
   // If no account is logged in, show the clean Cuddles Authentication screen
   if (!activeAccount) {
@@ -1198,21 +1342,112 @@ export default function App() {
         />
       )}
 
-      {/* Incoming Call Simulation Dialog */}
+      {/* Incoming Call Dialog */}
       {incomingCall && (
         <IncomingCallDialog
           callerName={incomingCall.caller.name}
           callerAvatar={incomingCall.caller.avatar}
           callType={incomingCall.type}
           isPartner={incomingCall.caller.relationshipType === 'partner'}
-          onAccept={() => {
+          onAccept={async () => {
             const call = incomingCall;
             setIncomingCall(null);
+            if (!activeAccount) return;
+
+            await answerCallInFirestore(call.callId, activeAccount.id);
             setActiveConversationId(call.conversation.id);
-            handleStartCall(call.type);
+
+            const callParticipants = call.conversation.participantIds.map((id) => {
+              if (id === activeAccount.id) {
+                return {
+                  id: activeAccount.id,
+                  name: activeAccount.name,
+                  avatar: activeAccount.avatar,
+                  isMuted: false,
+                  isVideoOff: call.type === 'audio',
+                  isSpeaking: false,
+                  isLocal: true,
+                  relationshipType: currentUser.relationshipType
+                };
+              }
+              const contact = contacts.find((c) => c.id === id);
+              return {
+                id: id,
+                name: contact?.name || call.caller.name,
+                avatar: contact?.avatar || call.caller.avatar,
+                isMuted: false,
+                isVideoOff: call.type === 'audio',
+                isSpeaking: false,
+                isLocal: false,
+                relationshipType: contact?.relationshipType || call.caller.relationshipType
+              };
+            });
+
+            const connectedCall: ActiveCall = {
+              id: call.callId,
+              conversationId: call.conversation.id,
+              conversationTitle: call.conversation.title,
+              isGroup: call.conversation.isGroup,
+              callType: call.type,
+              status: 'connected',
+              startedAt: new Date().toISOString(),
+              participants: callParticipants
+            };
+
+            setActiveCall(connectedCall);
+            setIsCallMinimized(false);
+            playConnectSound();
+
+            if (callStatusUnsubscribeRef.current) {
+              callStatusUnsubscribeRef.current();
+            }
+            callStatusUnsubscribeRef.current = subscribeToCallStatus(call.callId, (updated) => {
+              if (updated.status === 'ended' || updated.status === 'declined') {
+                setActiveCall(null);
+                setIsCallMinimized(false);
+                playEndCallSound();
+              }
+            });
           }}
-          onDecline={() => setIncomingCall(null)}
+          onDecline={async () => {
+            if (incomingCall) {
+              await declineCallInFirestore(incomingCall.callId);
+              setIncomingCall(null);
+            }
+          }}
         />
+      )}
+
+      {/* Real-time In-App Notification Toast */}
+      {notificationToast && (
+        <div className="fixed top-5 right-5 z-50 max-w-sm w-full bg-slate-900/95 border border-rose-500/50 rounded-2xl p-4 shadow-2xl backdrop-blur-md animate-in slide-in-from-top-4 duration-300 flex items-start gap-3">
+          <div className="w-10 h-10 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
+            <span className="text-lg">✨</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <h4 className="text-xs font-bold text-white">{notificationToast.title}</h4>
+            <p className="text-[11px] text-slate-300 mt-0.5 line-clamp-2">{notificationToast.message}</p>
+            {notificationToast.actionLabel && (
+              <button
+                type="button"
+                onClick={() => {
+                  notificationToast.onAction?.();
+                  setNotificationToast(null);
+                }}
+                className="mt-2 px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
+              >
+                {notificationToast.actionLabel}
+              </button>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setNotificationToast(null)}
+            className="text-slate-400 hover:text-white text-xs p-1 cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
       )}
 
       {/* Partners Sanctuary Modal (Max 2 rule strictly enforced) */}

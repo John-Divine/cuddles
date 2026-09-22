@@ -137,6 +137,49 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
     }
   };
 
+  const handleSendDirectRequest = async () => {
+    const clean = targetUsername.trim().replace(/^@/, '').toLowerCase();
+    if (!clean) return;
+
+    if (relationshipType === 'partner' && currentPartnersCount >= 2) {
+      setError('You have reached the maximum of 2 partners allowed in your Sanctuary.');
+      return;
+    }
+
+    const alreadyAdded = existingContacts.some(
+      (c) => c.username && c.username.toLowerCase() === clean
+    );
+
+    if (alreadyAdded) {
+      setError(`@${clean} is already in your contacts!`);
+      return;
+    }
+
+    const request: ContactRequest = {
+      id: `req_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      senderId: currentUser.id,
+      senderName: currentUser.name,
+      senderUsername: currentUser.username,
+      senderAvatar: currentUser.avatar,
+      receiverId: `user_${clean}`,
+      receiverUsername: clean,
+      relationshipType,
+      partnerNickname: relationshipType === 'partner' ? partnerNickname.trim() || undefined : undefined,
+      partnerAnniversary: relationshipType === 'partner' ? partnerAnniversary || undefined : undefined,
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    };
+
+    try {
+      await sendContactRequestToFirestore(request);
+      onContactRequestSent(request);
+      setSentSuccess(true);
+    } catch (err) {
+      console.warn('Error sending direct request:', err);
+      setError('Failed to dispatch request. Please try again.');
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-slate-700/80 p-6 shadow-2xl text-slate-100 flex flex-col max-h-[90vh] overflow-y-auto">
@@ -302,13 +345,52 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
             </div>
           )}
 
-          {/* Not found state */}
+          {/* Not found state with option to dispatch invitation anyway */}
           {searchAttempted && !searching && !searchResult && !error && (
-            <div className="py-6 text-center text-xs text-slate-400 space-y-1">
-              <p className="font-semibold text-slate-300">No user found matching "@{targetUsername}"</p>
-              <p className="text-[11px] text-slate-500">
-                Make sure your friend or partner has registered their username.
-              </p>
+            <div className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700/80 text-center text-xs text-slate-400 space-y-3">
+              <div>
+                <p className="font-semibold text-slate-200">No active profile found for "@{targetUsername}"</p>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  You can send an invitation to <strong className="text-rose-400 font-mono">@{targetUsername}</strong> directly. The request will automatically appear in their Sanctuary the moment they sign in!
+                </p>
+              </div>
+
+              {relationshipType === 'partner' && (
+                <div className="pt-2 border-t border-slate-700/60 space-y-2 text-left">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                      Nickname for Partner <span className="text-slate-500 font-normal">(Optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={partnerNickname}
+                      onChange={(e) => setPartnerNickname(e.target.value)}
+                      placeholder="e.g. My Love, Sweetheart"
+                      className="w-full px-3 py-1.5 rounded-xl bg-slate-900/80 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                      Anniversary Date <span className="text-slate-500 font-normal">(Optional)</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={partnerAnniversary}
+                      onChange={(e) => setPartnerAnniversary(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-xl bg-slate-900/80 border border-slate-700 text-xs text-white focus:outline-none focus:border-rose-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleSendDirectRequest}
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-bold text-xs shadow-lg shadow-rose-600/25 flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 text-amber-300" />
+                <span>Send Request to @{targetUsername}</span>
+              </button>
             </div>
           )}
 
