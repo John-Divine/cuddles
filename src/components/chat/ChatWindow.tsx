@@ -311,11 +311,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
         {/* Action Controls: Media Gallery, Audio Call & Video Call */}
         <div className="flex items-center gap-1 sm:gap-2">
-          {/* Media Gallery */}
+          {/* Media Gallery (visible on sm screens, also in 3-dots on mobile) */}
           {onOpenMediaGallery && (
             <button
               onClick={onOpenMediaGallery}
-              className="p-2.5 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 active:scale-95 transition-all border border-slate-700/60"
+              className="hidden sm:flex p-2.5 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 active:scale-95 transition-all border border-slate-700/60"
               title="Open Sanctuary Media Gallery"
               aria-label="Media Gallery"
             >
@@ -326,21 +326,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           {/* Audio Call */}
           <button
             onClick={() => onStartCall('audio')}
-            className="p-2.5 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 active:scale-95 transition-all border border-slate-700/60"
+            className="p-2 sm:p-2.5 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 active:scale-95 transition-all border border-slate-700/60"
             title="Start Encrypted Audio Call"
             aria-label="Start Audio Call"
           >
-            <Phone className="w-4.5 h-4.5" />
+            <Phone className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
           </button>
 
           {/* Video Call */}
           <button
             onClick={() => onStartCall('video')}
-            className="p-2.5 rounded-xl bg-slate-800 hover:bg-rose-500/30 text-slate-300 hover:text-rose-300 active:scale-95 transition-all border border-slate-700/60"
+            className="p-2 sm:p-2.5 rounded-xl bg-slate-800 hover:bg-rose-500/30 text-slate-300 hover:text-rose-300 active:scale-95 transition-all border border-slate-700/60"
             title="Start Encrypted Video Call"
             aria-label="Start Video Call"
           >
-            <Video className="w-4.5 h-4.5" />
+            <Video className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
           </button>
 
           {/* Safety modal shortcut */}
@@ -356,58 +356,81 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           <div className="relative">
             <button
               onClick={() => setShowOptionsMenu(!showOptionsMenu)}
-              className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white"
+              className="p-2 sm:p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/60 active:scale-95 transition-all"
+              title="More options"
+              aria-label="More options"
             >
               <MoreVertical className="w-4 h-4" />
             </button>
 
             {showOptionsMenu && (
-              <div className="absolute right-0 top-12 w-56 rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-1.5 z-40 text-xs">
-                {effectiveRecipient && (
+              <>
+                {/* Backdrop dismiss */}
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setShowOptionsMenu(false)}
+                />
+
+                <div className="absolute right-0 top-12 w-64 max-w-[calc(100vw-24px)] rounded-2xl bg-slate-900/98 border border-slate-700 shadow-2xl p-1.5 z-50 backdrop-blur-xl animate-in fade-in slide-in-from-top-2 text-xs">
+                  {effectiveRecipient && (
+                    <button
+                      onClick={() => {
+                        setShowOptionsMenu(false);
+                        onViewProfile?.(effectiveRecipient);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-slate-800 text-slate-200 transition-colors"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-rose-500/15 text-rose-400 flex items-center justify-center shrink-0">
+                        <User className="w-4 h-4" />
+                      </div>
+                      <span className="font-semibold truncate">View Contact Profile</span>
+                    </button>
+                  )}
+
+                  {onOpenMediaGallery && (
+                    <button
+                      onClick={() => {
+                        setShowOptionsMenu(false);
+                        onOpenMediaGallery();
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-slate-800 text-slate-200 transition-colors"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-pink-500/15 text-pink-400 flex items-center justify-center shrink-0">
+                        <ImageIcon className="w-4 h-4" />
+                      </div>
+                      <span className="font-semibold truncate">Sanctuary Media Gallery</span>
+                    </button>
+                  )}
+
                   <button
                     onClick={() => {
                       setShowOptionsMenu(false);
-                      onViewProfile?.(effectiveRecipient);
+                      setShowSafetyModal(true);
                     }}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left hover:bg-slate-800 text-slate-200"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-slate-800 text-slate-200 transition-colors"
                   >
-                    <User className="w-4 h-4 text-rose-400" />
-                    View Contact Profile
+                    <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-400 flex items-center justify-center shrink-0">
+                      <ShieldCheck className="w-4 h-4" />
+                    </div>
+                    <span className="font-semibold truncate">Verify Safety Number</span>
                   </button>
-                )}
-                {onOpenMediaGallery && (
+
                   <button
                     onClick={() => {
                       setShowOptionsMenu(false);
-                      onOpenMediaGallery();
+                      onUpdateDisappearingTimer?.(conversation.disappearingTimerMinutes ? 0 : 1440);
                     }}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left hover:bg-slate-800 text-slate-200"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-slate-800 text-slate-200 transition-colors"
                   >
-                    <ImageIcon className="w-4 h-4 text-rose-400" />
-                    Sanctuary Media Gallery
+                    <div className="w-7 h-7 rounded-lg bg-amber-500/15 text-amber-400 flex items-center justify-center shrink-0">
+                      <Clock className="w-4 h-4" />
+                    </div>
+                    <span className="font-semibold truncate">
+                      {conversation.disappearingTimerMinutes ? 'Disable Disappearing' : 'Disappearing Messages (24h)'}
+                    </span>
                   </button>
-                )}
-                <button
-                  onClick={() => {
-                    setShowOptionsMenu(false);
-                    setShowSafetyModal(true);
-                  }}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left hover:bg-slate-800 text-slate-200"
-                >
-                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                  View Safety Number
-                </button>
-                <button
-                  onClick={() => {
-                    setShowOptionsMenu(false);
-                    onUpdateDisappearingTimer?.(conversation.disappearingTimerMinutes ? 0 : 1440);
-                  }}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left hover:bg-slate-800 text-slate-200"
-                >
-                  <Clock className="w-4 h-4 text-amber-400" />
-                  {conversation.disappearingTimerMinutes ? 'Disable Disappearing' : 'Disappearing Messages (24h)'}
-                </button>
-              </div>
+                </div>
+              </>
             )}
           </div>
         </div>

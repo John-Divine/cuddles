@@ -824,13 +824,13 @@ export default function App() {
       return nextMap;
     });
 
-    // Sync media message to Firestore (keeping payload lightweight for free tier Spark)
+    // Sync media message to Firestore (allowing up to 800KB payload for fast Spark tier sync)
     syncMessageToFirestore({
       ...newMessage,
       attachment: newMessage.attachment
         ? {
             ...newMessage.attachment,
-            url: (url && url.length < 50000) ? url : ''
+            url: (url && url.length < 800000) ? url : ''
           }
         : undefined
     });
@@ -1372,7 +1372,7 @@ export default function App() {
         {isMobileSidebarOpen && (
           <div
             onClick={() => setIsMobileSidebarOpen(false)}
-            className="fixed inset-0 z-20 bg-black/60 backdrop-blur-sm lg:hidden animate-in fade-in"
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden animate-in fade-in"
           />
         )}
 

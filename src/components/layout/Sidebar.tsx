@@ -18,7 +18,8 @@ import {
   Bell,
   UserPlus,
   Download,
-  Image as ImageIcon
+  Image as ImageIcon,
+  X
 } from 'lucide-react';
 import { Conversation, UserProfile } from '../../types';
 import { AUTO_PURGE_DAYS } from '../../lib/storage';
@@ -83,7 +84,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-30 w-80 sm:w-88 bg-slate-900/95 border-r border-rose-950/40 flex flex-col transition-transform duration-200 lg:static lg:translate-x-0 backdrop-blur-xl ${
+      className={`fixed inset-y-0 left-0 z-50 w-full sm:w-88 max-w-[320px] sm:max-w-sm bg-slate-900 border-r border-rose-950/40 flex flex-col shadow-2xl transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 backdrop-blur-2xl ${
         isMobileOpen ? 'translate-x-0' : '-translate-x-full'
       }`}
     >
@@ -108,7 +109,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* Action icons: Add contact, Requests, Day Schedules & Profile */}
+        {/* Action icons: Add contact, Requests, Day Schedules, Profile & Mobile Close */}
         <div className="flex items-center gap-1">
           {onOpenAddContactModal && (
             <button
@@ -167,6 +168,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {currentUser.moodEmoji}
             </span>
           </button>
+
+          {/* Close button for mobile drawer */}
+          {onCloseMobile && (
+            <button
+              onClick={onCloseMobile}
+              className="lg:hidden p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors ml-1"
+              title="Close sidebar"
+              aria-label="Close sidebar"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
       </div>
 

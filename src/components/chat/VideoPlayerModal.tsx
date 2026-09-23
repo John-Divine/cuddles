@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Play,
@@ -59,6 +60,12 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     }
     loadFromVault();
   }, [message.id, videoSrc]);
+
+  useEffect(() => {
+    if (videoRef.current && videoSrc) {
+      videoRef.current.load();
+    }
+  }, [videoSrc]);
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -195,7 +202,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  return (
+  const modalContent = (
     <div
       className="fixed inset-0 z-[999999] w-screen h-screen bg-black/95 backdrop-blur-2xl flex flex-col justify-between select-none animate-in fade-in duration-200"
       onMouseMove={handleMouseMove}
@@ -383,4 +390,6 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };

@@ -20,6 +20,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onComplete, onCanc
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const recordedBlobRef = useRef<Blob | null>(null);
   const timerRef = useRef<number | null>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
 
@@ -55,6 +56,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onComplete, onCanc
 
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: mimeType });
+        recordedBlobRef.current = blob;
         const url = URL.createObjectURL(blob);
         setAudioUrl(url);
         setRecordedDuration((prev) => (prev > 0 ? prev : 1));
@@ -118,6 +120,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onComplete, onCanc
       URL.revokeObjectURL(audioUrl);
       setAudioUrl(null);
     }
+    recordedBlobRef.current = null;
     setSeconds(0);
     setRecordedDuration(0);
     setRecordingState('recording');
@@ -125,7 +128,17 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onComplete, onCanc
   };
 
   const handleSend = () => {
-    onComplete(audioUrl || 'blob:audio_note', Math.max(1, recordedDuration));
+    const dur = Math.max(1, recordedDuration);
+    if (recordedBlobRef.current) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUrl = reader.result as string;
+        onComplete(dataUrl, dur);
+      };
+      reader.readAsDataURL(recordedBlobRef.current);
+    } else {
+      onComplete(audioUrl || 'blob:audio_note', dur);
+    }
   };
 
   const togglePlayback = () => {
@@ -148,11 +161,11 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onComplete, onCanc
   const content = (
     <div
       id="voice-note-overlay"
-      className="fixed inset-0 z-[999999] w-screen h-screen bg-slate-950/95 backdrop-blur-2xl flex flex-col items-center justify-center p-4 select-none animate-in fade-in duration-200"
+      className="fixed inset-0 z-[999999] w-screen h-[100dvh] bg-slate-950/95 backdrop-blur-2xl flex flex-col justify-between p-4 sm:p-6 select-none animate-in fade-in duration-200"
     >
       {/* Top Bar */}
-      <div className="absolute top-6 left-0 right-0 max-w-lg mx-auto px-6 flex items-center justify-between z-30">
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/90 border border-indigo-500/30 shadow-lg">
+      <div className="w-full max-w-lg mx-auto flex items-center justify-between z-30 pt-2 sm:pt-4">
+        <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/90 border border-indigo-500/30 shadow-lg">
           <div className={`w-2.5 h-2.5 rounded-full ${recordingState === 'recording' ? 'bg-rose-500 animate-ping' : 'bg-emerald-400'}`} />
           <span className="text-xs font-bold text-white tracking-wide">
             {recordingState === 'recording' ? 'Recording Voice Note' : 'Review Voice Note'}
@@ -170,9 +183,9 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onComplete, onCanc
       </div>
 
       {/* Main Center Area */}
-      <div className="flex flex-col items-center justify-center my-auto z-20">
+      <div className="flex-1 flex flex-col items-center justify-center my-auto z-20 min-h-0">
         {/* Animated Mic Circle / Orb */}
-        <div className="relative w-48 h-48 sm:w-56 sm:h-56 flex items-center justify-center">
+        <div className="relative w-40 h-40 sm:w-52 sm:h-52 flex items-center justify-center">
           {recordingState === 'recording' && (
             <>
               <div className="absolute inset-0 rounded-full bg-rose-500/15 animate-ping opacity-70" />
@@ -180,9 +193,9 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onComplete, onCanc
             </>
           )}
 
-          <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-full bg-gradient-to-tr from-rose-600 via-pink-600 to-indigo-600 p-1 shadow-2xl flex items-center justify-center relative">
-            <div className="w-full h-full bg-slate-950 rounded-full flex flex-col items-center justify-center gap-1.5">
-              <Mic className="w-10 h-10 sm:w-12 sm:h-12 text-rose-400" />
+          <div className="w-32 h-32 sm:w-40 sm:h-40 rounded-full bg-gradient-to-tr from-rose-600 via-pink-600 to-indigo-600 p-1 shadow-2xl flex items-center justify-center relative">
+            <div className="w-full h-full bg-slate-950 rounded-full flex flex-col items-center justify-center gap-1">
+              <Mic className="w-9 h-9 sm:w-11 sm:h-11 text-rose-400" />
               <span className="font-mono text-sm sm:text-base font-bold text-white">
                 {formatTime(seconds)}
               </span>
@@ -192,7 +205,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onComplete, onCanc
 
         {/* Live Audio Waveform Bars */}
         {recordingState === 'recording' ? (
-          <div className="flex items-center justify-center gap-1.5 h-12 w-64 sm:w-80 mt-6 px-4 bg-slate-900/80 rounded-2xl border border-slate-800">
+          <div className="flex items-center justify-center gap-1.5 h-12 w-64 sm:w-80 mt-5 px-4 bg-slate-900/80 rounded-2xl border border-slate-800">
             {waveHeights.map((h, i) => (
               <div
                 key={i}
@@ -203,7 +216,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onComplete, onCanc
           </div>
         ) : (
           /* Review Audio Player */
-          <div className="mt-6 flex flex-col items-center gap-3">
+          <div className="mt-5 flex flex-col items-center gap-3 w-full max-w-sm px-2">
             {audioUrl && (
               <audio
                 ref={audioPlayerRef}
@@ -212,77 +225,77 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onComplete, onCanc
                 className="hidden"
               />
             )}
-            <div className="flex items-center gap-4 bg-slate-900/90 border border-slate-700/80 rounded-2xl px-6 py-3 shadow-xl">
+            <div className="w-full flex items-center gap-3.5 bg-slate-900 border-2 border-slate-700/80 rounded-2xl p-3.5 shadow-xl">
               <button
                 type="button"
                 onClick={togglePlayback}
-                className="w-11 h-11 rounded-full bg-rose-500 hover:bg-rose-600 active:scale-95 text-white flex items-center justify-center shadow-lg transition-all"
+                className="w-12 h-12 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 text-white flex items-center justify-center shadow-lg transition-all shrink-0"
               >
                 {isPlaying ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 fill-white ml-0.5" />}
               </button>
-              <div className="flex flex-col">
-                <span className="text-xs font-bold text-white">Voice Note ({formatTime(recordedDuration)})</span>
-                <span className="text-[11px] text-slate-400">Ready to send with end-to-end encryption</span>
+              <div className="flex flex-col min-w-0">
+                <span className="text-sm font-bold text-white truncate">Voice Note ({formatTime(recordedDuration)})</span>
+                <span className="text-xs text-slate-300">Tap to listen before sending</span>
               </div>
             </div>
           </div>
         )}
 
         {/* Guidance Caption */}
-        <p className="text-xs text-slate-300 mt-5 font-medium text-center bg-slate-900/80 px-4 py-1.5 rounded-full border border-slate-700/60 shadow">
+        <p className="text-xs text-white mt-4 font-semibold text-center bg-slate-900/95 px-4 py-1.5 rounded-full border border-slate-700 shadow-lg">
           {recordingState === 'recording'
-            ? 'Recording voice note... Tap Stop when done or record to the end'
-            : 'Listen to preview before sending'}
+            ? 'Recording... Tap Stop when done or record to the end'
+            : 'Review audio and tap Send Voice Note'}
         </p>
       </div>
 
-      {/* Bottom Center Controls Bar */}
-      <div className="w-full max-w-sm flex items-center justify-center gap-6 pb-8 z-30">
+      {/* Elevated Bottom Controls Bar - Raised high up above bottom screen & mobile home bar */}
+      <div className="w-full max-w-sm mx-auto flex items-center justify-center pb-12 sm:pb-16 mb-4 sm:mb-6 z-30">
         {recordingState === 'recording' ? (
-          <>
+          <div className="flex items-center justify-center gap-10 w-full">
             {/* Cancel Button */}
             <button
               onClick={onCancel}
-              className="flex flex-col items-center gap-1 text-xs text-slate-400 hover:text-white"
+              className="flex flex-col items-center gap-1.5 text-xs text-slate-200 hover:text-white active:scale-95 transition-transform"
               title="Cancel recording"
             >
-              <div className="p-3.5 rounded-full bg-slate-800/90 hover:bg-slate-700 active:scale-95 border border-slate-700 shadow-lg transition-all">
-                <X className="w-5 h-5" />
+              <div className="p-3.5 rounded-full bg-slate-800 hover:bg-slate-700 border-2 border-slate-500 shadow-2xl transition-all text-white">
+                <X className="w-6 h-6 text-white" />
               </div>
-              <span className="font-semibold">Cancel</span>
+              <span className="font-bold tracking-wide">Cancel</span>
             </button>
 
             {/* Stop Button */}
             <button
               onClick={stopRecording}
-              className="flex flex-col items-center gap-1.5 group"
+              className="flex flex-col items-center gap-1.5 group active:scale-95 transition-transform"
               title="Stop recording"
             >
-              <div className="w-18 h-18 rounded-full bg-gradient-to-tr from-rose-600 via-pink-600 to-rose-700 hover:from-rose-500 hover:to-pink-500 active:scale-90 flex items-center justify-center shadow-xl shadow-rose-600/40 transition-all ring-4 ring-rose-400/30">
-                <div className="w-7 h-7 rounded-md bg-white flex items-center justify-center shadow">
-                  <Square className="w-4 h-4 text-rose-600 fill-rose-600" />
+              <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-rose-500 via-pink-500 to-rose-600 hover:from-rose-400 hover:to-rose-500 flex items-center justify-center shadow-2xl shadow-rose-600/50 ring-4 ring-rose-400/50 transition-all">
+                <div className="w-6 h-6 rounded-md bg-white flex items-center justify-center shadow">
+                  <Square className="w-3.5 h-3.5 text-rose-600 fill-rose-600" />
                 </div>
               </div>
-              <span className="text-xs font-bold text-white">Stop</span>
+              <span className="text-xs font-black text-white tracking-wide">Stop</span>
             </button>
-          </>
+          </div>
         ) : (
-          /* Review State Controls */
-          <div className="flex items-center justify-center gap-4 w-full px-4">
+          /* Review State Controls: Re-record or Send with high-contrast, large legible buttons */
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full px-4">
             <button
               onClick={handleRerecord}
-              className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white text-xs font-bold border border-slate-700 shadow-lg transition-all cursor-pointer"
+              className="w-full sm:flex-1 flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-white text-sm font-extrabold border-2 border-slate-500 shadow-2xl transition-all cursor-pointer ring-1 ring-white/10"
             >
-              <RotateCcw className="w-4 h-4" />
-              Re-record
+              <RotateCcw className="w-4 h-4 text-white" />
+              <span>Re-record</span>
             </button>
 
             <button
               onClick={handleSend}
-              className="flex items-center gap-2 px-7 py-3 rounded-2xl bg-gradient-to-r from-rose-600 via-pink-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 active:scale-95 text-white text-sm font-extrabold shadow-xl shadow-rose-600/40 transition-all cursor-pointer"
+              className="w-full sm:flex-1 flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-gradient-to-r from-rose-500 via-pink-500 to-rose-600 hover:from-rose-400 hover:to-rose-500 active:scale-95 text-white text-sm sm:text-base font-black shadow-2xl shadow-rose-600/50 ring-2 ring-white/20 transition-all cursor-pointer"
             >
-              <Send className="w-4 h-4" />
-              Send Voice Note
+              <Send className="w-4 h-4 text-white fill-white" />
+              <span>Send Voice Note</span>
             </button>
           </div>
         )}

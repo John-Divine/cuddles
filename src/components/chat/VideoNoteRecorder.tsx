@@ -62,13 +62,26 @@ export const VideoNoteRecorder: React.FC<VideoNoteRecorderProps> = ({ onComplete
       chunksRef.current = [];
       setSeconds(0);
 
-      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
-        ? 'video/webm;codecs=vp9,opus'
-        : MediaRecorder.isTypeSupported('video/webm')
-        ? 'video/webm'
-        : 'video/mp4';
+      let mimeType = '';
+      if (MediaRecorder.isTypeSupported('video/mp4;codecs=avc1,mp4a.40.2')) {
+        mimeType = 'video/mp4;codecs=avc1,mp4a.40.2';
+      } else if (MediaRecorder.isTypeSupported('video/mp4')) {
+        mimeType = 'video/mp4';
+      } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
+        mimeType = 'video/webm;codecs=vp8,opus';
+      } else if (MediaRecorder.isTypeSupported('video/webm')) {
+        mimeType = 'video/webm';
+      }
 
-      const recorder = new MediaRecorder(stream, { mimeType });
+      const recorderOptions: MediaRecorderOptions = {
+        videoBitsPerSecond: 450000,
+        audioBitsPerSecond: 64000
+      };
+      if (mimeType) {
+        recorderOptions.mimeType = mimeType;
+      }
+
+      const recorder = new MediaRecorder(stream, recorderOptions);
 
       recorder.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) {
@@ -77,7 +90,8 @@ export const VideoNoteRecorder: React.FC<VideoNoteRecorderProps> = ({ onComplete
       };
 
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: mimeType });
+        const finalMime = mimeType || 'video/webm';
+        const blob = new Blob(chunksRef.current, { type: finalMime });
         recordedBlobRef.current = blob;
         const url = URL.createObjectURL(blob);
         setReviewUrl(url);
@@ -174,18 +188,18 @@ export const VideoNoteRecorder: React.FC<VideoNoteRecorderProps> = ({ onComplete
 
   // 60-second circle circumference calculation
   const progressPercent = (seconds / 60) * 100;
-  const radius = 120;
+  const radius = 100;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (circumference * progressPercent) / 100;
 
   const content = (
     <div
       id="video-note-overlay"
-      className="fixed inset-0 z-[999999] w-screen h-screen bg-slate-950/95 backdrop-blur-2xl flex flex-col items-center justify-center p-4 select-none animate-in fade-in duration-200"
+      className="fixed inset-0 z-[999999] w-screen h-[100dvh] bg-slate-950/95 backdrop-blur-2xl flex flex-col justify-between p-4 sm:p-6 select-none animate-in fade-in duration-200"
     >
       {/* Top Bar with Cancel / Close Button */}
-      <div className="absolute top-6 left-0 right-0 max-w-lg mx-auto px-6 flex items-center justify-between z-30">
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/90 border border-rose-500/30 shadow-lg">
+      <div className="w-full max-w-lg mx-auto flex items-center justify-between z-30 pt-2 sm:pt-4">
+        <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/90 border border-rose-500/30 shadow-lg">
           <div className={`w-2.5 h-2.5 rounded-full ${recordingState === 'recording' ? 'bg-rose-500 animate-ping' : 'bg-emerald-400'}`} />
           <span className="text-xs font-bold text-white tracking-wide">
             {recordingState === 'recording' ? 'Recording Video Note' : 'Review Video Note'}
@@ -203,28 +217,28 @@ export const VideoNoteRecorder: React.FC<VideoNoteRecorderProps> = ({ onComplete
       </div>
 
       {/* Main Center Area: Center Circle & Viewfinder */}
-      <div className="flex flex-col items-center justify-center my-auto z-20">
-        {/* Viewfinder Circle Container */}
-        <div className="relative w-64 h-64 sm:w-72 sm:h-72 flex items-center justify-center">
+      <div className="flex-1 flex flex-col items-center justify-center my-auto z-20 min-h-0">
+        {/* Viewfinder Circle Container - optimized size to prevent bottom overflow on mobile */}
+        <div className="relative w-44 h-44 sm:w-60 sm:h-60 flex items-center justify-center">
           {/* Circular SVG Timer Ring */}
           <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none z-30">
             <circle
               cx="50%"
               cy="50%"
-              r={radius}
+              r="47%"
               className="stroke-slate-800/80"
-              strokeWidth="6"
+              strokeWidth="5"
               fill="transparent"
             />
             {recordingState === 'recording' && (
               <circle
                 cx="50%"
                 cy="50%"
-                r={radius}
+                r="47%"
                 className="stroke-rose-500 transition-all duration-300"
-                strokeWidth="6"
-                strokeDasharray={circumference}
-                strokeDashoffset={strokeDashoffset}
+                strokeWidth="5"
+                strokeDasharray={2 * Math.PI * 100}
+                strokeDashoffset={2 * Math.PI * 100 * (1 - progressPercent / 100)}
                 strokeLinecap="round"
                 fill="transparent"
               />
@@ -232,7 +246,7 @@ export const VideoNoteRecorder: React.FC<VideoNoteRecorderProps> = ({ onComplete
           </svg>
 
           {/* Inner Camera / Video Frame */}
-          <div className="w-56 h-56 sm:w-64 sm:h-64 rounded-full overflow-hidden bg-slate-900 border-4 border-rose-500/40 shadow-2xl flex items-center justify-center relative">
+          <div className="w-36 h-36 sm:w-52 sm:h-52 rounded-full overflow-hidden bg-slate-900 border-4 border-rose-500/40 shadow-2xl flex items-center justify-center relative">
             {hasPermission === false ? (
               <div className="p-4 text-center text-xs text-slate-300 flex flex-col items-center gap-2">
                 <AlertCircle className="w-8 h-8 text-amber-400" />
@@ -259,8 +273,8 @@ export const VideoNoteRecorder: React.FC<VideoNoteRecorderProps> = ({ onComplete
                 />
                 {!isPlayingReview && (
                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                    <div className="w-14 h-14 rounded-full bg-white/30 backdrop-blur-md flex items-center justify-center shadow-lg">
-                      <Play className="w-7 h-7 text-white fill-white ml-1" />
+                    <div className="w-12 h-12 rounded-full bg-white/30 backdrop-blur-md flex items-center justify-center shadow-lg">
+                      <Play className="w-6 h-6 text-white fill-white ml-0.5" />
                     </div>
                   </div>
                 )}
@@ -277,7 +291,7 @@ export const VideoNoteRecorder: React.FC<VideoNoteRecorderProps> = ({ onComplete
 
             {/* Live Recording Badge */}
             {recordingState === 'recording' && (
-              <div className="absolute bottom-4 z-30 px-3 py-1 rounded-full bg-rose-600 text-white font-mono text-xs font-bold shadow-lg backdrop-blur-sm animate-pulse flex items-center gap-1.5">
+              <div className="absolute bottom-2 sm:bottom-3 z-30 px-3 py-1 rounded-full bg-rose-600 text-white font-mono text-xs font-bold shadow-lg backdrop-blur-sm animate-pulse flex items-center gap-1.5">
                 <div className="w-2 h-2 rounded-full bg-white" />
                 <span>0:{seconds.toString().padStart(2, '0')} / 1:00</span>
               </div>
@@ -286,72 +300,72 @@ export const VideoNoteRecorder: React.FC<VideoNoteRecorderProps> = ({ onComplete
         </div>
 
         {/* Informative Guidance Caption */}
-        <p className="text-xs text-slate-300 mt-5 font-medium text-center bg-slate-900/80 px-4 py-1.5 rounded-full border border-slate-700/60 shadow">
+        <p className="text-xs text-white mt-3 font-semibold text-center bg-slate-900/95 px-4 py-1.5 rounded-full border border-slate-700 shadow-lg">
           {recordingState === 'recording'
-            ? 'Recording circular note... Tap Stop when done or wait for 1:00'
+            ? 'Recording circular note... Tap Stop when done'
             : 'Preview your video note before sending'}
         </p>
       </div>
 
-      {/* Bottom Center Controls Bar */}
-      <div className="w-full max-w-sm flex items-center justify-center gap-6 pb-8 z-30">
+      {/* Elevated Bottom Controls Bar - Raised high up above bottom screen & mobile home bar */}
+      <div className="w-full max-w-sm mx-auto flex items-center justify-center pb-12 sm:pb-16 mb-4 sm:mb-6 z-30">
         {recordingState === 'recording' ? (
-          <>
+          <div className="flex items-center justify-center gap-8 w-full">
             {/* Cancel Button */}
             <button
               onClick={onCancel}
-              className="flex flex-col items-center gap-1 text-xs text-slate-400 hover:text-white"
+              className="flex flex-col items-center gap-1.5 text-xs text-slate-200 hover:text-white active:scale-95 transition-transform"
               title="Cancel recording"
             >
-              <div className="p-3.5 rounded-full bg-slate-800/90 hover:bg-slate-700 active:scale-95 border border-slate-700 shadow-lg transition-all">
-                <X className="w-5 h-5" />
+              <div className="p-3.5 rounded-full bg-slate-800 hover:bg-slate-700 border-2 border-slate-500 shadow-2xl transition-all">
+                <X className="w-6 h-6 text-white" />
               </div>
-              <span className="font-semibold">Cancel</span>
+              <span className="font-bold tracking-wide">Cancel</span>
             </button>
 
             {/* Stop Recording Button (Prominent Center) */}
             <button
               onClick={stopRecording}
-              className="flex flex-col items-center gap-1.5 group"
+              className="flex flex-col items-center gap-1.5 group active:scale-95 transition-transform"
               title="Stop recording"
             >
-              <div className="w-18 h-18 rounded-full bg-gradient-to-tr from-rose-600 via-pink-600 to-rose-700 hover:from-rose-500 hover:to-pink-500 active:scale-90 flex items-center justify-center shadow-xl shadow-rose-600/40 transition-all ring-4 ring-rose-400/30">
-                <div className="w-7 h-7 rounded-md bg-white flex items-center justify-center shadow">
-                  <Square className="w-4 h-4 text-rose-600 fill-rose-600" />
+              <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-rose-500 via-pink-500 to-rose-600 hover:from-rose-400 hover:to-rose-500 flex items-center justify-center shadow-2xl shadow-rose-600/50 ring-4 ring-rose-400/50 transition-all">
+                <div className="w-6 h-6 rounded-md bg-white flex items-center justify-center shadow">
+                  <Square className="w-3.5 h-3.5 text-rose-600 fill-rose-600" />
                 </div>
               </div>
-              <span className="text-xs font-bold text-white">Stop</span>
+              <span className="text-xs font-black text-white tracking-wide">Stop</span>
             </button>
 
             {/* Flip Camera Button */}
             <button
               onClick={handleFlipCamera}
-              className="flex flex-col items-center gap-1 text-xs text-slate-300 hover:text-white"
+              className="flex flex-col items-center gap-1.5 text-xs text-slate-200 hover:text-white active:scale-95 transition-transform"
               title="Flip camera"
             >
-              <div className="p-3.5 rounded-full bg-slate-800/90 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 shadow-lg transition-all">
-                <RefreshCw className="w-5 h-5" />
+              <div className="p-3.5 rounded-full bg-slate-800 hover:bg-slate-700 border-2 border-slate-500 shadow-2xl text-white transition-all">
+                <RefreshCw className="w-6 h-6 text-white" />
               </div>
-              <span className="font-semibold">Flip</span>
+              <span className="font-bold tracking-wide">Flip</span>
             </button>
-          </>
+          </div>
         ) : (
-          /* Review State Controls: Re-record or Send */
-          <div className="flex items-center justify-center gap-4 w-full px-4">
+          /* Review State Controls: Re-record or Send with high-contrast, large legible buttons */
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full px-4">
             <button
               onClick={handleRerecord}
-              className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white text-xs font-bold border border-slate-700 shadow-lg transition-all cursor-pointer"
+              className="w-full sm:flex-1 flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-white text-sm font-extrabold border-2 border-slate-500 shadow-2xl transition-all cursor-pointer ring-1 ring-white/10"
             >
-              <RotateCcw className="w-4 h-4" />
-              Re-record
+              <RotateCcw className="w-4 h-4 text-white" />
+              <span>Re-record</span>
             </button>
 
             <button
               onClick={handleSend}
-              className="flex items-center gap-2 px-7 py-3 rounded-2xl bg-gradient-to-r from-rose-600 via-pink-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 active:scale-95 text-white text-sm font-extrabold shadow-xl shadow-rose-600/40 transition-all cursor-pointer"
+              className="w-full sm:flex-1 flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-gradient-to-r from-rose-500 via-pink-500 to-rose-600 hover:from-rose-400 hover:to-rose-500 active:scale-95 text-white text-sm sm:text-base font-black shadow-2xl shadow-rose-600/50 ring-2 ring-white/20 transition-all cursor-pointer"
             >
-              <Send className="w-4 h-4" />
-              Send Video Note
+              <Send className="w-4 h-4 text-white fill-white" />
+              <span>Send Video Note</span>
             </button>
           </div>
         )}

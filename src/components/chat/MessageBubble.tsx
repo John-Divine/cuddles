@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Play,
   Pause,
@@ -91,6 +92,25 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const videoNoteRef = useRef<HTMLVideoElement | null>(null);
   const videoFileRef = useRef<HTMLVideoElement | null>(null);
 
+  // When media URL resolves from IndexedDB or cloud, trigger .load() so browser decoder initializes
+  useEffect(() => {
+    if (videoNoteRef.current && currentMediaUrl) {
+      videoNoteRef.current.load();
+    }
+  }, [currentMediaUrl]);
+
+  useEffect(() => {
+    if (videoFileRef.current && currentMediaUrl) {
+      videoFileRef.current.load();
+    }
+  }, [currentMediaUrl]);
+
+  useEffect(() => {
+    if (audioRef.current && currentMediaUrl) {
+      audioRef.current.load();
+    }
+  }, [currentMediaUrl]);
+
   // Universal Media Save & Purge Trigger
   const handleSaveMedia = async (
     msg: Message,
@@ -146,12 +166,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   };
 
   // Video note inline controls
-  const toggleVideoNote = () => {
+  const toggleVideoNote = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     if (!videoNoteRef.current) return;
     if (isPlayingVideoNote) {
       videoNoteRef.current.pause();
       setIsPlayingVideoNote(false);
     } else {
+      if (videoNoteRef.current.ended) {
+        videoNoteRef.current.currentTime = 0;
+      }
+      videoNoteRef.current.muted = isVideoNoteMuted;
       const playPromise = videoNoteRef.current.play();
       if (playPromise !== undefined) {
         playPromise
@@ -159,7 +184,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             setIsPlayingVideoNote(true);
           })
           .catch(() => {
-            // Autoplay with sound restricted, fallback to muted play
+            // Autoplay with sound restricted by browser policy, fallback to muted play
             if (videoNoteRef.current) {
               videoNoteRef.current.muted = true;
               setIsVideoNoteMuted(true);
@@ -789,7 +814,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       </div>
 
       {/* Image Zoom Modal with explicit Save to Gallery button */}
-      {showImageZoom && message.attachment && (
+      {showImageZoom && message.attachment && typeof document !== 'undefined' && createPortal(
         <div
           className="fixed inset-0 z-[99999] flex flex-col items-center justify-between bg-black/95 p-4 sm:p-6 backdrop-blur-xl animate-in fade-in duration-200"
           onClick={() => setShowImageZoom(false)}
@@ -830,7 +855,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           <div className="text-center text-xs text-slate-400 z-10">
             Ephemeral Photo • Saved to local device vault & purged from cloud upon download
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

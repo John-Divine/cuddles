@@ -18,6 +18,7 @@ import { GifPicker } from './GifPicker';
 import { VoiceRecorder } from './VoiceRecorder';
 import { VideoNoteRecorder } from './VideoNoteRecorder';
 import { CameraCaptureModal } from './CameraCaptureModal';
+import { compressImage } from '../../lib/imageUtils';
 import { MessagePriority, MessageType } from '../../types';
 
 interface MessageInputProps {
@@ -133,7 +134,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -144,13 +145,20 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
 
     setFileError(null);
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setPendingImage(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      // Auto-compress high-res phone camera / gallery photos to crisp, fast JPEG
+      const compressedDataUrl = await compressImage(file, 1280, 1280, 0.82);
+      setPendingImage(compressedDataUrl);
+    } catch (err) {
+      console.warn('Image compression fallback:', err);
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          setPendingImage(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
     e.target.value = '';
   };
 
@@ -337,102 +345,115 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 <Plus className="w-5 h-5 transition-transform duration-200" />
               </button>
 
-              {/* Mobile Attachments Popup Menu */}
+              {/* Mobile WhatsApp-Style Attachments Grid Menu */}
               {showPlusMenu && (
-                <div className="absolute bottom-12 left-0 w-52 rounded-2xl bg-slate-900/95 border border-slate-700 shadow-2xl p-1.5 z-50 backdrop-blur-xl animate-in fade-in slide-in-from-bottom-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowPlusMenu(false);
-                      setIsTakingPhoto(true);
-                    }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left hover:bg-slate-800 text-slate-200 text-xs transition-colors"
-                  >
-                    <div className="w-7 h-7 rounded-lg bg-rose-500/15 text-rose-400 flex items-center justify-center">
-                      <Camera className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="font-semibold">Take Photo</div>
-                      <div className="text-[10px] text-slate-400">Camera snapshot</div>
-                    </div>
-                  </button>
+                <>
+                  {/* Backdrop dismissal */}
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setShowPlusMenu(false)}
+                  />
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowPlusMenu(false);
-                      imageInputRef.current?.click();
-                    }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left hover:bg-slate-800 text-slate-200 text-xs transition-colors"
-                  >
-                    <div className="w-7 h-7 rounded-lg bg-pink-500/15 text-pink-400 flex items-center justify-center">
-                      <ImageIcon className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="font-semibold">Photo Library</div>
-                      <div className="text-[10px] text-slate-400">Send photos & images</div>
-                    </div>
-                  </button>
+                  <div className="absolute bottom-14 left-0 w-72 rounded-3xl bg-slate-900/98 border border-slate-700/80 shadow-2xl p-3.5 z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-bottom-2">
+                    <div className="grid grid-cols-3 gap-2.5">
+                      {/* Camera */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowPlusMenu(false);
+                          setIsTakingPhoto(true);
+                        }}
+                        className="flex flex-col items-center gap-1.5 p-2 rounded-2xl hover:bg-slate-800/80 active:scale-95 transition-all group"
+                      >
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-rose-500 to-pink-500 text-white flex items-center justify-center shadow-lg shadow-rose-500/25 group-hover:scale-105 transition-transform">
+                          <Camera className="w-5 h-5" />
+                        </div>
+                        <span className="text-[11px] font-bold text-slate-200">Camera</span>
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowPlusMenu(false);
-                      docInputRef.current?.click();
-                    }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left hover:bg-slate-800 text-slate-200 text-xs transition-colors"
-                  >
-                    <div className="w-7 h-7 rounded-lg bg-indigo-500/15 text-indigo-400 flex items-center justify-center">
-                      <Paperclip className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="font-semibold">Document / Video</div>
-                      <div className="text-[10px] text-slate-400">Files up to 50MB</div>
-                    </div>
-                  </button>
+                      {/* Photo Library */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowPlusMenu(false);
+                          imageInputRef.current?.click();
+                        }}
+                        className="flex flex-col items-center gap-1.5 p-2 rounded-2xl hover:bg-slate-800/80 active:scale-95 transition-all group"
+                      >
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-purple-500 to-indigo-500 text-white flex items-center justify-center shadow-lg shadow-purple-500/25 group-hover:scale-105 transition-transform">
+                          <ImageIcon className="w-5 h-5" />
+                        </div>
+                        <span className="text-[11px] font-bold text-slate-200">Gallery</span>
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowPlusMenu(false);
-                      setShowGifPicker(true);
-                    }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left hover:bg-slate-800 text-slate-200 text-xs transition-colors"
-                  >
-                    <div className="w-7 h-7 rounded-lg bg-purple-500/15 text-purple-400 flex items-center justify-center">
-                      <Sparkles className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="font-semibold">Cuddle GIF</div>
-                      <div className="text-[10px] text-slate-400">Romantic reactions</div>
-                    </div>
-                  </button>
+                      {/* Document / File */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowPlusMenu(false);
+                          docInputRef.current?.click();
+                        }}
+                        className="flex flex-col items-center gap-1.5 p-2 rounded-2xl hover:bg-slate-800/80 active:scale-95 transition-all group"
+                      >
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-blue-500 to-cyan-500 text-white flex items-center justify-center shadow-lg shadow-blue-500/25 group-hover:scale-105 transition-transform">
+                          <Paperclip className="w-5 h-5" />
+                        </div>
+                        <span className="text-[11px] font-bold text-slate-200">Document</span>
+                      </button>
 
-                  <div className="my-1 border-t border-slate-800" />
+                      {/* Video Note */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowPlusMenu(false);
+                          setIsRecordingVideoNote(true);
+                        }}
+                        className="flex flex-col items-center gap-1.5 p-2 rounded-2xl hover:bg-slate-800/80 active:scale-95 transition-all group"
+                      >
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/25 group-hover:scale-105 transition-transform">
+                          <Video className="w-5 h-5" />
+                        </div>
+                        <span className="text-[11px] font-bold text-slate-200">Video Note</span>
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsUrgent(!isUrgent);
-                      setShowPlusMenu(false);
-                    }}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left text-xs transition-colors ${
-                      isUrgent
-                        ? 'bg-rose-500/20 text-rose-300'
-                        : 'hover:bg-slate-800 text-slate-300'
-                    }`}
-                  >
-                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
-                      isUrgent ? 'bg-rose-500 text-white' : 'bg-amber-500/15 text-amber-400'
-                    }`}>
-                      <Zap className="w-4 h-4" />
+                      {/* Cuddle GIF */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowPlusMenu(false);
+                          setShowGifPicker(true);
+                        }}
+                        className="flex flex-col items-center gap-1.5 p-2 rounded-2xl hover:bg-slate-800/80 active:scale-95 transition-all group"
+                      >
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-violet-500 to-fuchsia-500 text-white flex items-center justify-center shadow-lg shadow-violet-500/25 group-hover:scale-105 transition-transform">
+                          <Sparkles className="w-5 h-5" />
+                        </div>
+                        <span className="text-[11px] font-bold text-slate-200">Cuddle GIF</span>
+                      </button>
+
+                      {/* Urgent Priority */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsUrgent(!isUrgent);
+                          setShowPlusMenu(false);
+                        }}
+                        className="flex flex-col items-center gap-1.5 p-2 rounded-2xl hover:bg-slate-800/80 active:scale-95 transition-all group"
+                      >
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-transform group-hover:scale-105 ${
+                          isUrgent
+                            ? 'bg-gradient-to-tr from-rose-600 to-amber-500 text-white ring-2 ring-rose-400 shadow-rose-600/30'
+                            : 'bg-gradient-to-tr from-amber-500 to-yellow-500 text-slate-950 shadow-amber-500/25'
+                        }`}>
+                          <Zap className="w-5 h-5 fill-current" />
+                        </div>
+                        <span className="text-[11px] font-bold text-slate-200">
+                          {isUrgent ? 'Urgent ON' : 'Urgent'}
+                        </span>
+                      </button>
                     </div>
-                    <div>
-                      <div className="font-semibold">{isUrgent ? 'Urgent Enabled' : 'Urgent Mode'}</div>
-                      <div className="text-[10px] text-slate-400">Bypasses quiet schedule</div>
-                    </div>
-                  </button>
-                </div>
+                  </div>
+                </>
               )}
             </div>
 

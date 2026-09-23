@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Play,
@@ -194,7 +195,7 @@ export const VideoNotePlayerModal: React.FC<VideoNotePlayerModalProps> = ({
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  return (
+  const modalContent = (
     <div
       className="fixed inset-0 z-[99999] w-screen h-screen bg-black/95 backdrop-blur-2xl flex flex-col items-center justify-between p-4 sm:p-6 select-none animate-in fade-in duration-200"
       onClick={onClose}
@@ -376,4 +377,6 @@ export const VideoNotePlayerModal: React.FC<VideoNotePlayerModalProps> = ({
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };
