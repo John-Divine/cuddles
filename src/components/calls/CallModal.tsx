@@ -539,7 +539,7 @@ export const CallModal: React.FC<CallModalProps> = ({
 
           <div>
             <h3 className="font-bold text-sm sm:text-base text-white flex items-center gap-2">
-              <span>{call.conversationTitle}</span>
+              <span>{!isGroupCall && remoteParticipants[0]?.name ? remoteParticipants[0].name : call.conversationTitle}</span>
               {isGroupCall ? (
                 <span className="px-2 py-0.5 rounded-full bg-indigo-500/30 text-indigo-300 text-[11px] font-semibold">
                   Group Call ({call.participants.length})

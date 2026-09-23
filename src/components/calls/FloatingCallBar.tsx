@@ -16,6 +16,8 @@ export const FloatingCallBar: React.FC<FloatingCallBarProps> = ({
   onToggleMute,
 }) => {
   const localParticipant = call.participants.find((p) => p.isLocal);
+  const remoteParticipant = call.participants.find((p) => !p.isLocal);
+  const displayTitle = !call.isGroup && remoteParticipant ? remoteParticipant.name : call.conversationTitle;
 
   return (
     <div className="fixed top-3 right-3 sm:right-6 z-40 flex items-center gap-3 bg-slate-900/95 border border-indigo-500/50 shadow-2xl rounded-2xl p-2 px-3.5 backdrop-blur-xl animate-in slide-in-from-top duration-200">
@@ -31,7 +33,7 @@ export const FloatingCallBar: React.FC<FloatingCallBarProps> = ({
         </div>
         <div className="text-left">
           <span className="font-semibold text-xs text-white block max-w-[120px] truncate">
-            {call.conversationTitle}
+            {displayTitle}
           </span>
           <span className="text-[10px] text-emerald-400 font-medium">In Call • Tap to expand</span>
         </div>

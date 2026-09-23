@@ -17,11 +17,13 @@ import {
   HardDrive,
   Bell,
   UserPlus,
-  Download
+  Download,
+  Image as ImageIcon
 } from 'lucide-react';
 import { Conversation, UserProfile } from '../../types';
 import { AUTO_PURGE_DAYS } from '../../lib/storage';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
+import { getConversationDisplayDetails } from '../../lib/conversationResolver';
 
 interface SidebarProps {
   conversations: Conversation[];
@@ -38,6 +40,7 @@ interface SidebarProps {
   onOpenRequestsModal?: () => void;
   onOpenAddContactModal?: () => void;
   onOpenInstallModal?: () => void;
+  onOpenMediaGallery?: () => void;
   onStartCall: (conversationId: string, type: 'audio' | 'video') => void;
   isMobileOpen?: boolean;
   onCloseMobile?: () => void;
@@ -58,6 +61,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenRequestsModal,
   onOpenAddContactModal,
   onOpenInstallModal,
+  onOpenMediaGallery,
   onStartCall,
   isMobileOpen = false,
   onCloseMobile,
@@ -128,6 +132,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   {pendingRequestsCount}
                 </span>
               )}
+            </button>
+          )}
+
+          {onOpenMediaGallery && (
+            <button
+              onClick={onOpenMediaGallery}
+              className="p-2 rounded-xl text-slate-400 hover:text-rose-300 hover:bg-slate-800/80 transition-colors"
+              title="Sanctuary Media Gallery"
+            >
+              <ImageIcon className="w-4.5 h-4.5" />
             </button>
           )}
 
@@ -290,25 +304,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         ) : (
           filteredConversations.map((conv) => {
             const isActive = conv.id === activeConversationId;
-            const isPartnerChat = conv.partnerIds && conv.partnerIds.length > 0 && !conv.isGroup;
-
-            // Resolve the other party's name and avatar for 1-on-1 chats
             const allContacts = [...partners, ...friends];
-            const otherParticipantId = !conv.isGroup
-              ? conv.participantIds.find((id) => id !== currentUser.id)
-              : null;
-            const matchingContact = otherParticipantId
-              ? allContacts.find(
-                  (c) =>
-                    c.id === otherParticipantId ||
-                    (c.username && otherParticipantId.toLowerCase().includes(c.username.toLowerCase()))
-                )
-              : null;
-
-            const displayTitle = matchingContact
-              ? (matchingContact.partnerNickname || matchingContact.name)
-              : conv.title;
-            const displayAvatar = matchingContact ? matchingContact.avatar : conv.avatar;
+            const details = getConversationDisplayDetails(conv, currentUser, allContacts);
+            const isPartnerChat = details.isPartner;
+            const displayTitle = details.title;
+            const displayAvatar = details.avatar;
 
             return (
               <div

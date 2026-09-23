@@ -138,6 +138,19 @@ export interface Conversation {
   disappearingTimerMinutes?: number; // 0 = off, 5, 1440, etc.
   sharedKeyFingerprint: string;
   pinned?: boolean;
+  titles?: Record<string, string>; // Per-user display title
+  avatars?: Record<string, string>; // Per-user display avatar
+  participantDetails?: Record<
+    string,
+    {
+      id: string;
+      name: string;
+      username: string;
+      avatar?: string;
+      relationshipType?: RelationshipType;
+      partnerNickname?: string;
+    }
+  >;
 }
 
 export interface CallParticipant {

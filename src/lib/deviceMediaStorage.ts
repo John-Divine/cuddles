@@ -87,6 +87,27 @@ export async function getMediaFromDeviceVault(messageId: string): Promise<string
 }
 
 /**
+ * Retrieve all stored media records from device IndexedDB vault
+ */
+export async function getAllMediaFromDeviceVault(): Promise<StoredMediaRecord[]> {
+  try {
+    const db = await openDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.getAll();
+      req.onsuccess = () => {
+        const records = (req.result || []) as StoredMediaRecord[];
+        resolve(records);
+      };
+      req.onerror = () => resolve([]);
+    });
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Download file directly to local device gallery or file system
  */
 export async function downloadMediaToDeviceGallery(

@@ -73,6 +73,8 @@ import { RequestsModal } from './components/contacts/RequestsModal';
 import { PWAInstallBanner } from './components/pwa/PWAInstallBanner';
 import { PWAInstallModal } from './components/pwa/PWAInstallModal';
 import { OfflineIndicator } from './components/pwa/OfflineIndicator';
+import { MediaGalleryModal } from './components/gallery/MediaGalleryModal';
+import { getConversationDisplayDetails } from './lib/conversationResolver';
 
 export default function App() {
   // Active Account State (for user creation & account sign-in)
@@ -189,6 +191,7 @@ export default function App() {
   const [showFriendsModal, setShowFriendsModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showInstallModal, setShowInstallModal] = useState(false);
+  const [showMediaGalleryModal, setShowMediaGalleryModal] = useState(false);
   const [viewingProfile, setViewingProfile] = useState<{
     user: UserProfile;
     isOwn: boolean;
@@ -334,7 +337,13 @@ export default function App() {
                 // Update title and avatar in case it was initialized incorrectly
                 return prevConvs.map((c) =>
                   c.id === existingConv.id
-                    ? { ...c, title: otherName, avatar: otherAvatar }
+                    ? {
+                        ...c,
+                        title: otherName,
+                        avatar: otherAvatar,
+                        titles: { ...(c.titles || {}), [activeAccount.id]: otherName, [otherId]: activeAccount.name },
+                        avatars: { ...(c.avatars || {}), [activeAccount.id]: otherAvatar, [otherId]: activeAccount.avatar }
+                      }
                     : c
                 );
               }
@@ -350,6 +359,30 @@ export default function App() {
                 createdAt: new Date().toISOString(),
                 isE2EESecure: true,
                 sharedKeyFingerprint: Math.random().toString(16).substring(2, 10).toUpperCase(),
+                titles: {
+                  [activeAccount.id]: otherName,
+                  [otherId]: activeAccount.name
+                },
+                avatars: {
+                  [activeAccount.id]: otherAvatar,
+                  [otherId]: activeAccount.avatar
+                },
+                participantDetails: {
+                  [activeAccount.id]: {
+                    id: activeAccount.id,
+                    name: activeAccount.name,
+                    username: activeAccount.username,
+                    avatar: activeAccount.avatar
+                  },
+                  [otherId]: {
+                    id: otherId,
+                    name: otherName,
+                    username: otherUsername || '',
+                    avatar: otherAvatar || '',
+                    relationshipType: req.relationshipType,
+                    partnerNickname: req.relationshipType === 'partner' ? req.partnerNickname : undefined
+                  }
+                },
                 lastMessage: {
                   text: 'Connection accepted! Start chatting securely.',
                   timestamp: 'Just now',
@@ -425,11 +458,33 @@ export default function App() {
           prev.forEach((c) => map.set(c.id, c));
           cloudConvs.forEach((c) => {
             const existing = map.get(c.id);
-            if (existing) {
-              map.set(c.id, { ...existing, ...c });
-            } else {
-              map.set(c.id, c);
+            let merged = existing ? { ...existing, ...c } : { ...c };
+
+            // Anti-Self Title / Avatar Overwrite Protection for 1-on-1 conversations:
+            if (!merged.isGroup) {
+              const currentUserName = (activeAccount.name || '').trim().toLowerCase();
+              const currentUserUsername = (activeAccount.username || '').trim().toLowerCase().replace(/^@/, '');
+
+              // Check if c has scoped title for this user
+              if (c.titles?.[activeAccount.id]) {
+                merged.title = c.titles[activeAccount.id];
+              } else if (
+                existing?.title &&
+                existing.title.trim().toLowerCase() !== currentUserName &&
+                (!currentUserUsername || existing.title.trim().toLowerCase() !== currentUserUsername)
+              ) {
+                merged.title = existing.title;
+              }
+
+              // Check if c has scoped avatar for this user
+              if (c.avatars?.[activeAccount.id]) {
+                merged.avatar = c.avatars[activeAccount.id];
+              } else if (existing?.avatar && existing.avatar !== activeAccount.avatar) {
+                merged.avatar = existing.avatar;
+              }
             }
+
+            map.set(c.id, merged);
           });
           return Array.from(map.values());
         });
@@ -575,9 +630,11 @@ export default function App() {
   const activeConversation = conversations.find((c) => c.id === activeConversationId) || conversations[0];
   const activeMessages = messagesMap[activeConversationId] || [];
 
-  // Recipient for 1-on-1 chats (for checking schedule and focus status)
-  const activeRecipientId = activeConversation?.participantIds?.find((id) => id !== currentUser.id);
-  const activeRecipient = contacts.find((c) => c.id === activeRecipientId);
+  // Robust recipient resolution for 1-on-1 chats (guarantees anti-self identity display)
+  const activeConversationDisplay = React.useMemo(() => {
+    return getConversationDisplayDetails(activeConversation, currentUser, contacts);
+  }, [activeConversation, currentUser, contacts]);
+  const activeRecipient = activeConversationDisplay.otherParticipant || undefined;
 
   // Send Text Message with Schedule & Urgent Gating Logic
   const handleSendMessage = async (text: string, priority: MessagePriority = 'normal') => {
@@ -1164,6 +1221,30 @@ export default function App() {
       createdAt: new Date().toISOString(),
       isE2EESecure: true,
       sharedKeyFingerprint: Math.random().toString(16).substring(2, 10).toUpperCase(),
+      titles: {
+        [activeAccount.id]: otherName,
+        [otherId]: activeAccount.name
+      },
+      avatars: {
+        [activeAccount.id]: otherAvatar,
+        [otherId]: activeAccount.avatar
+      },
+      participantDetails: {
+        [activeAccount.id]: {
+          id: activeAccount.id,
+          name: activeAccount.name,
+          username: activeAccount.username,
+          avatar: activeAccount.avatar
+        },
+        [otherId]: {
+          id: otherId,
+          name: otherName,
+          username: otherUsername || '',
+          avatar: otherAvatar || '',
+          relationshipType: req.relationshipType,
+          partnerNickname: req.relationshipType === 'partner' ? req.partnerNickname : undefined
+        }
+      },
       lastMessage: {
         text: 'Request accepted! You are now connected.',
         timestamp: 'Just now',
@@ -1175,7 +1256,19 @@ export default function App() {
 
     setConversations((prevConvs) => {
       const exists = prevConvs.find((c) => !c.isGroup && c.participantIds.includes(otherId));
-      if (exists) return prevConvs;
+      if (exists) {
+        return prevConvs.map((c) =>
+          c.id === exists.id
+            ? {
+                ...c,
+                title: otherName,
+                avatar: otherAvatar,
+                titles: { ...(c.titles || {}), [activeAccount.id]: otherName, [otherId]: activeAccount.name },
+                avatars: { ...(c.avatars || {}), [activeAccount.id]: otherAvatar, [otherId]: activeAccount.avatar }
+              }
+            : c
+        );
+      }
       return [newConv, ...prevConvs];
     });
 
@@ -1266,6 +1359,7 @@ export default function App() {
             setShowAddContactModal(true);
           }}
           onOpenInstallModal={() => setShowInstallModal(true)}
+          onOpenMediaGallery={() => setShowMediaGalleryModal(true)}
           onStartCall={(convId, type) => {
             setActiveConversationId(convId);
             handleStartCall(type);
@@ -1288,6 +1382,7 @@ export default function App() {
           messages={activeMessages}
           currentUser={currentUser}
           recipient={activeRecipient}
+          allContacts={contacts}
           typingUserNames={typingUsers[activeConversationId] || []}
           pendingRequestsCount={pendingRequestsCount}
           onSendMessage={handleSendMessage}
@@ -1302,6 +1397,7 @@ export default function App() {
             setShowAddContactModal(true);
           }}
           onOpenRequestsModal={() => setShowRequestsModal(true)}
+          onOpenMediaGallery={() => setShowMediaGalleryModal(true)}
           onUpdateDisappearingTimer={(mins) => {
             setConversations((prev) =>
               prev.map((c) =>
@@ -1559,6 +1655,17 @@ export default function App() {
         isOpen={showInstallModal}
         onClose={() => setShowInstallModal(false)}
       />
+
+      {/* Sanctuary Media Gallery Modal */}
+      {showMediaGalleryModal && (
+        <MediaGalleryModal
+          isOpen={showMediaGalleryModal}
+          onClose={() => setShowMediaGalleryModal(false)}
+          activeConversation={activeConversation}
+          allConversations={conversations}
+          messagesMap={messagesMap}
+        />
+      )}
     </div>
   );
 }

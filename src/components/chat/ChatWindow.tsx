@@ -17,7 +17,8 @@ import {
   UserPlus,
   Copy,
   Check,
-  Inbox
+  Inbox,
+  Image as ImageIcon
 } from 'lucide-react';
 import { Conversation, Message, UserProfile, MessagePriority, MessageType } from '../../types';
 import { MessageBubble } from './MessageBubble';
@@ -26,12 +27,14 @@ import { VideoNotePlayerModal } from './VideoNotePlayerModal';
 import { VideoPlayerModal } from './VideoPlayerModal';
 import { SafetyNumberModal } from '../security/SafetyNumberModal';
 import { AUTO_PURGE_DAYS } from '../../lib/storage';
+import { getConversationDisplayDetails } from '../../lib/conversationResolver';
 
 interface ChatWindowProps {
   conversation?: Conversation | null;
   messages: Message[];
   currentUser: UserProfile;
   recipient?: UserProfile;
+  allContacts?: UserProfile[];
   typingUserNames?: string[];
   onSendMessage: (text: string, priority?: MessagePriority) => void;
   onSendMedia: (
@@ -54,6 +57,7 @@ interface ChatWindowProps {
   onOpenAddContactModal?: () => void;
   pendingRequestsCount?: number;
   onOpenRequestsModal?: () => void;
+  onOpenMediaGallery?: () => void;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -61,6 +65,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   messages,
   currentUser,
   recipient,
+  allContacts = [],
   typingUserNames = [],
   pendingRequestsCount = 0,
   onSendMessage,
@@ -73,6 +78,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onUpdateDisappearingTimer,
   onOpenAddContactModal,
   onOpenRequestsModal,
+  onOpenMediaGallery,
 }) => {
   const [showSafetyModal, setShowSafetyModal] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
@@ -226,14 +232,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     );
   }
 
-  const isPartnerChat = conversation.partnerIds && conversation.partnerIds.length > 0 && !conversation.isGroup;
-  const isBusy = recipient?.currentSchedule?.isBusy ?? false;
-  const displayHeaderTitle = !conversation.isGroup && recipient
-    ? (recipient.partnerNickname || recipient.name)
-    : conversation.title;
-  const displayHeaderAvatar = !conversation.isGroup && recipient
-    ? recipient.avatar
-    : conversation.avatar;
+  const displayDetails = getConversationDisplayDetails(
+    conversation,
+    currentUser,
+    allContacts && allContacts.length > 0 ? allContacts : (recipient ? [recipient] : [])
+  );
+  const effectiveRecipient = recipient || displayDetails.otherParticipant || undefined;
+  const isPartnerChat = displayDetails.isPartner;
+  const isBusy = effectiveRecipient?.currentSchedule?.isBusy ?? false;
+  const displayHeaderTitle = displayDetails.title;
+  const displayHeaderAvatar = displayDetails.avatar;
 
   return (
     <main className="flex-1 flex flex-col h-full min-h-0 bg-slate-950 text-slate-100 relative overflow-hidden">
@@ -301,8 +309,20 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </div>
         </div>
 
-        {/* Action Controls: Audio Call & Video Call */}
+        {/* Action Controls: Media Gallery, Audio Call & Video Call */}
         <div className="flex items-center gap-1 sm:gap-2">
+          {/* Media Gallery */}
+          {onOpenMediaGallery && (
+            <button
+              onClick={onOpenMediaGallery}
+              className="p-2.5 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 active:scale-95 transition-all border border-slate-700/60"
+              title="Open Sanctuary Media Gallery"
+              aria-label="Media Gallery"
+            >
+              <ImageIcon className="w-4.5 h-4.5" />
+            </button>
+          )}
+
           {/* Audio Call */}
           <button
             onClick={() => onStartCall('audio')}
@@ -343,16 +363,28 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
             {showOptionsMenu && (
               <div className="absolute right-0 top-12 w-56 rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-1.5 z-40 text-xs">
-                {recipient && (
+                {effectiveRecipient && (
                   <button
                     onClick={() => {
                       setShowOptionsMenu(false);
-                      onViewProfile?.(recipient);
+                      onViewProfile?.(effectiveRecipient);
                     }}
                     className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left hover:bg-slate-800 text-slate-200"
                   >
                     <User className="w-4 h-4 text-rose-400" />
                     View Contact Profile
+                  </button>
+                )}
+                {onOpenMediaGallery && (
+                  <button
+                    onClick={() => {
+                      setShowOptionsMenu(false);
+                      onOpenMediaGallery();
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left hover:bg-slate-800 text-slate-200"
+                  >
+                    <ImageIcon className="w-4 h-4 text-rose-400" />
+                    Sanctuary Media Gallery
                   </button>
                 )}
                 <button
