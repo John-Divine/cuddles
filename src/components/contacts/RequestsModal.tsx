@@ -52,8 +52,18 @@ export const RequestsModal: React.FC<RequestsModalProps> = ({
   const handleAccept = async (req: ContactRequest) => {
     setProcessingId(req.id);
     try {
-      await updateContactRequestStatusInFirestore(req.id, 'accepted');
-      onAcceptRequest(req);
+      const responderData = {
+        receiverId: currentUser.id,
+        receiverName: currentUser.name,
+        receiverUsername: currentUser.username,
+        receiverAvatar: currentUser.avatar
+      };
+      await updateContactRequestStatusInFirestore(req.id, 'accepted', responderData);
+      onAcceptRequest({
+        ...req,
+        ...responderData,
+        status: 'accepted'
+      });
     } catch (err) {
       console.warn('Error accepting request:', err);
     } finally {

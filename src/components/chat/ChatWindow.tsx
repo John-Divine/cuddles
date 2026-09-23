@@ -228,6 +228,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   const isPartnerChat = conversation.partnerIds && conversation.partnerIds.length > 0 && !conversation.isGroup;
   const isBusy = recipient?.currentSchedule?.isBusy ?? false;
+  const displayHeaderTitle = !conversation.isGroup && recipient
+    ? (recipient.partnerNickname || recipient.name)
+    : conversation.title;
+  const displayHeaderAvatar = !conversation.isGroup && recipient
+    ? recipient.avatar
+    : conversation.avatar;
 
   return (
     <main className="flex-1 flex flex-col h-full min-h-0 bg-slate-950 text-slate-100 relative overflow-hidden">
@@ -249,17 +255,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             className="relative shrink-0 text-left focus:outline-none group"
             title={recipient ? `View ${recipient.name}'s profile` : 'Conversation profile'}
           >
-            {conversation.avatar ? (
+            {displayHeaderAvatar ? (
               <img
-                src={conversation.avatar}
-                alt={conversation.title}
+                src={displayHeaderAvatar}
+                alt={displayHeaderTitle}
                 className={`w-10 h-10 rounded-full object-cover ring-2 transition-transform group-hover:scale-105 ${
                   isPartnerChat ? 'ring-rose-400' : 'ring-pink-500/60'
                 }`}
               />
             ) : (
               <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-rose-600 to-pink-600 flex items-center justify-center font-bold text-white text-sm group-hover:scale-105 transition-transform">
-                {conversation.title.slice(0, 2).toUpperCase()}
+                {displayHeaderTitle.slice(0, 2).toUpperCase()}
               </div>
             )}
             <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-slate-900 ${
@@ -274,7 +280,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 onClick={() => recipient && onViewProfile?.(recipient)}
                 className="font-bold text-sm text-white truncate hover:text-rose-300 transition-colors text-left"
               >
-                {conversation.title}
+                {displayHeaderTitle}
               </button>
               {isPartnerChat && <span className="text-rose-400 text-xs">💕</span>}
               {isBusy && (

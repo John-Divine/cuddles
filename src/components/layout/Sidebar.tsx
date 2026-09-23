@@ -292,6 +292,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
             const isActive = conv.id === activeConversationId;
             const isPartnerChat = conv.partnerIds && conv.partnerIds.length > 0 && !conv.isGroup;
 
+            // Resolve the other party's name and avatar for 1-on-1 chats
+            const allContacts = [...partners, ...friends];
+            const otherParticipantId = !conv.isGroup
+              ? conv.participantIds.find((id) => id !== currentUser.id)
+              : null;
+            const matchingContact = otherParticipantId
+              ? allContacts.find(
+                  (c) =>
+                    c.id === otherParticipantId ||
+                    (c.username && otherParticipantId.toLowerCase().includes(c.username.toLowerCase()))
+                )
+              : null;
+
+            const displayTitle = matchingContact
+              ? (matchingContact.partnerNickname || matchingContact.name)
+              : conv.title;
+            const displayAvatar = matchingContact ? matchingContact.avatar : conv.avatar;
+
             return (
               <div
                 key={conv.id}
@@ -307,10 +325,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
               >
                 {/* Avatar */}
                 <div className="relative shrink-0">
-                  {conv.avatar ? (
+                  {displayAvatar ? (
                     <img
-                      src={conv.avatar}
-                      alt={conv.title}
+                      src={displayAvatar}
+                      alt={displayTitle}
                       className={`w-11 h-11 rounded-full object-cover ring-2 ${
                         isPartnerChat ? 'ring-rose-400' : 'ring-pink-500/40'
                       }`}
@@ -331,7 +349,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-1">
                     <h3 className="font-semibold text-xs text-white truncate flex items-center gap-1.5">
-                      {conv.title}
+                      {displayTitle}
                       {isPartnerChat && <span className="text-rose-400 text-[10px]">💕</span>}
                     </h3>
                     <span className="text-[10px] text-slate-400 shrink-0">

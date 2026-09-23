@@ -54,7 +54,7 @@ import {
   getDirectConversationId,
   subscribeToUserConversations
 } from './lib/firebase';
-import { saveMediaToDeviceVault } from './lib/deviceMediaStorage';
+import { saveMediaToDeviceVault, getMediaFromDeviceVault } from './lib/deviceMediaStorage';
 import { encryptMessage } from './lib/encryption';
 import { playSentSound, playReceivedSound, playUrgentSound, playConnectSound, playEndCallSound } from './lib/audio';
 
@@ -275,20 +275,32 @@ export default function App() {
         // add to contacts and create conversation
         reqs.forEach((req) => {
           if (req.status === 'accepted') {
-            const isSender = req.senderId === activeAccount.id;
-            const otherId = isSender ? req.receiverId : req.senderId;
+            const cleanCurrentUsername = (activeAccount.username || '').toLowerCase().trim().replace(/^@/, '');
+            const cleanSenderUsername = (req.senderUsername || '').toLowerCase().trim().replace(/^@/, '');
+            const cleanReceiverUsername = (req.receiverUsername || '').toLowerCase().trim().replace(/^@/, '');
+
+            const isSender = req.senderId === activeAccount.id || cleanSenderUsername === cleanCurrentUsername;
+            const otherId = isSender ? (req.receiverId || `user_${cleanReceiverUsername}`) : req.senderId;
             const otherUsername = isSender ? req.receiverUsername : req.senderUsername;
-            const otherName = isSender ? req.receiverUsername : req.senderName;
+            const otherName = isSender ? (req.receiverName || req.receiverUsername) : req.senderName;
             const otherAvatar = isSender
-              ? `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(req.receiverUsername)}`
+              ? (req.receiverAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanReceiverUsername)}`)
               : req.senderAvatar;
+
+            // Strict check: Never add oneself as a contact
+            if (
+              otherId === activeAccount.id ||
+              (otherUsername && otherUsername.toLowerCase().trim().replace(/^@/, '') === cleanCurrentUsername)
+            ) {
+              return;
+            }
 
             setContacts((prevContacts) => {
               if (
                 prevContacts.some(
                   (c) =>
                     c.id === otherId ||
-                    (c.username && c.username.toLowerCase() === otherUsername.toLowerCase())
+                    (c.username && c.username.toLowerCase().trim().replace(/^@/, '') === (otherUsername || '').toLowerCase().trim().replace(/^@/, ''))
                 )
               ) {
                 return prevContacts;
@@ -318,7 +330,14 @@ export default function App() {
               const existingConv = prevConvs.find(
                 (c) => !c.isGroup && c.participantIds.includes(otherId)
               );
-              if (existingConv) return prevConvs;
+              if (existingConv) {
+                // Update title and avatar in case it was initialized incorrectly
+                return prevConvs.map((c) =>
+                  c.id === existingConv.id
+                    ? { ...c, title: otherName, avatar: otherAvatar }
+                    : c
+                );
+              }
 
               const newConvId = getDirectConversationId(activeAccount.id, otherId);
               const newConv: Conversation = {
@@ -452,22 +471,50 @@ export default function App() {
           const map = new Map<string, Message>();
           currentList.forEach((m) => map.set(m.id, m));
           let hasNewIncoming = false;
+
           cloudMsgs.forEach((m) => {
-            const existed = map.has(m.id);
+            const existed = map.get(m.id);
             if (!existed && m.senderId !== activeAccount?.id) {
               hasNewIncoming = true;
             }
-            map.set(m.id, m);
+
+            // CRITICAL: When media is deleted or purged from the cloud, leave what is on the device
+            // for the user to see, play, view, or interact with without disruption!
+            if (existed && existed.attachment?.url && (!m.attachment?.url || m.attachment?.isPurgedFromOnlineDatabase)) {
+              map.set(m.id, {
+                ...m,
+                attachment: {
+                  ...m.attachment,
+                  ...existed.attachment,
+                  isPurgedFromOnlineDatabase: true,
+                  isDownloadedToDevice: true
+                }
+              });
+            } else {
+              // Immediately back up any incoming media to device IndexedDB vault
+              if (m.attachment?.url) {
+                saveMediaToDeviceVault(
+                  m.id,
+                  m.attachment.url,
+                  m.type,
+                  m.attachment.fileName || `cuddles_${m.type}_${Date.now()}`
+                );
+              }
+              map.set(m.id, m);
+            }
           });
+
           if (hasNewIncoming) {
             playReceivedSound();
           }
           const merged = Array.from(map.values());
           merged.sort((a, b) => (a.createdAtISO || a.timestamp).localeCompare(b.createdAtISO || b.timestamp));
-          return {
+          const nextMap = {
             ...prev,
             [activeConversationId]: merged
           };
+          saveStoredData(STORAGE_KEYS.MESSAGES, nextMap);
+          return nextMap;
         });
       }
     });
@@ -475,6 +522,50 @@ export default function App() {
       if (typeof unsubscribe === 'function') unsubscribe();
     };
   }, [activeConversationId, activeAccount?.id]);
+
+  // Hydrate missing or cloud-purged media from device IndexedDB vault so user can see and play it
+  useEffect(() => {
+    if (!activeConversationId) return;
+    const msgs = messagesMap[activeConversationId] || [];
+    const missingMediaMsgs = msgs.filter((m) => m.attachment && !m.attachment.url);
+    if (missingMediaMsgs.length === 0) return;
+
+    let isMounted = true;
+    (async () => {
+      let hasUpdates = false;
+      const updatedList = await Promise.all(
+        msgs.map(async (m) => {
+          if (m.attachment && !m.attachment.url) {
+            const vaultData = await getMediaFromDeviceVault(m.id);
+            if (vaultData) {
+              hasUpdates = true;
+              return {
+                ...m,
+                attachment: {
+                  ...m.attachment,
+                  url: vaultData,
+                  isDownloadedToDevice: true
+                }
+              };
+            }
+          }
+          return m;
+        })
+      );
+
+      if (isMounted && hasUpdates) {
+        setMessagesMap((prev) => {
+          const next = { ...prev, [activeConversationId]: updatedList };
+          saveStoredData(STORAGE_KEYS.MESSAGES, next);
+          return next;
+        });
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeConversationId, messagesMap[activeConversationId]?.length]);
 
   // Derived Partners & Friends lists
   const partners = contacts.filter((c) => c.relationshipType === 'partner');
@@ -578,8 +669,7 @@ export default function App() {
       }));
     }, 2200);
 
-    // Realistic automated partner/friend response simulation
-    simulatePartnerReply(activeConversation, text, priority, recipientIsBusy);
+    // Real-time peer-to-peer: messages are synced to Firestore for real users only
   };
 
   // Download Attachment Handler (Auto-Purge from online database upon download to device)
@@ -704,41 +794,7 @@ export default function App() {
       )
     );
 
-    // Simulate partner reaction or reply acknowledging document download & purge
-    setTimeout(() => {
-      handleReaction(newMessage.id, type === 'video_note' ? '🥰' : type === 'document' ? '👍' : '❤️');
-    }, 2500);
-
-    if (type === 'document' || type === 'video') {
-      setTimeout(() => {
-        playReceivedSound();
-        const replyingParticipantId = activeConversation.participantIds.find((id) => id !== currentUser.id);
-        const replyingContact = contacts.find((c) => c.id === replyingParticipantId);
-        if (!replyingContact) return;
-
-        const docAckMsg: Message = {
-          id: 'msg_doc_ack_' + Date.now(),
-          conversationId: activeConversation.id,
-          senderId: replyingContact.id,
-          senderName: replyingContact.name,
-          senderAvatar: replyingContact.avatar,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          createdAtISO: new Date().toISOString(),
-          type: 'text',
-          text: `Got your document (${attachmentMeta?.fileName || 'file'})! It is saved to my device, and automatically purged from the online database 🔐✨`,
-          status: 'delivered'
-        };
-
-        setMessagesMap((prev) => {
-          const nextMap = {
-            ...prev,
-            [activeConversation.id]: [...(prev[activeConversation.id] || []), docAckMsg]
-          };
-          saveStoredData(STORAGE_KEYS.MESSAGES, nextMap);
-          return nextMap;
-        });
-      }, 4000);
-    }
+    // Media message dispatched cleanly to cloud and recipient without simulated responses
   };
 
   // Reaction handler
@@ -765,94 +821,6 @@ export default function App() {
       });
       return { ...prev, [activeConversationId]: updated };
     });
-  };
-
-  // Simulate Partner Reply
-  const simulatePartnerReply = (
-    conv: Conversation,
-    userText: string,
-    priority: MessagePriority = 'normal',
-    recipientIsBusy: boolean = false
-  ) => {
-    const isPartnerChat = conv.partnerIds && conv.partnerIds.length > 0;
-    const replyingParticipantId = conv.participantIds.find((id) => id !== currentUser.id);
-    const replyingContact = contacts.find((c) => c.id === replyingParticipantId);
-
-    if (!replyingContact) return;
-
-    // If recipient is busy and message was normal, reply is delayed or acknowledges focus mode
-    const replyDelay = recipientIsBusy && priority === 'normal' ? 6000 : 2500;
-
-    setTimeout(() => {
-      setTypingUsers((prev) => ({
-        ...prev,
-        [conv.id]: [replyingContact.name]
-      }));
-    }, Math.max(1000, replyDelay - 1500));
-
-    setTimeout(() => {
-      setTypingUsers((prev) => ({
-        ...prev,
-        [conv.id]: []
-      }));
-
-      if (priority === 'urgent') {
-        playUrgentSound();
-      } else {
-        playReceivedSound();
-      }
-
-      let replyText = 'Got your message! Let’s talk more soon.';
-      if (priority === 'urgent') {
-        replyText = isPartnerChat
-          ? 'I saw the urgent alert! I dropped what I was doing, is everything okay sweetheart? 🚨❤️'
-          : 'Saw the urgent flag! What’s going on?';
-      } else if (recipientIsBusy) {
-        replyText = `Just wrapping up ${replyingContact.currentSchedule?.activityTitle || 'my focus block'}. Saw your message quietly, love you! 💕`;
-      } else if (isPartnerChat) {
-        const partnerReplies = [
-          'I love hearing from you ❤️ Always brightens my day.',
-          'Counting down until our date night! Check the schedule calendar 🌹',
-          'Sending you the biggest hug right now 💕',
-          'Everything is better when we are connected in Cuddles.',
-          'Love you so much! Can we jump on a video call later?'
-        ];
-        replyText = partnerReplies[Math.floor(Math.random() * partnerReplies.length)];
-      }
-
-      const replyMsg: Message = {
-        id: 'reply_' + Date.now(),
-        conversationId: conv.id,
-        senderId: replyingContact.id,
-        senderName: replyingContact.name,
-        senderAvatar: replyingContact.avatar,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        type: 'text',
-        text: replyText,
-        status: 'read'
-      };
-
-      setMessagesMap((prev) => ({
-        ...prev,
-        [conv.id]: [...(prev[conv.id] || []), replyMsg]
-      }));
-
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.id === conv.id
-            ? {
-                ...c,
-                lastMessage: {
-                  text: replyText,
-                  timestamp: 'Just now',
-                  senderName: replyingContact.name.split(' ')[0],
-                  unreadCount: 0
-                }
-              }
-            : c
-        )
-      );
-    }, replyDelay);
   };
 
   // Start Group or 1-on-1 Call with synchronized real-time Firestore signaling
@@ -1125,19 +1093,41 @@ export default function App() {
   const handleAcceptContactRequest = async (req: ContactRequest) => {
     if (!activeAccount) return;
 
-    await updateContactRequestStatusInFirestore(req.id, 'accepted');
+    const responderData = {
+      receiverId: activeAccount.id,
+      receiverName: activeAccount.name,
+      receiverUsername: activeAccount.username,
+      receiverAvatar: activeAccount.avatar
+    };
 
-    const otherId = req.senderId;
-    const otherUsername = req.senderUsername;
-    const otherName = req.senderName;
-    const otherAvatar = req.senderAvatar;
+    await updateContactRequestStatusInFirestore(req.id, 'accepted', responderData);
+
+    const cleanCurrentUsername = (activeAccount.username || '').toLowerCase().trim().replace(/^@/, '');
+    const cleanSenderUsername = (req.senderUsername || '').toLowerCase().trim().replace(/^@/, '');
+    const cleanReceiverUsername = (req.receiverUsername || '').toLowerCase().trim().replace(/^@/, '');
+
+    const isSender = req.senderId === activeAccount.id || cleanSenderUsername === cleanCurrentUsername;
+    const otherId = isSender ? (req.receiverId || `user_${cleanReceiverUsername}`) : req.senderId;
+    const otherUsername = isSender ? req.receiverUsername : req.senderUsername;
+    const otherName = isSender ? (req.receiverName || req.receiverUsername) : req.senderName;
+    const otherAvatar = isSender
+      ? (req.receiverAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanReceiverUsername)}`)
+      : req.senderAvatar;
+
+    // Strict guard: Never add yourself
+    if (
+      otherId === activeAccount.id ||
+      (otherUsername && otherUsername.toLowerCase().trim().replace(/^@/, '') === cleanCurrentUsername)
+    ) {
+      return;
+    }
 
     setContacts((prevContacts) => {
       if (
         prevContacts.some(
           (c) =>
             c.id === otherId ||
-            (c.username && c.username.toLowerCase() === otherUsername.toLowerCase())
+            (c.username && c.username.toLowerCase().trim().replace(/^@/, '') === (otherUsername || '').toLowerCase().trim().replace(/^@/, ''))
         )
       ) {
         return prevContacts;
@@ -1326,6 +1316,7 @@ export default function App() {
       {activeCall && !isCallMinimized && (
         <CallModal
           call={activeCall}
+          currentUserId={activeAccount.id}
           availableContacts={contactsAvailableForCall}
           onAddParticipantToCall={handleAddParticipantToCall}
           onEndCall={handleEndCall}

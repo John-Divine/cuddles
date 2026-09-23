@@ -15,10 +15,17 @@ import {
   Heart,
   Plus,
   Repeat,
-  AlertCircle
+  AlertCircle,
+  Radio
 } from 'lucide-react';
-import { ActiveCall, CallParticipant, UserProfile } from '../../types';
+import { ActiveCall, CallParticipant, UserProfile, CallSignal } from '../../types';
 import { playConnectSound, playEndCallSound, stopRingtone } from '../../lib/audio';
+import {
+  saveCallOffer,
+  saveCallAnswer,
+  addCallIceCandidate,
+  subscribeToCallStatus
+} from '../../lib/firebase';
 
 interface CallModalProps {
   call: ActiveCall;
@@ -28,7 +35,18 @@ interface CallModalProps {
   onMinimize: () => void;
   availableContacts?: UserProfile[];
   onAddParticipantToCall?: (contact: UserProfile) => void;
+  currentUserId?: string;
 }
+
+const ICE_SERVERS: RTCConfiguration = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' }
+  ]
+};
 
 export const CallModal: React.FC<CallModalProps> = ({
   call,
@@ -37,7 +55,8 @@ export const CallModal: React.FC<CallModalProps> = ({
   onToggleVideo,
   onMinimize,
   availableContacts = [],
-  onAddParticipantToCall
+  onAddParticipantToCall,
+  currentUserId
 }) => {
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [isPiPSwapped, setIsPiPSwapped] = useState(false); // Swap self and remote in 1-on-1 calls (WhatsApp style)
@@ -46,112 +65,313 @@ export const CallModal: React.FC<CallModalProps> = ({
   const [callDuration, setCallDuration] = useState(0);
   const [cameraState, setCameraState] = useState<'loading' | 'ready' | 'error' | 'fallback'>('loading');
   const [cameraErrorMessage, setCameraErrorMessage] = useState<string | null>(null);
+  const [peerConnected, setPeerConnected] = useState(false);
+  const [hasRemoteVideoTrack, setHasRemoteVideoTrack] = useState(false);
 
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+
   const localStreamRef = useRef<MediaStream | null>(null);
-  const [streamVersion, setStreamVersion] = useState(0); // Triggers re-bind when stream arrives
+  const remoteStreamRef = useRef<MediaStream | null>(null);
+  const pcRef = useRef<RTCPeerConnection | null>(null);
 
-  // Safely attach stream to video element
-  const setVideoRef = useCallback((node: HTMLVideoElement | null) => {
-    localVideoRef.current = node;
-    if (node && localStreamRef.current) {
-      node.srcObject = localStreamRef.current;
-      node.play().catch((e) => console.log('Autoplay handled:', e));
-    }
-  }, [streamVersion]);
+  const processedCandidates = useRef<Set<string>>(new Set());
+  const hasSetRemoteDescription = useRef(false);
+  const offerSent = useRef(false);
+  const [streamVersion, setStreamVersion] = useState(0);
 
-  // Request camera and microphone with progressive fallbacks
-  const startCamera = async () => {
-    if (call.callType !== 'video') return;
-    setCameraState('loading');
-    setCameraErrorMessage(null);
+  const localParticipant = call.participants.find((p) => p.isLocal);
+  const remoteParticipants = call.participants.filter((p) => !p.isLocal);
+  const isGroupCall = call.participants.length >= 3;
+  const existingParticipantIds = new Set(call.participants.map((p) => p.id));
+  const contactsToAdd = availableContacts.filter((c) => !existingParticipantIds.has(c.id));
 
-    // Stop previous tracks if any
+  // Safely attach local stream to video element
+  const setLocalVideoNode = useCallback(
+    (node: HTMLVideoElement | null) => {
+      localVideoRef.current = node;
+      if (node && localStreamRef.current && call.callType === 'video') {
+        node.srcObject = localStreamRef.current;
+        node.muted = true;
+        node.play().catch((e) => console.log('Local video play catch:', e));
+      }
+    },
+    [streamVersion, call.callType]
+  );
+
+  // Safely attach remote stream to video element
+  const setRemoteVideoNode = useCallback(
+    (node: HTMLVideoElement | null) => {
+      remoteVideoRef.current = node;
+      if (node && remoteStreamRef.current) {
+        node.srcObject = remoteStreamRef.current;
+        node.play().catch((e) => console.log('Remote video play catch:', e));
+      }
+    },
+    [streamVersion, hasRemoteVideoTrack]
+  );
+
+  // Audio track mute toggle sync
+  useEffect(() => {
     if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((t) => t.stop());
-      localStreamRef.current = null;
-    }
-
-    let stream: MediaStream | null = null;
-
-    // Attempt 1: Video + Audio with preferred facingMode
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: facingMode } },
-        audio: true
+      const isMuted = localParticipant?.isMuted ?? false;
+      localStreamRef.current.getAudioTracks().forEach((track) => {
+        track.enabled = !isMuted;
       });
-    } catch (err1) {
-      console.warn('getUserMedia audio+video failed, falling back to video only:', err1);
-      // Attempt 2: Video only with facingMode
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: facingMode } },
-          audio: false
-        });
-      } catch (err2) {
-        console.warn('getUserMedia facingMode video failed, falling back to basic video:', err2);
-        // Attempt 3: Basic video only
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: false
-          });
-        } catch (err3: any) {
-          console.warn('All webcam access attempts failed:', err3);
-          setCameraState('error');
-          setCameraErrorMessage(
-            err3?.name === 'NotAllowedError'
-              ? 'Camera permission denied. Please allow camera access in browser.'
-              : 'Webcam not available or in use by another app.'
-          );
-          return;
-        }
-      }
     }
+  }, [localParticipant?.isMuted]);
 
-    if (stream) {
-      localStreamRef.current = stream;
-      setCameraState('ready');
-      setStreamVersion((v) => v + 1);
-
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-        localVideoRef.current.muted = true;
-        localVideoRef.current.play().catch((err) => console.log('Play warning:', err));
-      }
+  // Video track toggle sync
+  useEffect(() => {
+    if (localStreamRef.current) {
+      const isVideoOff = localParticipant?.isVideoOff ?? false;
+      localStreamRef.current.getVideoTracks().forEach((track) => {
+        track.enabled = !isVideoOff;
+      });
     }
-  };
+  }, [localParticipant?.isVideoOff]);
 
-  // Local camera stream initialization
+  // Main WebRTC & Media initialization lifecycle
   useEffect(() => {
     stopRingtone();
     playConnectSound();
 
-    if (call.callType === 'video') {
-      startCamera();
-    }
+    let isSubscribed = true;
 
+    // Timer for call duration
     const durationTimer = setInterval(() => {
       setCallDuration((prev) => prev + 1);
     }, 1000);
 
+    const initWebRTC = async () => {
+      setCameraState('loading');
+      setCameraErrorMessage(null);
+
+      // 1. Get Local Media Stream
+      let localStream: MediaStream | null = null;
+      try {
+        if (call.callType === 'video') {
+          try {
+            localStream = await navigator.mediaDevices.getUserMedia({
+              video: { facingMode: { ideal: facingMode } },
+              audio: true
+            });
+          } catch (err1) {
+            console.warn('getUserMedia audio+video failed, falling back to basic video+audio:', err1);
+            try {
+              localStream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: true
+              });
+            } catch (err2) {
+              console.warn('getUserMedia video failed, falling back to audio only:', err2);
+              localStream = await navigator.mediaDevices.getUserMedia({
+                video: false,
+                audio: true
+              });
+            }
+          }
+        } else {
+          // Audio Call: request high quality microphone only
+          localStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true
+            },
+            video: false
+          });
+        }
+      } catch (mediaErr: any) {
+        console.warn('Media capture failed:', mediaErr);
+        setCameraState('error');
+        setCameraErrorMessage(
+          mediaErr?.name === 'NotAllowedError'
+            ? 'Microphone/Camera permission denied. Please enable device access.'
+            : 'Audio/Video device is currently in use or unavailable.'
+        );
+      }
+
+      if (!isSubscribed) {
+        localStream?.getTracks().forEach((t) => t.stop());
+        return;
+      }
+
+      if (localStream) {
+        localStreamRef.current = localStream;
+        setCameraState('ready');
+        setStreamVersion((v) => v + 1);
+
+        if (localVideoRef.current && call.callType === 'video') {
+          localVideoRef.current.srcObject = localStream;
+          localVideoRef.current.muted = true;
+          localVideoRef.current.play().catch(() => {});
+        }
+      }
+
+      // 2. Initialize RTCPeerConnection
+      const pc = new RTCPeerConnection(ICE_SERVERS);
+      pcRef.current = pc;
+
+      // Add local media tracks to peer connection
+      if (localStream) {
+        localStream.getTracks().forEach((track) => {
+          pc.addTrack(track, localStream!);
+        });
+      }
+
+      // Handle remote incoming tracks (voice and video)
+      pc.ontrack = (event) => {
+        const stream = event.streams[0];
+        if (stream) {
+          remoteStreamRef.current = stream;
+          setPeerConnected(true);
+
+          // Connect to remote video element if available
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = stream;
+            remoteVideoRef.current.play().catch(() => {});
+          }
+
+          // ALWAYS connect to remote audio element for crystal-clear real-time sound
+          if (remoteAudioRef.current) {
+            remoteAudioRef.current.srcObject = stream;
+            remoteAudioRef.current.play().catch(() => {});
+          }
+
+          const hasVideo = stream.getVideoTracks().length > 0;
+          setHasRemoteVideoTrack(hasVideo);
+          setStreamVersion((v) => v + 1);
+        }
+      };
+
+      // Handle ICE candidates generated locally
+      pc.onicecandidate = (event) => {
+        if (event.candidate && call.id) {
+          const role = myRoleRef.current;
+          addCallIceCandidate(call.id, role, event.candidate.toJSON());
+        }
+      };
+
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'connected') {
+          setPeerConnected(true);
+        }
+      };
+
+      // 3. Subscribe to Firestore Call Document for WebRTC Signaling
+      const effectiveUserId = currentUserId || localParticipant?.id || '';
+      const unsubscribeSignaling = subscribeToCallStatus(call.id, async (updatedCall: CallSignal) => {
+        if (!pcRef.current || !isSubscribed) return;
+
+        const isCaller = updatedCall.callerId === effectiveUserId;
+        myRoleRef.current = isCaller ? 'caller' : 'callee';
+
+        if (isCaller) {
+          // Caller: Listen for Callee's SDP Answer
+          if (updatedCall.answer && !hasSetRemoteDescription.current) {
+            try {
+              hasSetRemoteDescription.current = true;
+              await pcRef.current.setRemoteDescription(
+                new RTCSessionDescription(updatedCall.answer as RTCSessionDescriptionInit)
+              );
+              setPeerConnected(true);
+            } catch (sdpErr) {
+              console.warn('Caller setRemoteDescription answer error:', sdpErr);
+            }
+          }
+
+          // Add Callee's ICE candidates
+          if (updatedCall.calleeCandidates && updatedCall.calleeCandidates.length > 0) {
+            for (const cand of updatedCall.calleeCandidates) {
+              const key = JSON.stringify(cand);
+              if (!processedCandidates.current.has(key)) {
+                processedCandidates.current.add(key);
+                try {
+                  await pcRef.current.addIceCandidate(new RTCIceCandidate(cand));
+                } catch (iceErr) {
+                  // Candidate may arrive before remote description
+                }
+              }
+            }
+          }
+        } else {
+          // Callee: Listen for Caller's SDP Offer
+          if (updatedCall.offer && !hasSetRemoteDescription.current) {
+            try {
+              hasSetRemoteDescription.current = true;
+              await pcRef.current.setRemoteDescription(
+                new RTCSessionDescription(updatedCall.offer as RTCSessionDescriptionInit)
+              );
+              const answer = await pcRef.current.createAnswer();
+              await pcRef.current.setLocalDescription(answer);
+              await saveCallAnswer(call.id, { type: answer.type, sdp: answer.sdp || '' });
+              setPeerConnected(true);
+            } catch (sdpErr) {
+              console.warn('Callee setRemoteDescription offer error:', sdpErr);
+            }
+          }
+
+          // Add Caller's ICE candidates
+          if (updatedCall.callerCandidates && updatedCall.callerCandidates.length > 0) {
+            for (const cand of updatedCall.callerCandidates) {
+              const key = JSON.stringify(cand);
+              if (!processedCandidates.current.has(key)) {
+                processedCandidates.current.add(key);
+                try {
+                  await pcRef.current.addIceCandidate(new RTCIceCandidate(cand));
+                } catch (iceErr) {
+                  // Candidate may arrive before remote description
+                }
+              }
+            }
+          }
+        }
+      });
+
+      // 4. If Caller: Create and save initial SDP Offer
+      // Determine if caller
+      const isCallerInitial = (call.participants[0]?.id === effectiveUserId && call.participants[0]?.isLocal) || !call.participants[0]?.isLocal;
+      myRoleRef.current = isCallerInitial ? 'caller' : 'callee';
+
+      if (isCallerInitial && !offerSent.current) {
+        try {
+          offerSent.current = true;
+          const offer = await pc.createOffer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: call.callType === 'video'
+          });
+          await pc.setLocalDescription(offer);
+          await saveCallOffer(call.id, { type: offer.type, sdp: offer.sdp || '' });
+        } catch (offerErr) {
+          console.warn('Error creating WebRTC offer:', offerErr);
+        }
+      }
+
+      cleanupSignaling = unsubscribeSignaling;
+    };
+
+    let cleanupSignaling = () => {};
+    const myRoleRef = { current: 'caller' as 'caller' | 'callee' };
+
+    initWebRTC();
+
     return () => {
+      isSubscribed = false;
       clearInterval(durationTimer);
+      cleanupSignaling();
+
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach((track) => track.stop());
         localStreamRef.current = null;
       }
+      if (pcRef.current) {
+        pcRef.current.close();
+        pcRef.current = null;
+      }
     };
-  }, [call.callType, facingMode]);
-
-  // Keep video element attached if participant renders change
-  useEffect(() => {
-    if (localVideoRef.current && localStreamRef.current) {
-      localVideoRef.current.srcObject = localStreamRef.current;
-      localVideoRef.current.muted = true;
-      localVideoRef.current.play().catch(() => {});
-    }
-  }, [isPiPSwapped, call.participants.length]);
+  }, [call.id, call.callType, facingMode, currentUserId]);
 
   const handleFlipCamera = () => {
     setFacingMode((prev) => (prev === 'user' ? 'environment' : 'user'));
@@ -168,22 +388,16 @@ export const CallModal: React.FC<CallModalProps> = ({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const localParticipant = call.participants.find((p) => p.isLocal);
-  const remoteParticipants = call.participants.filter((p) => !p.isLocal);
-  const isGroupCall = call.participants.length >= 3;
-  const existingParticipantIds = new Set(call.participants.map((p) => p.id));
-  const contactsToAdd = availableContacts.filter((c) => !existingParticipantIds.has(c.id));
-
-  // Renders the local user's live video stream or avatar fallback
+  // Local user tile
   const renderLocalVideoTile = (isFloatingPiP: boolean = false) => {
     const isVideoOff = localParticipant?.isVideoOff;
 
     return (
-      <div className={`relative w-full h-full bg-slate-950 flex items-center justify-center overflow-hidden`}>
+      <div className="relative w-full h-full bg-slate-950 flex items-center justify-center overflow-hidden">
         {call.callType === 'video' && !isVideoOff ? (
           <>
             <video
-              ref={setVideoRef}
+              ref={setLocalVideoNode}
               autoPlay
               playsInline
               muted
@@ -191,7 +405,6 @@ export const CallModal: React.FC<CallModalProps> = ({
                 facingMode === 'user' ? '-scale-x-100' : ''
               }`}
             />
-            {/* If camera is loading or permission error */}
             {cameraState === 'loading' && (
               <div className="absolute inset-0 bg-slate-900/90 flex flex-col items-center justify-center gap-2 p-3 text-center">
                 <div className="w-8 h-8 border-2 border-rose-500 border-t-transparent rounded-full animate-spin" />
@@ -204,15 +417,6 @@ export const CallModal: React.FC<CallModalProps> = ({
                 <span className="text-xs text-slate-300 font-medium">
                   {isFloatingPiP ? 'Camera blocked' : (cameraErrorMessage || 'Camera access issue')}
                 </span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    startCamera();
-                  }}
-                  className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold shadow"
-                >
-                  Retry Camera
-                </button>
               </div>
             )}
           </>
@@ -227,7 +431,6 @@ export const CallModal: React.FC<CallModalProps> = ({
           </div>
         )}
 
-        {/* Floating PiP overlay badge */}
         <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between p-1 px-2 rounded-xl bg-black/60 backdrop-blur-md text-[11px] text-white">
           <span className="truncate font-medium">You</span>
           {isFloatingPiP && (
@@ -240,37 +443,61 @@ export const CallModal: React.FC<CallModalProps> = ({
     );
   };
 
-  // Renders a remote participant's view
+  // Remote participant tile with live WebRTC video & fallback
   const renderRemoteParticipantTile = (participant: CallParticipant, isFloatingPiP: boolean = false) => {
     const isSpeaking = participant.isSpeaking;
+    const showLiveVideo = call.callType === 'video' && !participant.isVideoOff;
 
     return (
-      <div className={`relative w-full h-full bg-slate-950 flex items-center justify-center overflow-hidden`}>
-        {call.callType === 'video' && !participant.isVideoOff ? (
-          <div className="relative w-full h-full flex items-center justify-center">
-            <img
-              src={participant.avatar}
-              alt={participant.name}
-              className="w-full h-full object-cover filter brightness-95"
+      <div className="relative w-full h-full bg-slate-950 flex items-center justify-center overflow-hidden">
+        {showLiveVideo ? (
+          <div className="relative w-full h-full flex items-center justify-center bg-black">
+            {/* Live WebRTC Remote Video */}
+            <video
+              ref={setRemoteVideoNode}
+              autoPlay
+              playsInline
+              className="w-full h-full object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
+
+            {/* If stream not yet arrived or connecting */}
+            {!peerConnected && (
+              <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3 p-4">
+                <div className="relative">
+                  <img
+                    src={participant.avatar}
+                    alt={participant.name}
+                    className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover ring-4 ring-rose-500/50 shadow-2xl animate-pulse"
+                  />
+                  <span className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-rose-600 text-white shadow">
+                    <Radio className="w-3.5 h-3.5 animate-spin" />
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-rose-300 text-xs font-semibold">
+                  <span>Connecting encrypted stream...</span>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
+          /* Audio Call or Remote Camera Off */
           <div className="flex flex-col items-center justify-center p-4">
             <div className="relative">
               <img
                 src={participant.avatar}
                 alt={participant.name}
-                className={`w-20 h-20 sm:w-28 sm:h-28 rounded-full object-cover ring-4 ${
-                  isSpeaking ? 'ring-rose-400 animate-pulse' : 'ring-slate-700'
-                } shadow-2xl`}
+                className={`w-24 h-24 sm:w-32 sm:h-32 rounded-full object-cover ring-4 ${
+                  peerConnected ? 'ring-emerald-500/60 shadow-emerald-500/20' : 'ring-rose-500/50 animate-pulse'
+                } shadow-2xl transition-all`}
               />
-              {isSpeaking && (
-                <div className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-rose-600 text-white shadow">
-                  <Volume2 className="w-3.5 h-3.5 animate-bounce" />
-                </div>
-              )}
+              <div className="absolute -bottom-1 -right-1 p-2 rounded-full bg-emerald-600 text-white shadow">
+                <Volume2 className="w-4 h-4 animate-bounce" />
+              </div>
             </div>
+            <span className="text-xs text-slate-300 mt-3 font-medium flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+              {peerConnected ? 'Secure Audio Connected' : 'Connecting Audio...'}
+            </span>
           </div>
         )}
 
@@ -286,6 +513,11 @@ export const CallModal: React.FC<CallModalProps> = ({
                 <MicOff className="w-3 h-3" />
               </span>
             )}
+            {peerConnected && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono">
+                HD
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -294,6 +526,9 @@ export const CallModal: React.FC<CallModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col justify-between text-slate-100 select-none animate-in fade-in duration-300">
+      {/* Dedicated Hidden Audio Element so both sides can hear remote audio seamlessly */}
+      <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
+
       {/* Top Header Bar */}
       <div className="p-3 sm:p-4 flex items-center justify-between border-b border-rose-950/40 bg-slate-900/80 backdrop-blur-md z-30">
         <div className="flex items-center gap-3">
@@ -311,20 +546,19 @@ export const CallModal: React.FC<CallModalProps> = ({
                 </span>
               ) : (
                 <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-[11px] font-medium">
-                  WhatsApp Style 1-on-1
+                  {call.callType === 'video' ? '1-on-1 Video' : '1-on-1 Audio'}
                 </span>
               )}
             </h3>
             <div className="flex items-center gap-2 text-xs text-emerald-400">
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>E2EE Encrypted Call</span>
+              <span>{peerConnected ? 'Live E2EE Audio & Video Connected' : 'Securing Direct WebRTC Connection...'}</span>
             </div>
           </div>
         </div>
 
         {/* Action Controls in Header */}
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Add People to Call Button */}
           {contactsToAdd.length > 0 && onAddParticipantToCall && (
             <button
               onClick={() => setShowAddParticipantModal(true)}
@@ -336,7 +570,6 @@ export const CallModal: React.FC<CallModalProps> = ({
             </button>
           )}
 
-          {/* Toggle Participants List */}
           <button
             onClick={() => setShowParticipantsDrawer(!showParticipantsDrawer)}
             className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all relative"
@@ -348,7 +581,6 @@ export const CallModal: React.FC<CallModalProps> = ({
             </span>
           </button>
 
-          {/* Minimize Call */}
           <button
             onClick={onMinimize}
             className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all"
@@ -359,36 +591,35 @@ export const CallModal: React.FC<CallModalProps> = ({
         </div>
       </div>
 
-      {/* Main Video Presentation Stage */}
+      {/* Main Presentation Stage */}
       <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-black">
-        {/* CASE 1: 1-on-1 WhatsApp Style Layout (Big Remote + Small Picture-in-Picture Self) */}
+        {/* 1-on-1 Layout (Remote full screen + Floating PiP local) */}
         {!isGroupCall ? (
           <div className="relative w-full h-full flex items-center justify-center">
-            {/* BIG MAIN SCREEN: Shows Remote by default, or Local if swapped */}
+            {/* BIG MAIN SCREEN */}
             <div className="w-full h-full">
               {isPiPSwapped
                 ? renderLocalVideoTile(false)
                 : renderRemoteParticipantTile(remoteParticipants[0] || (localParticipant as CallParticipant), false)}
             </div>
 
-            {/* SMALL FLOATING PiP WINDOW: Shows Local by default, or Remote if swapped */}
+            {/* SMALL FLOATING PiP WINDOW */}
             <div
               onClick={() => setIsPiPSwapped(!isPiPSwapped)}
               className="absolute top-4 right-4 sm:top-6 sm:right-6 w-32 h-44 sm:w-40 sm:h-56 rounded-3xl overflow-hidden shadow-2xl border-2 border-rose-400/60 ring-4 ring-black/40 cursor-pointer z-30 transition-all hover:scale-105 active:scale-95 group"
-              title="Tap to swap screens (WhatsApp style)"
+              title="Tap to swap screens"
             >
               {isPiPSwapped
                 ? renderRemoteParticipantTile(remoteParticipants[0] || (localParticipant as CallParticipant), true)
                 : renderLocalVideoTile(true)}
 
-              {/* Tap to swap indicator pill */}
               <div className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-rose-300 opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-sm">
                 <Repeat className="w-3.5 h-3.5" />
               </div>
             </div>
           </div>
         ) : (
-          /* CASE 2: Group Call Layout (3+ participants) -> Multi-person Grid */
+          /* Multi-person Grid */
           <div className="p-2 sm:p-4 w-full h-full max-h-[82vh] grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-3">
             {call.participants.map((participant) => (
               <div
@@ -444,7 +675,6 @@ export const CallModal: React.FC<CallModalProps> = ({
               ))}
             </div>
 
-            {/* Quick Add Button inside drawer */}
             {contactsToAdd.length > 0 && onAddParticipantToCall && (
               <button
                 onClick={() => {
@@ -460,7 +690,7 @@ export const CallModal: React.FC<CallModalProps> = ({
           </div>
         )}
 
-        {/* Add People Modal (Turns 1-on-1 into Group Call) */}
+        {/* Add People Modal */}
         {showAddParticipantModal && (
           <div className="absolute inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4">
             <div className="w-full max-w-sm rounded-3xl bg-slate-900 border border-rose-900/40 p-5 shadow-2xl animate-in zoom-in-95 duration-200">
@@ -577,8 +807,8 @@ export const CallModal: React.FC<CallModalProps> = ({
           </button>
         )}
 
-        {/* WhatsApp-Style Screen Swap Button (in 1-on-1 calls) */}
-        {!isGroupCall && call.callType === 'video' && (
+        {/* Screen Swap Button in 1-on-1 calls */}
+        {!isGroupCall && (
           <button
             onClick={() => setIsPiPSwapped(!isPiPSwapped)}
             className="p-3.5 sm:p-4 rounded-2xl sm:rounded-full bg-slate-800 hover:bg-slate-700 text-rose-300 border border-rose-500/30 shadow-lg active:scale-95"

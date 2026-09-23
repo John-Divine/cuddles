@@ -52,12 +52,25 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const [resolvedMediaUrl, setResolvedMediaUrl] = useState<string>(message.attachment?.url || '');
 
   useEffect(() => {
-    if (!resolvedMediaUrl && message.attachment) {
+    if (message.attachment?.url) {
+      setResolvedMediaUrl(message.attachment.url);
+      // Ensure media is backed up to local device IndexedDB vault
+      saveMediaToDeviceVault(
+        message.id,
+        message.attachment.url,
+        message.type,
+        message.attachment.fileName || `cuddles_${message.type}_${Date.now()}`
+      );
+    } else if (message.attachment) {
       getMediaFromDeviceVault(message.id).then((vaultData) => {
-        if (vaultData) setResolvedMediaUrl(vaultData);
+        if (vaultData) {
+          setResolvedMediaUrl(vaultData);
+        }
       });
     }
-  }, [message.id, resolvedMediaUrl, message.attachment]);
+  }, [message.id, message.attachment?.url]);
+
+  const currentMediaUrl = resolvedMediaUrl || message.attachment?.url || '';
 
   // Video note state
   const [isPlayingVideoNote, setIsPlayingVideoNote] = useState(false);
@@ -83,11 +96,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     msg: Message,
     mediaKind: 'image' | 'voice' | 'video_note' | 'document' | 'video'
   ) => {
-    if (!msg.attachment?.url) return;
-    const url = msg.attachment.url;
+    const url = currentMediaUrl || msg.attachment?.url;
+    if (!url) return;
 
-    let defaultName = msg.attachment.fileName || `cuddles_${mediaKind}_${Date.now()}`;
-    let mime = msg.attachment.mimeType;
+    let defaultName = msg.attachment?.fileName || `cuddles_${mediaKind}_${Date.now()}`;
+    let mime = msg.attachment?.mimeType;
 
     if (mediaKind === 'image' && !defaultName.includes('.')) defaultName += '.jpg';
     if (mediaKind === 'voice' && !defaultName.includes('.')) defaultName += '.webm';
@@ -245,7 +258,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               <div className="space-y-1.5">
                 <div className="relative rounded-xl overflow-hidden cursor-pointer max-w-xs group/img">
                   <img
-                    src={message.attachment.url}
+                    src={currentMediaUrl || message.attachment.url}
                     alt="attachment"
                     onClick={() => setShowImageZoom(true)}
                     className="w-full max-h-60 object-cover hover:scale-102 transition-transform duration-200"
@@ -281,7 +294,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             {message.type === 'gif' && message.attachment && (
               <div className="rounded-xl overflow-hidden max-w-xs relative group/gif">
                 <img
-                  src={message.attachment.url}
+                  src={currentMediaUrl || message.attachment.url}
                   alt="GIF"
                   className="w-full object-cover max-h-56"
                 />
@@ -302,7 +315,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 <div className="flex items-center gap-3">
                   <audio
                     ref={audioRef}
-                    src={message.attachment.url}
+                    src={currentMediaUrl || message.attachment.url}
                     onTimeUpdate={() => {
                       if (audioRef.current) {
                         setAudioProgress(
@@ -807,7 +820,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
           <div className="flex-1 flex items-center justify-center p-2 max-w-4xl max-h-[80vh]">
             <img
-              src={message.attachment.url}
+              src={currentMediaUrl || message.attachment.url}
               alt="Zoomed"
               className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl ring-1 ring-white/10"
               onClick={(e) => e.stopPropagation()}
