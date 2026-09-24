@@ -82,9 +82,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return true;
   });
 
+  const safePartners = partners.filter((p) => 
+    p.id !== currentUser.id && 
+    p.name.trim().toLowerCase() !== currentUser.name.trim().toLowerCase() && 
+    (!currentUser.username || p.username?.trim().toLowerCase().replace(/^@/, '') !== currentUser.username.trim().toLowerCase().replace(/^@/, ''))
+  );
+
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-50 w-full sm:w-88 max-w-[320px] sm:max-w-sm bg-slate-900 border-r border-rose-950/40 flex flex-col shadow-2xl transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 backdrop-blur-2xl ${
+      className={`fixed inset-y-0 left-0 z-[100] w-full sm:w-88 max-w-[320px] sm:max-w-sm bg-slate-900 border-r border-rose-950/40 flex flex-col shadow-2xl transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 backdrop-blur-2xl ${
         isMobileOpen ? 'translate-x-0' : '-translate-x-full'
       }`}
     >
@@ -110,24 +116,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Action icons: Add contact, Requests, Day Schedules, Profile & Mobile Close */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           {onOpenAddContactModal && (
             <button
               onClick={onOpenAddContactModal}
-              className="p-2 rounded-xl text-slate-400 hover:text-rose-300 hover:bg-slate-800/80 transition-colors"
+              className="p-2.5 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/50 text-slate-300 hover:text-rose-300 active:scale-95 transition-all shadow-sm"
               title="Add Contact by @Username"
             >
-              <UserPlus className="w-4.5 h-4.5" />
+              <UserPlus className="w-5 h-5" />
             </button>
           )}
 
           {onOpenRequestsModal && (
             <button
               onClick={onOpenRequestsModal}
-              className="relative p-2 rounded-xl text-slate-400 hover:text-rose-300 hover:bg-slate-800/80 transition-colors"
+              className="relative p-2.5 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/50 text-slate-300 hover:text-rose-300 active:scale-95 transition-all shadow-sm"
               title="Contact Requests"
             >
-              <Bell className="w-4.5 h-4.5" />
+              <Bell className="w-5 h-5" />
               {pendingRequestsCount > 0 && (
                 <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-extrabold flex items-center justify-center ring-2 ring-slate-900 animate-pulse">
                   {pendingRequestsCount}
@@ -139,32 +145,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {onOpenMediaGallery && (
             <button
               onClick={onOpenMediaGallery}
-              className="p-2 rounded-xl text-slate-400 hover:text-rose-300 hover:bg-slate-800/80 transition-colors"
+              className="p-2.5 rounded-2xl bg-slate-800/80 hover:bg-rose-500/20 border border-slate-700/50 text-slate-300 hover:text-rose-300 active:scale-95 transition-all shadow-sm"
               title="Sanctuary Media Gallery"
             >
-              <ImageIcon className="w-4.5 h-4.5" />
+              <ImageIcon className="w-5 h-5 text-pink-400" />
             </button>
           )}
 
           <button
             onClick={onOpenScheduleModal}
-            className="p-2 rounded-xl text-slate-400 hover:text-rose-300 hover:bg-slate-800/80 transition-colors"
+            className="p-2.5 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/50 text-slate-300 hover:text-rose-300 active:scale-95 transition-all shadow-sm"
             title="Day Schedules & Quiet Mode"
           >
-            <Calendar className="w-4.5 h-4.5" />
+            <Calendar className="w-5 h-5" />
           </button>
 
           <button
             onClick={onOpenProfileModal}
-            className="relative p-1 rounded-xl hover:ring-2 hover:ring-rose-500/50 transition-all ml-0.5"
+            className="relative p-1 rounded-2xl hover:ring-2 hover:ring-rose-500/50 transition-all active:scale-95 ml-0.5"
             title="Your Profile & Storage Settings"
           >
             <img
               src={currentUser.avatar}
               alt={currentUser.name}
-              className="w-7 h-7 rounded-full object-cover ring-1 ring-rose-400"
+              className="w-9 h-9 rounded-full object-cover ring-2 ring-rose-400/80 shadow-sm"
             />
-            <span className="absolute -bottom-0.5 -right-0.5 text-[10px]">
+            <span className="absolute -bottom-0.5 -right-0.5 text-xs">
               {currentUser.moodEmoji}
             </span>
           </button>
@@ -173,7 +179,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {onCloseMobile && (
             <button
               onClick={onCloseMobile}
-              className="lg:hidden p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors ml-1"
+              className="lg:hidden p-2.5 rounded-2xl bg-slate-800/80 hover:bg-rose-950/40 text-slate-300 hover:text-white border border-slate-700/50 transition-all active:scale-95 ml-1"
               title="Close sidebar"
               aria-label="Close sidebar"
             >
@@ -200,7 +206,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Partners Quick Row with Schedule Badges */}
         <div className="flex items-center gap-2">
-          {partners.map((partner) => {
+          {safePartners.map((partner) => {
             const isBusy = partner.currentSchedule?.isBusy;
 
             return (
@@ -246,7 +252,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             );
           })}
 
-          {partners.length < 2 && (
+          {safePartners.length < 2 && (
             <button
               onClick={onOpenPartnersModal}
               className="flex items-center justify-center p-2 rounded-2xl border border-dashed border-rose-500/40 text-rose-400 hover:bg-rose-500/10 text-xs gap-1 transition-all"
@@ -386,25 +392,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           })
         )}
       </div>
-
-      {/* PWA Install Button on Any Device */}
-      {!isInstalled && onOpenInstallModal && (
-        <div className="px-3 py-2 border-t border-rose-950/40 bg-gradient-to-r from-rose-950/30 to-slate-900">
-          <button
-            type="button"
-            onClick={onOpenInstallModal}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-800/80 hover:bg-rose-900/40 border border-rose-500/30 text-xs text-rose-200 hover:text-white transition-all cursor-pointer shadow-sm"
-          >
-            <div className="flex items-center gap-2">
-              <Download className="w-3.5 h-3.5 text-rose-400" />
-              <span className="font-semibold">Install App</span>
-            </div>
-            <span className="text-[10px] bg-rose-500/20 text-rose-300 font-bold px-1.5 py-0.5 rounded-md border border-rose-500/30">
-              {platformName}
-            </span>
-          </button>
-        </div>
-      )}
 
       {/* Bottom Footer Actions */}
       <div className="p-3 border-t border-rose-950/40 bg-slate-950/70 flex items-center justify-between text-xs text-slate-400">

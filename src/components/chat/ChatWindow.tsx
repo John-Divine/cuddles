@@ -58,6 +58,7 @@ interface ChatWindowProps {
   pendingRequestsCount?: number;
   onOpenRequestsModal?: () => void;
   onOpenMediaGallery?: () => void;
+  isMobileSidebarOpen?: boolean;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -79,6 +80,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onOpenAddContactModal,
   onOpenRequestsModal,
   onOpenMediaGallery,
+  isMobileSidebarOpen = false,
 }) => {
   const [showSafetyModal, setShowSafetyModal] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
@@ -108,7 +110,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     return (
       <main className="flex-1 flex flex-col h-full bg-slate-950 text-slate-100 relative overflow-hidden">
         {/* Mobile Header Bar */}
-        <header className="p-3 bg-slate-900/95 border-b border-rose-950/40 flex items-center justify-between lg:hidden">
+        <header className={`p-3 bg-slate-900/95 border-b border-rose-950/40 flex items-center justify-between lg:hidden z-20 transition-all ${
+          isMobileSidebarOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
+        }`}>
           <button
             onClick={onToggleMobileSidebar}
             className="p-2 -ml-1 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800"
@@ -245,8 +249,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   return (
     <main className="flex-1 flex flex-col h-full min-h-0 bg-slate-950 text-slate-100 relative overflow-hidden">
-      {/* Header - Fixed & Locked at top */}
-      <header className="shrink-0 sticky top-0 p-2.5 sm:p-3 sm:px-4 bg-slate-900/95 border-b border-rose-950/40 flex items-center justify-between gap-2 z-30 backdrop-blur-xl">
+      {/* Header - Fixed & Locked at top, strictly hides underneath mobile sidebar when opened */}
+      <header className={`shrink-0 sticky top-0 p-2.5 sm:p-3 sm:px-4 bg-slate-900/95 border-b border-rose-950/40 flex items-center justify-between gap-2 z-20 backdrop-blur-xl transition-all ${
+        isMobileSidebarOpen ? 'opacity-0 pointer-events-none lg:opacity-100 lg:pointer-events-auto' : 'opacity-100'
+      }`}>
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           {/* Mobile hamburger menu */}
           <button
@@ -311,11 +317,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
         {/* Action Controls: Media Gallery, Audio Call & Video Call */}
         <div className="flex items-center gap-1 sm:gap-2">
-          {/* Media Gallery (visible on sm screens, also in 3-dots on mobile) */}
+          {/* Media Gallery (Prominently visible directly on mobile and laptop) */}
           {onOpenMediaGallery && (
             <button
               onClick={onOpenMediaGallery}
-              className="hidden sm:flex p-2.5 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 active:scale-95 transition-all border border-slate-700/60"
+              className="p-2 sm:p-2.5 rounded-xl bg-slate-800 hover:bg-pink-500/20 text-pink-400 hover:text-pink-300 active:scale-95 transition-all border border-slate-700/60 shadow-sm"
               title="Open Sanctuary Media Gallery"
               aria-label="Media Gallery"
             >
@@ -343,7 +349,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             <Video className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
           </button>
 
-          {/* Safety modal shortcut */}
+          {/* Safety modal shortcut (desktop) */}
           <button
             onClick={() => setShowSafetyModal(true)}
             className="hidden sm:flex p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/60"
@@ -352,7 +358,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             <Lock className="w-4 h-4 text-emerald-400" />
           </button>
 
-          {/* More options menu */}
+          {/* More options menu - Pure Action Icons Dock (Never overflows) */}
           <div className="relative">
             <button
               onClick={() => setShowOptionsMenu(!showOptionsMenu)}
@@ -371,63 +377,69 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   onClick={() => setShowOptionsMenu(false)}
                 />
 
-                <div className="absolute right-0 top-12 w-64 max-w-[calc(100vw-24px)] rounded-2xl bg-slate-900/98 border border-slate-700 shadow-2xl p-1.5 z-50 backdrop-blur-xl animate-in fade-in slide-in-from-top-2 text-xs">
-                  {effectiveRecipient && (
-                    <button
-                      onClick={() => {
-                        setShowOptionsMenu(false);
-                        onViewProfile?.(effectiveRecipient);
-                      }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-slate-800 text-slate-200 transition-colors"
-                    >
-                      <div className="w-7 h-7 rounded-lg bg-rose-500/15 text-rose-400 flex items-center justify-center shrink-0">
-                        <User className="w-4 h-4" />
-                      </div>
-                      <span className="font-semibold truncate">View Contact Profile</span>
-                    </button>
-                  )}
-
+                <div className="absolute right-0 top-12 p-2 rounded-2xl bg-slate-900/98 border border-slate-700 shadow-2xl z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-top-2 flex items-center gap-2 max-w-[calc(100vw-24px)]">
+                  {/* Sanctuary Media Gallery Icon */}
                   {onOpenMediaGallery && (
                     <button
+                      type="button"
                       onClick={() => {
                         setShowOptionsMenu(false);
                         onOpenMediaGallery();
                       }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-slate-800 text-slate-200 transition-colors"
+                      className="w-11 h-11 rounded-xl bg-pink-500/15 border border-pink-500/30 hover:bg-pink-500/25 active:scale-95 flex items-center justify-center transition-all cursor-pointer shadow-sm text-pink-400"
+                      title="Sanctuary Media Gallery"
+                      aria-label="Sanctuary Media Gallery"
                     >
-                      <div className="w-7 h-7 rounded-lg bg-pink-500/15 text-pink-400 flex items-center justify-center shrink-0">
-                        <ImageIcon className="w-4 h-4" />
-                      </div>
-                      <span className="font-semibold truncate">Sanctuary Media Gallery</span>
+                      <ImageIcon className="w-5 h-5 text-pink-400" />
                     </button>
                   )}
 
+                  {/* View Contact Profile Icon */}
+                  {effectiveRecipient && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowOptionsMenu(false);
+                        onViewProfile?.(effectiveRecipient);
+                      }}
+                      className="w-11 h-11 rounded-xl bg-rose-500/15 border border-rose-500/30 hover:bg-rose-500/25 active:scale-95 flex items-center justify-center transition-all cursor-pointer shadow-sm text-rose-400"
+                      title="View Contact Profile"
+                      aria-label="View Contact Profile"
+                    >
+                      <User className="w-5 h-5 text-rose-400" />
+                    </button>
+                  )}
+
+                  {/* Verify Safety Number / E2EE Icon */}
                   <button
+                    type="button"
                     onClick={() => {
                       setShowOptionsMenu(false);
                       setShowSafetyModal(true);
                     }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-slate-800 text-slate-200 transition-colors"
+                    className="w-11 h-11 rounded-xl bg-emerald-500/15 border border-emerald-500/30 hover:bg-emerald-500/25 active:scale-95 flex items-center justify-center transition-all cursor-pointer shadow-sm text-emerald-400"
+                    title="Verify Safety Number (E2EE)"
+                    aria-label="Verify Safety Number"
                   >
-                    <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-400 flex items-center justify-center shrink-0">
-                      <ShieldCheck className="w-4 h-4" />
-                    </div>
-                    <span className="font-semibold truncate">Verify Safety Number</span>
+                    <ShieldCheck className="w-5 h-5 text-emerald-400" />
                   </button>
 
+                  {/* Disappearing Messages Timer Icon */}
                   <button
+                    type="button"
                     onClick={() => {
                       setShowOptionsMenu(false);
                       onUpdateDisappearingTimer?.(conversation.disappearingTimerMinutes ? 0 : 1440);
                     }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-slate-800 text-slate-200 transition-colors"
+                    className={`w-11 h-11 rounded-xl border active:scale-95 flex items-center justify-center transition-all cursor-pointer shadow-sm ${
+                      conversation.disappearingTimerMinutes
+                        ? 'bg-amber-500/25 border-amber-400 text-amber-300 ring-1 ring-amber-400/50'
+                        : 'bg-amber-500/15 border-amber-500/30 hover:bg-amber-500/25 text-amber-400'
+                    }`}
+                    title={conversation.disappearingTimerMinutes ? 'Disable Disappearing Messages' : 'Enable Disappearing Messages (24h)'}
+                    aria-label="Disappearing Messages Timer"
                   >
-                    <div className="w-7 h-7 rounded-lg bg-amber-500/15 text-amber-400 flex items-center justify-center shrink-0">
-                      <Clock className="w-4 h-4" />
-                    </div>
-                    <span className="font-semibold truncate">
-                      {conversation.disappearingTimerMinutes ? 'Disable Disappearing' : 'Disappearing Messages (24h)'}
-                    </span>
+                    <Clock className="w-5 h-5" />
                   </button>
                 </div>
               </>

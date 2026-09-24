@@ -70,7 +70,6 @@ import { SchedulePanel } from './components/schedule/SchedulePanel';
 import { ProfileModal } from './components/profile/ProfileModal';
 import { AddContactModal } from './components/contacts/AddContactModal';
 import { RequestsModal } from './components/contacts/RequestsModal';
-import { PWAInstallBanner } from './components/pwa/PWAInstallBanner';
 import { PWAInstallModal } from './components/pwa/PWAInstallModal';
 import { OfflineIndicator } from './components/pwa/OfflineIndicator';
 import { MediaGalleryModal } from './components/gallery/MediaGalleryModal';
@@ -622,9 +621,19 @@ export default function App() {
     };
   }, [activeConversationId, messagesMap[activeConversationId]?.length]);
 
-  // Derived Partners & Friends lists
-  const partners = contacts.filter((c) => c.relationshipType === 'partner');
-  const friends = contacts.filter((c) => c.relationshipType === 'friend');
+  // Derived Partners & Friends lists (Strictly anti-self: never include current user)
+  const partners = contacts.filter((c) => 
+    c.relationshipType === 'partner' &&
+    c.id !== currentUser.id &&
+    c.name.trim().toLowerCase() !== currentUser.name.trim().toLowerCase() &&
+    (!currentUser.username || c.username?.trim().toLowerCase().replace(/^@/, '') !== currentUser.username.trim().toLowerCase().replace(/^@/, ''))
+  );
+  const friends = contacts.filter((c) => 
+    c.relationshipType === 'friend' &&
+    c.id !== currentUser.id &&
+    c.name.trim().toLowerCase() !== currentUser.name.trim().toLowerCase() &&
+    (!currentUser.username || c.username?.trim().toLowerCase().replace(/^@/, '') !== currentUser.username.trim().toLowerCase().replace(/^@/, ''))
+  );
 
   // Active conversation object
   const activeConversation = conversations.find((c) => c.id === activeConversationId) || conversations[0];
@@ -1331,8 +1340,6 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden select-none font-sans antialiased">
-      {/* PWA In-App Install Banner & Offline Notice */}
-      <PWAInstallBanner onOpenModal={() => setShowInstallModal(true)} />
       <OfflineIndicator />
 
       {/* Main Container */}
@@ -1358,7 +1365,6 @@ export default function App() {
             setAddContactType('friend');
             setShowAddContactModal(true);
           }}
-          onOpenInstallModal={() => setShowInstallModal(true)}
           onOpenMediaGallery={() => setShowMediaGalleryModal(true)}
           onStartCall={(convId, type) => {
             setActiveConversationId(convId);
@@ -1368,11 +1374,11 @@ export default function App() {
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
         />
 
-        {/* Mobile backdrop */}
+        {/* Mobile backdrop - strictly below sidebar z-[100] but above chat header z-20 */}
         {isMobileSidebarOpen && (
           <div
             onClick={() => setIsMobileSidebarOpen(false)}
-            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden animate-in fade-in"
+            className="fixed inset-0 z-[90] bg-black/70 backdrop-blur-sm lg:hidden animate-in fade-in"
           />
         )}
 
@@ -1391,6 +1397,7 @@ export default function App() {
           onDownloadAttachment={handleDownloadAttachment}
           onStartCall={handleStartCall}
           onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+          isMobileSidebarOpen={isMobileSidebarOpen}
           onViewProfile={(user) => setViewingProfile({ user, isOwn: user.id === currentUser.id })}
           onOpenAddContactModal={() => {
             setAddContactType('friend');
