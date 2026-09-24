@@ -5,9 +5,9 @@
  */
 export async function compressImage(
   source: File | string,
-  maxWidth: number = 1280,
-  maxHeight: number = 1280,
-  quality: number = 0.82
+  maxWidth: number = 960,
+  maxHeight: number = 960,
+  quality: number = 0.75
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();

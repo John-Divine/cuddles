@@ -110,21 +110,20 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     return (
       <main className="flex-1 flex flex-col h-full bg-slate-950 text-slate-100 relative overflow-hidden">
         {/* Mobile Header Bar */}
-        <header className={`p-3 bg-slate-900/95 border-b border-rose-950/40 flex items-center justify-between lg:hidden z-20 transition-all ${
-          isMobileSidebarOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
-        }`}>
+        <header className="shrink-0 w-full p-3 bg-slate-900 border-b border-rose-950/50 flex items-center justify-between lg:hidden z-20 shadow-md">
           <button
             onClick={onToggleMobileSidebar}
-            className="p-2 -ml-1 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800"
+            className="p-2 -ml-1 text-slate-300 hover:text-white rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/50 flex items-center gap-1.5 text-xs font-semibold cursor-pointer"
             title="Open chats"
           >
-            <Menu className="w-5 h-5" />
+            <Menu className="w-5 h-5 text-rose-400" />
+            <span>Chats</span>
           </button>
           <div className="flex items-center gap-1.5">
             <Heart className="w-4 h-4 text-rose-500 fill-rose-500" />
-            <span className="text-xs font-bold text-white">Cuddles Sanctuary</span>
+            <span className="text-xs font-bold text-white">Sanctuary</span>
           </div>
-          <div className="w-8" />
+          <div className="w-16" />
         </header>
 
         {/* Empty Sanctuary Welcome Area */}
@@ -249,18 +248,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   return (
     <main className="flex-1 flex flex-col h-full min-h-0 bg-slate-950 text-slate-100 relative overflow-hidden">
-      {/* Header - Fixed & Locked at top, strictly hides underneath mobile sidebar when opened */}
-      <header className={`shrink-0 sticky top-0 p-2.5 sm:p-3 sm:px-4 bg-slate-900/95 border-b border-rose-950/40 flex items-center justify-between gap-2 z-20 backdrop-blur-xl transition-all ${
-        isMobileSidebarOpen ? 'opacity-0 pointer-events-none lg:opacity-100 lg:pointer-events-auto' : 'opacity-100'
-      }`}>
+      {/* Header - Fixed & Locked at top, sits under mobile drawer z-[100] when open */}
+      <header className="shrink-0 w-full p-2.5 sm:p-3 sm:px-4 bg-slate-900/98 border-b border-rose-950/50 flex items-center justify-between gap-2 z-20 backdrop-blur-xl shadow-md">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           {/* Mobile hamburger menu */}
           <button
             onClick={onToggleMobileSidebar}
-            className="lg:hidden p-2 -ml-1 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800"
+            className="lg:hidden p-2 -ml-1 text-slate-300 hover:text-white rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/50 flex items-center justify-center cursor-pointer shrink-0"
             title="Open chats"
           >
-            <Menu className="w-5 h-5" />
+            <Menu className="w-5 h-5 text-rose-400" />
           </button>
 
           {/* Conversation Avatar (Clickable to view profile) */}

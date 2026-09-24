@@ -172,6 +172,18 @@ export async function syncUserToFirestore(user: UserAccount | UserProfile): Prom
 }
 
 /**
+ * Permanently delete a user from Firestore
+ */
+export async function deleteUserFromFirestore(userId: string): Promise<void> {
+  try {
+    await deleteDoc(doc(db, 'users', userId));
+    console.log(`User deleted from Firestore: ${userId}`);
+  } catch (err) {
+    console.warn('Could not delete user from Firestore:', err);
+  }
+}
+
+/**
  * Fetch all users from Firestore
  */
 export async function fetchUsersFromFirestore(): Promise<UserAccount[]> {

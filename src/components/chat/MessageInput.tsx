@@ -32,6 +32,7 @@ interface MessageInputProps {
       fileSizeBytes?: number;
       fileSize?: string;
       mimeType?: string;
+      thumbnailUrl?: string;
     }
   ) => void;
   onTyping?: () => void;
@@ -146,8 +147,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
     setFileError(null);
     try {
-      // Auto-compress high-res phone camera / gallery photos to crisp, fast JPEG
-      const compressedDataUrl = await compressImage(file, 1280, 1280, 0.82);
+      // Auto-compress phone camera / gallery photos to crisp, fast, lightweight JPEG (<200KB)
+      const compressedDataUrl = await compressImage(file, 960, 960, 0.75);
       setPendingImage(compressedDataUrl);
     } catch (err) {
       console.warn('Image compression fallback:', err);
@@ -162,7 +163,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     e.target.value = '';
   };
 
-  const handleDocumentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDocumentChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -173,11 +174,30 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
 
     setFileError(null);
+    const isVid = file.type.startsWith('video/');
+    const isImg = file.type.startsWith('image/');
+
+    if (isImg) {
+      try {
+        const compressed = await compressImage(file, 960, 960, 0.75);
+        setPendingDocument({
+          name: file.name,
+          sizeBytes: file.size,
+          sizeFormatted: formatBytes(file.size),
+          mimeType: 'image/jpeg',
+          url: compressed,
+          type: 'image'
+        });
+        e.target.value = '';
+        return;
+      } catch (err) {
+        console.warn('Doc image compression fallback:', err);
+      }
+    }
+
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === 'string') {
-        const isVid = file.type.startsWith('video/');
-        const isImg = file.type.startsWith('image/');
         setPendingDocument({
           name: file.name,
           sizeBytes: file.size,
@@ -197,9 +217,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       {/* Video Note Recorder Modal (portaled to document.body, centered overlay) */}
       {isRecordingVideoNote && (
         <VideoNoteRecorder
-          onComplete={(url, duration) => {
+          onComplete={(url, duration, posterUrl) => {
             setIsRecordingVideoNote(false);
-            onSendMedia('video_note', url, duration);
+            onSendMedia('video_note', url, duration, {
+              fileName: `vnote_${Date.now()}.mp4`,
+              thumbnailUrl: posterUrl
+            });
           }}
           onCancel={() => setIsRecordingVideoNote(false)}
         />

@@ -32,12 +32,14 @@ import {
   getUserConversations,
   saveUserConversations,
   getUserMessages,
-  saveUserMessages
+  saveUserMessages,
+  deleteStoredAccount
 } from './lib/storage';
 import {
   testConnection,
   ensureFirebaseAuth,
   syncUserToFirestore,
+  deleteUserFromFirestore,
   syncMessageToFirestore,
   purgeMessageMediaFromFirestore,
   syncConversationToFirestore,
@@ -545,7 +547,8 @@ export default function App() {
                 }
               });
             } else {
-              // Immediately back up any incoming media to device IndexedDB vault
+              // Immediately back up any incoming media to device IndexedDB vault,
+              // then purge ephemeral payload from cloud database once downloaded!
               if (m.attachment?.url) {
                 saveMediaToDeviceVault(
                   m.id,
@@ -553,8 +556,25 @@ export default function App() {
                   m.type,
                   m.attachment.fileName || `cuddles_${m.type}_${Date.now()}`
                 );
+
+                // If incoming from partner/friend, auto-purge from cloud once downloaded to device
+                if (m.senderId !== activeAccount?.id && !m.attachment.isDownloadedToDevice) {
+                  purgeMessageMediaFromFirestore(activeConversationId, m.id);
+                  map.set(m.id, {
+                    ...m,
+                    attachment: {
+                      ...m.attachment,
+                      isDownloadedToDevice: true,
+                      isPurgedFromOnlineDatabase: true,
+                      isStoredLocally: true
+                    }
+                  });
+                } else {
+                  map.set(m.id, m);
+                }
+              } else {
+                map.set(m.id, m);
               }
-              map.set(m.id, m);
             }
           });
 
@@ -804,6 +824,7 @@ export default function App() {
       attachment: {
         type: type === 'document' || type === 'video' ? type : (type as any),
         url,
+        thumbnailUrl: attachmentMeta?.thumbnailUrl,
         durationSeconds,
         fileName: attachmentMeta?.fileName,
         fileSizeBytes: attachmentMeta?.fileSizeBytes,
@@ -833,13 +854,14 @@ export default function App() {
       return nextMap;
     });
 
-    // Sync media message to Firestore (allowing up to 800KB payload for fast Spark tier sync)
+    // Sync media message to Firestore with full url and poster frame
     syncMessageToFirestore({
       ...newMessage,
       attachment: newMessage.attachment
         ? {
             ...newMessage.attachment,
-            url: (url && url.length < 800000) ? url : ''
+            url: url || '',
+            thumbnailUrl: attachmentMeta?.thumbnailUrl
           }
         : undefined
     });
@@ -1338,8 +1360,23 @@ export default function App() {
     );
   }
 
+  // Permanently delete account and all associated cloud & local data
+  const handleDeleteAccount = async () => {
+    if (!currentUser.id) return;
+    const accountId = currentUser.id;
+    await deleteUserFromFirestore(accountId);
+    deleteStoredAccount(accountId);
+    setActiveAccount(null);
+    setCurrentUser(CURRENT_USER);
+    setContacts([]);
+    setConversations([]);
+    setMessagesMap({});
+    setActiveConversationId('');
+    setViewingProfile(null);
+  };
+
   return (
-    <div className="flex flex-col h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden select-none font-sans antialiased">
+    <div className="flex flex-col h-[100dvh] w-screen bg-slate-950 text-slate-100 overflow-hidden select-none font-sans antialiased">
       <OfflineIndicator />
 
       {/* Main Container */}
@@ -1648,6 +1685,7 @@ export default function App() {
           user={viewingProfile.user}
           isOwnProfile={viewingProfile.isOwn}
           onSignOut={handleSignOut}
+          onDeleteAccount={handleDeleteAccount}
           onUpdateUser={(updates) => {
             if (viewingProfile.isOwn) {
               setCurrentUser((prev) => ({ ...prev, ...updates }));

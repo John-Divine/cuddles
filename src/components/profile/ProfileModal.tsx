@@ -28,6 +28,7 @@ interface ProfileModalProps {
   isOwnProfile?: boolean;
   onUpdateUser?: (updates: Partial<UserProfile>) => void;
   onSignOut?: () => void;
+  onDeleteAccount?: () => void;
   onClose: () => void;
 }
 
@@ -36,6 +37,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   isOwnProfile = true,
   onUpdateUser,
   onSignOut,
+  onDeleteAccount,
   onClose
 }) => {
   const [name, setName] = useState(user.name);
@@ -46,6 +48,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [location, setLocation] = useState(user.location || '');
   const [partnerNickname, setPartnerNickname] = useState(user.partnerNickname || '');
   const [showInstallModal, setShowInstallModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { isInstalled, platformName } = usePWAInstall();
 
   const handleSave = (e: React.FormEvent) => {
@@ -350,11 +353,56 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   onSignOut();
                   onClose();
                 }}
-                className="w-full py-2.5 px-4 rounded-2xl bg-slate-800/80 hover:bg-rose-950/40 text-rose-300 hover:text-rose-200 border border-rose-900/30 text-xs font-semibold flex items-center justify-center gap-2 transition-all active:scale-98"
+                className="w-full py-2.5 px-4 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white border border-slate-700/50 text-xs font-semibold flex items-center justify-center gap-2 transition-all active:scale-98"
               >
                 <LogOut className="w-4 h-4" />
                 Sign Out / Switch Account
               </button>
+            </div>
+          )}
+
+          {/* Delete Account (Permanent) */}
+          {isOwnProfile && onDeleteAccount && (
+            <div className="pt-1">
+              {!showDeleteConfirm ? (
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="w-full py-2.5 px-4 rounded-2xl bg-rose-950/20 hover:bg-rose-900/40 text-rose-400 hover:text-rose-300 border border-rose-900/40 text-xs font-semibold flex items-center justify-center gap-2 transition-all active:scale-98"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete My Account Permanently
+                </button>
+              ) : (
+                <div className="p-3.5 rounded-2xl bg-rose-950/60 border border-rose-600/50 space-y-2.5 animate-in fade-in">
+                  <div className="flex items-center gap-2 text-rose-200 text-xs font-bold">
+                    <Trash2 className="w-4 h-4 text-rose-400 shrink-0" />
+                    <span>Confirm Permanent Account Deletion</span>
+                  </div>
+                  <p className="text-[11px] text-rose-300/80 leading-relaxed">
+                    This will delete your profile, identity, contacts, conversations, and all stored media. This action is irreversible.
+                  </p>
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="flex-1 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onDeleteAccount();
+                        onClose();
+                      }}
+                      className="flex-1 py-2 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-600/30 transition-all active:scale-95"
+                    >
+                      Yes, Delete Account
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -23,7 +23,8 @@ import { Message } from '../../types';
 import {
   downloadMediaToDeviceGallery,
   saveMediaToDeviceVault,
-  getMediaFromDeviceVault
+  getMediaFromDeviceVault,
+  dataUrlToBlobUrl
 } from '../../lib/deviceMediaStorage';
 
 interface MessageBubbleProps {
@@ -72,6 +73,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   }, [message.id, message.attachment?.url]);
 
   const currentMediaUrl = resolvedMediaUrl || message.attachment?.url || '';
+  const playableMediaUrl = React.useMemo(() => {
+    return dataUrlToBlobUrl(currentMediaUrl || message.attachment?.url || '', message.attachment?.mimeType);
+  }, [currentMediaUrl, message.attachment?.url, message.attachment?.mimeType]);
 
   // Video note state
   const [isPlayingVideoNote, setIsPlayingVideoNote] = useState(false);
@@ -94,22 +98,22 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   // When media URL resolves from IndexedDB or cloud, trigger .load() so browser decoder initializes
   useEffect(() => {
-    if (videoNoteRef.current && currentMediaUrl) {
+    if (videoNoteRef.current && playableMediaUrl) {
       videoNoteRef.current.load();
     }
-  }, [currentMediaUrl]);
+  }, [playableMediaUrl]);
 
   useEffect(() => {
-    if (videoFileRef.current && currentMediaUrl) {
+    if (videoFileRef.current && playableMediaUrl) {
       videoFileRef.current.load();
     }
-  }, [currentMediaUrl]);
+  }, [playableMediaUrl]);
 
   useEffect(() => {
-    if (audioRef.current && currentMediaUrl) {
+    if (audioRef.current && playableMediaUrl) {
       audioRef.current.load();
     }
-  }, [currentMediaUrl]);
+  }, [playableMediaUrl]);
 
   // Universal Media Save & Purge Trigger
   const handleSaveMedia = async (
@@ -166,31 +170,34 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   };
 
   // Video note inline controls
-  const toggleVideoNote = (e?: React.MouseEvent) => {
+  const toggleVideoNote = async (e?: React.MouseEvent) => {
     e?.stopPropagation();
     if (!videoNoteRef.current) return;
     if (isPlayingVideoNote) {
       videoNoteRef.current.pause();
       setIsPlayingVideoNote(false);
     } else {
+      if (!currentMediaUrl && message.attachment) {
+        const vaultUrl = await getMediaFromDeviceVault(message.id);
+        if (vaultUrl) {
+          setResolvedMediaUrl(vaultUrl);
+        }
+      }
       if (videoNoteRef.current.ended) {
         videoNoteRef.current.currentTime = 0;
       }
       videoNoteRef.current.muted = isVideoNoteMuted;
-      const playPromise = videoNoteRef.current.play();
-      if (playPromise !== undefined) {
-        playPromise
-          .then(() => {
-            setIsPlayingVideoNote(true);
-          })
-          .catch(() => {
-            // Autoplay with sound restricted by browser policy, fallback to muted play
-            if (videoNoteRef.current) {
-              videoNoteRef.current.muted = true;
-              setIsVideoNoteMuted(true);
-              videoNoteRef.current.play().then(() => setIsPlayingVideoNote(true)).catch(() => {});
-            }
-          });
+      try {
+        await videoNoteRef.current.play();
+        setIsPlayingVideoNote(true);
+      } catch {
+        // Autoplay with sound restricted by browser policy, fallback to muted play
+        if (videoNoteRef.current) {
+          videoNoteRef.current.muted = true;
+          setIsVideoNoteMuted(true);
+          await videoNoteRef.current.play().catch(() => {});
+          setIsPlayingVideoNote(true);
+        }
       }
 
       // Auto-save to device & trigger purge on first play for receiver
@@ -281,12 +288,18 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             {/* Content: IMAGE */}
             {message.type === 'image' && message.attachment && (
               <div className="space-y-1.5">
-                <div className="relative rounded-xl overflow-hidden cursor-pointer max-w-xs group/img">
+                <div className="relative rounded-xl overflow-hidden cursor-pointer max-w-xs group/img bg-slate-900 border border-slate-800">
                   <img
                     src={currentMediaUrl || message.attachment.url}
-                    alt="attachment"
+                    alt={message.attachment.fileName || 'Photo attachment'}
                     onClick={() => setShowImageZoom(true)}
                     className="w-full max-h-60 object-cover hover:scale-102 transition-transform duration-200"
+                    onError={async () => {
+                      const vault = await getMediaFromDeviceVault(message.id);
+                      if (vault && vault !== currentMediaUrl) {
+                        setResolvedMediaUrl(vault);
+                      }
+                    }}
                   />
 
                   {/* Explicit Save to Gallery button on Image */}
@@ -601,15 +614,27 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             {message.type === 'video_note' && message.attachment && (
               <div className="relative flex flex-col items-center my-1 group/vnote">
                 <div
-                  className="relative w-44 h-44 sm:w-52 sm:h-52 rounded-full overflow-hidden border-4 border-rose-500/80 shadow-2xl cursor-pointer bg-black"
+                  className="relative w-44 h-44 sm:w-52 sm:h-52 rounded-full overflow-hidden border-4 border-rose-500/80 shadow-2xl cursor-pointer bg-slate-950"
                   onClick={toggleVideoNote}
                 >
                   <video
                     ref={videoNoteRef}
-                    src={resolvedMediaUrl || message.attachment.url}
+                    src={playableMediaUrl}
+                    poster={message.attachment.thumbnailUrl}
                     playsInline
+                    preload="auto"
                     loop
                     muted={isVideoNoteMuted}
+                    onLoadedMetadata={(e) => {
+                      const v = e.currentTarget;
+                      if (!message.attachment?.thumbnailUrl && v.currentTime === 0) {
+                        try {
+                          v.currentTime = 0.05;
+                        } catch {
+                          // ignore seek error on non-ready streams
+                        }
+                      }
+                    }}
                     onTimeUpdate={() => {
                       if (videoNoteRef.current) {
                         setVideoProgress(
@@ -617,13 +642,24 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                         );
                       }
                     }}
-                    className="w-full h-full object-cover"
+                    className={`w-full h-full object-cover transition-opacity duration-300 ${
+                      isPlayingVideoNote || !message.attachment.thumbnailUrl ? 'opacity-100' : 'opacity-90'
+                    }`}
                   />
+
+                  {/* Guaranteed Poster Preview Frame (prevents dark screen when paused) */}
+                  {!isPlayingVideoNote && message.attachment.thumbnailUrl && (
+                    <img
+                      src={message.attachment.thumbnailUrl}
+                      alt="Video note preview"
+                      className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+                    />
+                  )}
 
                   {/* Play Overlay */}
                   {!isPlayingVideoNote && (
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                      <div className="w-12 h-12 rounded-full bg-white/30 backdrop-blur-md flex items-center justify-center shadow-lg">
+                    <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
+                      <div className="w-13 h-13 rounded-full bg-rose-600/90 hover:bg-rose-500 text-white backdrop-blur-md flex items-center justify-center shadow-xl ring-2 ring-white/40 transition-transform active:scale-95">
                         <Play className="w-6 h-6 text-white fill-white ml-0.5" />
                       </div>
                     </div>

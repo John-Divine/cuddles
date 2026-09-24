@@ -94,7 +94,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
         ctx.scale(-1, 1);
       }
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.80);
       setCapturedImage(dataUrl);
 
       // Stop camera preview while reviewing

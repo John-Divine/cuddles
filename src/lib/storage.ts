@@ -544,6 +544,34 @@ export function registerNewAccount(params: {
 }
 
 /**
+ * Permanently delete an account and all its user-scoped contacts, conversations, and messages
+ */
+export function deleteStoredAccount(accountId: string): void {
+  try {
+    const accounts = getStoredAccounts();
+    const remaining = accounts.filter((a) => a.id !== accountId);
+    saveStoredData(STORAGE_KEYS.ACCOUNTS, remaining);
+
+    // Clean up all local storage keys for this user
+    localStorage.removeItem(getUserScopedKey(accountId, 'contacts'));
+    localStorage.removeItem(getUserScopedKey(accountId, 'conversations'));
+    localStorage.removeItem(getUserScopedKey(accountId, 'messages'));
+
+    // If active account is the deleted one, switch to remaining or clear
+    const activeId = getActiveAccountId();
+    if (activeId === accountId) {
+      if (remaining.length > 0) {
+        setActiveAccountId(remaining[0].id);
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.ACTIVE_ACCOUNT_ID);
+      }
+    }
+  } catch (err) {
+    console.error('Error deleting stored account:', err);
+  }
+}
+
+/**
  * Account-isolated storage helpers
  * Guarantees that users only see their own contacts, conversations, and messages.
  * No demo accounts leak into real registered accounts!

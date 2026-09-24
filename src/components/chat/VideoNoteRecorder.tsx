@@ -4,7 +4,7 @@ import { RefreshCw, Check, X, Play, Pause, AlertCircle, Square, Send, RotateCcw 
 import { playRecordStartSound } from '../../lib/audio';
 
 interface VideoNoteRecorderProps {
-  onComplete: (videoBlobUrl: string, durationSeconds: number) => void;
+  onComplete: (videoBlobUrl: string, durationSeconds: number, posterUrl?: string) => void;
   onCancel: () => void;
 }
 
@@ -23,6 +23,7 @@ export const VideoNoteRecorder: React.FC<VideoNoteRecorderProps> = ({ onComplete
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const recordedBlobRef = useRef<Blob | null>(null);
+  const posterDataUrlRef = useRef<string | null>(null);
   const timerRef = useRef<number | null>(null);
 
   // Stop current tracks helper
@@ -30,6 +31,32 @@ export const VideoNoteRecorder: React.FC<VideoNoteRecorderProps> = ({ onComplete
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach((t) => t.stop());
       mediaStreamRef.current = null;
+    }
+  };
+
+  // Capture current video frame to JPEG data URL so video note never renders dark
+  const captureCurrentPoster = () => {
+    const video = videoRef.current;
+    if (video) {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 240;
+        canvas.height = 240;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          if (facingMode === 'user') {
+            ctx.translate(canvas.width, 0);
+            ctx.scale(-1, 1);
+          }
+          ctx.drawImage(video, 0, 0, 240, 240);
+          const snap = canvas.toDataURL('image/jpeg', 0.80);
+          if (snap && snap.length > 100) {
+            posterDataUrlRef.current = snap;
+          }
+        }
+      } catch (err) {
+        console.warn('Could not grab poster frame:', err);
+      }
     }
   };
 
@@ -55,6 +82,7 @@ export const VideoNoteRecorder: React.FC<VideoNoteRecorderProps> = ({ onComplete
         videoRef.current.srcObject = stream;
         videoRef.current.muted = true;
         await videoRef.current.play().catch(() => {});
+        setTimeout(captureCurrentPoster, 300);
       }
 
       // Start recording immediately
@@ -63,19 +91,25 @@ export const VideoNoteRecorder: React.FC<VideoNoteRecorderProps> = ({ onComplete
       setSeconds(0);
 
       let mimeType = '';
-      if (MediaRecorder.isTypeSupported('video/mp4;codecs=avc1,mp4a.40.2')) {
-        mimeType = 'video/mp4;codecs=avc1,mp4a.40.2';
-      } else if (MediaRecorder.isTypeSupported('video/mp4')) {
-        mimeType = 'video/mp4';
-      } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
-        mimeType = 'video/webm;codecs=vp8,opus';
-      } else if (MediaRecorder.isTypeSupported('video/webm')) {
-        mimeType = 'video/webm';
+      if (typeof MediaRecorder !== 'undefined') {
+        const candidateTypes = [
+          'video/mp4;codecs=avc1,mp4a.40.2',
+          'video/mp4',
+          'video/webm;codecs=vp8,opus',
+          'video/webm;codecs=vp9,opus',
+          'video/webm'
+        ];
+        for (const t of candidateTypes) {
+          if (MediaRecorder.isTypeSupported(t)) {
+            mimeType = t;
+            break;
+          }
+        }
       }
 
       const recorderOptions: MediaRecorderOptions = {
-        videoBitsPerSecond: 450000,
-        audioBitsPerSecond: 64000
+        videoBitsPerSecond: 250000,
+        audioBitsPerSecond: 48000
       };
       if (mimeType) {
         recorderOptions.mimeType = mimeType;
@@ -90,6 +124,7 @@ export const VideoNoteRecorder: React.FC<VideoNoteRecorderProps> = ({ onComplete
       };
 
       recorder.onstop = () => {
+        captureCurrentPoster();
         const finalMime = mimeType || 'video/webm';
         const blob = new Blob(chunksRef.current, { type: finalMime });
         recordedBlobRef.current = blob;
@@ -106,6 +141,7 @@ export const VideoNoteRecorder: React.FC<VideoNoteRecorderProps> = ({ onComplete
 
       if (timerRef.current) clearInterval(timerRef.current);
       timerRef.current = window.setInterval(() => {
+        captureCurrentPoster();
         setSeconds((s) => {
           if (s >= 59) {
             // Reached the end (1 minute max)!
@@ -139,6 +175,7 @@ export const VideoNoteRecorder: React.FC<VideoNoteRecorderProps> = ({ onComplete
 
   // Stop recording manually
   const stopRecording = () => {
+    captureCurrentPoster();
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -163,15 +200,16 @@ export const VideoNoteRecorder: React.FC<VideoNoteRecorderProps> = ({ onComplete
   // Confirm and send video note
   const handleSend = () => {
     const dur = Math.max(1, recordedDuration);
+    const poster = posterDataUrlRef.current || undefined;
     if (recordedBlobRef.current) {
       const reader = new FileReader();
       reader.onloadend = () => {
         const dataUrl = reader.result as string;
-        onComplete(dataUrl, dur);
+        onComplete(dataUrl, dur, poster);
       };
       reader.readAsDataURL(recordedBlobRef.current);
     } else if (reviewUrl) {
-      onComplete(reviewUrl, dur);
+      onComplete(reviewUrl, dur, poster);
     }
   };
 

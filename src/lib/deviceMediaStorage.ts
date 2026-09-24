@@ -5,6 +5,43 @@ const DB_NAME = 'CuddlesDeviceVault';
 const STORE_NAME = 'media_vault';
 const DB_VERSION = 1;
 
+// In-memory cache for instant synchronous retrieval
+const vaultMemoryCache = new Map<string, string>();
+const blobUrlCache = new Map<string, string>();
+
+/**
+ * Converts a base64 Data URL to a native Blob URL for high-performance hardware decoding
+ * (Fixes black/unplayable video notes and audio notes in mobile Safari & Chrome)
+ */
+export function dataUrlToBlobUrl(url: string, mimeType?: string): string {
+  if (!url) return '';
+  if (url.startsWith('blob:')) return url;
+  if (!url.startsWith('data:')) return url;
+
+  if (blobUrlCache.has(url)) {
+    return blobUrlCache.get(url)!;
+  }
+
+  try {
+    const parts = url.split(',');
+    const match = parts[0].match(/:(.*?);/);
+    const mime = mimeType || (match ? match[1] : 'application/octet-stream');
+    const bstr = atob(parts[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    const blob = new Blob([u8arr], { type: mime });
+    const blobUrl = URL.createObjectURL(blob);
+    blobUrlCache.set(url, blobUrl);
+    return blobUrl;
+  } catch (err) {
+    console.warn('Failed to convert dataUrl to blobUrl:', err);
+    return url;
+  }
+}
+
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     if (typeof window === 'undefined' || !window.indexedDB) {
@@ -32,7 +69,7 @@ export interface StoredMediaRecord {
 }
 
 /**
- * Save media binary/dataUrl to device's IndexedDB storage
+ * Save media binary/dataUrl to device's IndexedDB storage and in-memory cache
  */
 export async function saveMediaToDeviceVault(
   messageId: string,
@@ -40,6 +77,9 @@ export async function saveMediaToDeviceVault(
   mediaType: string = 'media',
   fileName: string = 'cuddles_media'
 ): Promise<boolean> {
+  if (!dataUrl) return false;
+  vaultMemoryCache.set(messageId, dataUrl);
+
   try {
     const db = await openDB();
     return new Promise((resolve) => {
@@ -66,9 +106,13 @@ export async function saveMediaToDeviceVault(
 }
 
 /**
- * Retrieve media from device IndexedDB
+ * Retrieve media from device IndexedDB or instant memory cache
  */
 export async function getMediaFromDeviceVault(messageId: string): Promise<string | null> {
+  if (vaultMemoryCache.has(messageId)) {
+    return vaultMemoryCache.get(messageId)!;
+  }
+
   try {
     const db = await openDB();
     return new Promise((resolve) => {
@@ -77,12 +121,37 @@ export async function getMediaFromDeviceVault(messageId: string): Promise<string
       const req = store.get(messageId);
       req.onsuccess = () => {
         const record = req.result as StoredMediaRecord | undefined;
-        resolve(record ? record.dataUrl : null);
+        if (record?.dataUrl) {
+          vaultMemoryCache.set(messageId, record.dataUrl);
+          resolve(record.dataUrl);
+        } else {
+          resolve(null);
+        }
       };
       req.onerror = () => resolve(null);
     });
   } catch {
     return null;
+  }
+}
+
+/**
+ * Clear all device vault records (used on account deletion)
+ */
+export async function clearDeviceVault(): Promise<void> {
+  vaultMemoryCache.clear();
+  blobUrlCache.clear();
+  try {
+    const db = await openDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      store.clear();
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+    });
+  } catch {
+    // Ignore error on clearing
   }
 }
 

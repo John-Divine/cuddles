@@ -90,103 +90,91 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-[100] w-full sm:w-88 max-w-[320px] sm:max-w-sm bg-slate-900 border-r border-rose-950/40 flex flex-col shadow-2xl transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 backdrop-blur-2xl ${
+      className={`fixed inset-y-0 left-0 z-[100] w-full max-w-[340px] sm:max-w-sm sm:w-88 bg-slate-900 border-r border-rose-950/40 flex flex-col shadow-2xl transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 backdrop-blur-2xl ${
         isMobileOpen ? 'translate-x-0' : '-translate-x-full'
       }`}
     >
-      {/* App Brand Header: Cuddles */}
-      <div className="p-3.5 border-b border-rose-950/40 flex items-center justify-between bg-slate-900/90">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-rose-500 via-pink-500 to-amber-500 p-0.5 shadow-md shadow-rose-500/20 flex items-center justify-center">
-            <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
-              <Heart className="w-4 h-4 text-rose-400 fill-rose-400" />
-            </div>
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <h1 className="font-extrabold text-base tracking-tight text-white">Cuddles</h1>
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                E2EE
+      {/* Header Action Bar: Spacious, Prominent Icons (No title, maximum room for large icons) */}
+      <div className="p-3 pt-3 sm:pt-3.5 border-b border-rose-950/40 bg-slate-900/98 flex items-center justify-between gap-1.5 sm:gap-2">
+        {/* Gallery Icon - Large & Prominent */}
+        {onOpenMediaGallery && (
+          <button
+            onClick={onOpenMediaGallery}
+            className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-pink-600/25 to-rose-600/15 hover:from-pink-600/35 hover:to-rose-600/25 border border-pink-500/40 text-pink-400 flex items-center justify-center active:scale-95 transition-all shadow-md cursor-pointer shrink-0"
+            title="Sanctuary Media Gallery"
+            aria-label="Sanctuary Media Gallery"
+          >
+            <ImageIcon className="w-6.5 h-6.5 text-pink-400" />
+          </button>
+        )}
+
+        {/* Add Contact Icon */}
+        {onOpenAddContactModal && (
+          <button
+            onClick={onOpenAddContactModal}
+            className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-600/25 to-pink-600/15 hover:from-rose-600/35 hover:to-pink-600/25 border border-rose-500/40 text-rose-400 flex items-center justify-center active:scale-95 transition-all shadow-md cursor-pointer shrink-0"
+            title="Add Partner or Friend by @Username"
+            aria-label="Add Contact"
+          >
+            <UserPlus className="w-6.5 h-6.5" />
+          </button>
+        )}
+
+        {/* Connection Requests Icon */}
+        {onOpenRequestsModal && (
+          <button
+            onClick={onOpenRequestsModal}
+            className="relative w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-600/25 to-yellow-600/15 hover:from-amber-600/35 hover:to-yellow-600/25 border border-amber-500/40 text-amber-400 flex items-center justify-center active:scale-95 transition-all shadow-md cursor-pointer shrink-0"
+            title="Connection Requests"
+            aria-label="Connection Requests"
+          >
+            <Bell className="w-6.5 h-6.5" />
+            {pendingRequestsCount > 0 && (
+              <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-extrabold flex items-center justify-center ring-2 ring-slate-900 animate-pulse">
+                {pendingRequestsCount}
               </span>
-            </div>
-            <p className="text-[10px] text-rose-200/70 font-medium">
-              @{currentUser.username || 'user'} • Sanctuary
-            </p>
-          </div>
-        </div>
-
-        {/* Action icons: Add contact, Requests, Day Schedules, Profile & Mobile Close */}
-        <div className="flex items-center gap-1.5">
-          {onOpenAddContactModal && (
-            <button
-              onClick={onOpenAddContactModal}
-              className="p-2.5 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/50 text-slate-300 hover:text-rose-300 active:scale-95 transition-all shadow-sm"
-              title="Add Contact by @Username"
-            >
-              <UserPlus className="w-5 h-5" />
-            </button>
-          )}
-
-          {onOpenRequestsModal && (
-            <button
-              onClick={onOpenRequestsModal}
-              className="relative p-2.5 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/50 text-slate-300 hover:text-rose-300 active:scale-95 transition-all shadow-sm"
-              title="Contact Requests"
-            >
-              <Bell className="w-5 h-5" />
-              {pendingRequestsCount > 0 && (
-                <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-extrabold flex items-center justify-center ring-2 ring-slate-900 animate-pulse">
-                  {pendingRequestsCount}
-                </span>
-              )}
-            </button>
-          )}
-
-          {onOpenMediaGallery && (
-            <button
-              onClick={onOpenMediaGallery}
-              className="p-2.5 rounded-2xl bg-slate-800/80 hover:bg-rose-500/20 border border-slate-700/50 text-slate-300 hover:text-rose-300 active:scale-95 transition-all shadow-sm"
-              title="Sanctuary Media Gallery"
-            >
-              <ImageIcon className="w-5 h-5 text-pink-400" />
-            </button>
-          )}
-
-          <button
-            onClick={onOpenScheduleModal}
-            className="p-2.5 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/50 text-slate-300 hover:text-rose-300 active:scale-95 transition-all shadow-sm"
-            title="Day Schedules & Quiet Mode"
-          >
-            <Calendar className="w-5 h-5" />
+            )}
           </button>
+        )}
 
+        {/* Day Schedules & Quiet Mode Icon */}
+        <button
+          onClick={onOpenScheduleModal}
+          className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600/25 to-purple-600/15 hover:from-indigo-600/35 hover:to-purple-600/25 border border-indigo-500/40 text-indigo-400 flex items-center justify-center active:scale-95 transition-all shadow-md cursor-pointer shrink-0"
+          title="Day Schedules & Quiet Mode"
+          aria-label="Day Schedules"
+        >
+          <Calendar className="w-6.5 h-6.5" />
+        </button>
+
+        {/* Current User Profile Avatar */}
+        <button
+          onClick={onOpenProfileModal}
+          className="relative w-12 h-12 rounded-2xl hover:ring-2 hover:ring-rose-500/60 transition-all active:scale-95 flex items-center justify-center cursor-pointer shrink-0"
+          title={`Your Profile & Account Settings (@${currentUser.username || 'user'})`}
+          aria-label="Your Profile"
+        >
+          <img
+            src={currentUser.avatar}
+            alt={currentUser.name}
+            className="w-11 h-11 rounded-full object-cover ring-2 ring-rose-400/80 shadow-md"
+          />
+          <span className="absolute -bottom-0.5 -right-0.5 text-xs">
+            {currentUser.moodEmoji}
+          </span>
+        </button>
+
+        {/* Close button for mobile drawer */}
+        {onCloseMobile && (
           <button
-            onClick={onOpenProfileModal}
-            className="relative p-1 rounded-2xl hover:ring-2 hover:ring-rose-500/50 transition-all active:scale-95 ml-0.5"
-            title="Your Profile & Storage Settings"
+            onClick={onCloseMobile}
+            className="lg:hidden w-11 h-11 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 flex items-center justify-center transition-all active:scale-95 cursor-pointer shrink-0"
+            title="Close sidebar"
+            aria-label="Close sidebar"
           >
-            <img
-              src={currentUser.avatar}
-              alt={currentUser.name}
-              className="w-9 h-9 rounded-full object-cover ring-2 ring-rose-400/80 shadow-sm"
-            />
-            <span className="absolute -bottom-0.5 -right-0.5 text-xs">
-              {currentUser.moodEmoji}
-            </span>
+            <X className="w-5.5 h-5.5" />
           </button>
-
-          {/* Close button for mobile drawer */}
-          {onCloseMobile && (
-            <button
-              onClick={onCloseMobile}
-              className="lg:hidden p-2.5 rounded-2xl bg-slate-800/80 hover:bg-rose-950/40 text-slate-300 hover:text-white border border-slate-700/50 transition-all active:scale-95 ml-1"
-              title="Close sidebar"
-              aria-label="Close sidebar"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          )}
-        </div>
+        )}
       </div>
 
       {/* Partners Sanctuary Priority Bar (Max 2 Allowed) */}
@@ -397,7 +385,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="p-3 border-t border-rose-950/40 bg-slate-950/70 flex items-center justify-between text-xs text-slate-400">
         <button
           onClick={onOpenFriendsModal}
-          className="flex items-center gap-1.5 hover:text-pink-300 transition-colors"
+          className="flex items-center gap-1.5 hover:text-pink-300 transition-colors cursor-pointer"
         >
           <Users className="w-4 h-4 text-pink-400" />
           <span>Friends ({friends.length})</span>
@@ -405,10 +393,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         <button
           onClick={onOpenPartnersModal}
-          className="flex items-center gap-1.5 hover:text-rose-300 transition-colors"
+          className="flex items-center gap-1.5 hover:text-rose-300 transition-colors cursor-pointer"
         >
           <Heart className="w-4 h-4 text-rose-400 fill-rose-400/30" />
           <span>Partners ({partners.length}/2)</span>
+        </button>
+
+        <button
+          onClick={onOpenProfileModal}
+          className="flex items-center gap-1 text-rose-400 hover:text-rose-300 transition-colors cursor-pointer font-medium"
+          title="Account Settings & Delete Account"
+        >
+          <Settings className="w-4 h-4 text-rose-400" />
+          <span>Account</span>
         </button>
       </div>
     </aside>
