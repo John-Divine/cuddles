@@ -26,6 +26,8 @@ interface MediaGalleryModalProps {
   allConversations?: Conversation[];
   messagesMap: Record<string, Message[]>;
   onOpenVideoPlayer?: (message: Message) => void;
+  initialScope?: 'all' | 'conversation';
+  targetConversationId?: string | null;
 }
 
 type TabType = 'all' | 'image' | 'video' | 'voice' | 'document';
@@ -51,25 +53,33 @@ export const MediaGalleryModal: React.FC<MediaGalleryModalProps> = ({
   activeConversation,
   allConversations = [],
   messagesMap,
-  onOpenVideoPlayer
+  onOpenVideoPlayer,
+  initialScope = 'all',
+  targetConversationId = null
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedConvFilter, setSelectedConvFilter] = useState<string>('all');
+  const [selectedConvFilter, setSelectedConvFilter] = useState<string>(() => {
+    if (initialScope === 'conversation') {
+      return targetConversationId || (activeConversation ? activeConversation.id : 'all');
+    }
+    return 'all';
+  });
   const [vaultRecords, setVaultRecords] = useState<StoredMediaRecord[]>([]);
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
   const [previewImage, setPreviewImage] = useState<MediaItem | null>(null);
   const [downloadSuccessId, setDownloadSuccessId] = useState<string | null>(null);
 
-  // Load vault records on open
+  // Load vault records on open and configure initial scope
   useEffect(() => {
     if (isOpen) {
       getAllMediaFromDeviceVault().then((records) => {
         setVaultRecords(records || []);
       });
-      if (activeConversation) {
-        setSelectedConvFilter(activeConversation.id);
+      if (initialScope === 'conversation') {
+        const targetId = targetConversationId || (activeConversation ? activeConversation.id : 'all');
+        setSelectedConvFilter(targetId);
       } else {
         setSelectedConvFilter('all');
       }
@@ -80,7 +90,7 @@ export const MediaGalleryModal: React.FC<MediaGalleryModalProps> = ({
         setPlayingVoiceId(null);
       }
     }
-  }, [isOpen, activeConversation?.id]);
+  }, [isOpen, initialScope, activeConversation?.id, targetConversationId]);
 
   // Aggregate all media items from messagesMap and vault records
   const allMediaItems = useMemo(() => {
@@ -180,6 +190,21 @@ export const MediaGalleryModal: React.FC<MediaGalleryModalProps> = ({
     return c;
   }, [allMediaItems, selectedConvFilter]);
 
+  // Media counts per conversation (collection)
+  const collectionCounts = useMemo(() => {
+    const map: Record<string, number> = {};
+    allMediaItems.forEach((item) => {
+      map[item.conversationId] = (map[item.conversationId] || 0) + 1;
+    });
+    return map;
+  }, [allMediaItems]);
+
+  // Currently selected conversation/collection
+  const currentCollection = useMemo(() => {
+    if (selectedConvFilter === 'all') return null;
+    return allConversations.find((c) => c.id === selectedConvFilter) || null;
+  }, [selectedConvFilter, allConversations]);
+
   const handleDownload = async (item: MediaItem) => {
     let mime = 'application/octet-stream';
     if (item.type === 'image') mime = 'image/jpeg';
@@ -220,50 +245,150 @@ export const MediaGalleryModal: React.FC<MediaGalleryModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-2 sm:p-4 backdrop-blur-md animate-in fade-in duration-200">
       <div className="w-full max-w-5xl h-[92vh] max-h-[850px] rounded-3xl bg-slate-900 border border-slate-700/80 shadow-2xl text-slate-100 flex flex-col overflow-hidden">
         {/* Top Header */}
-        <div className="shrink-0 p-4 sm:px-6 bg-slate-900/95 border-b border-slate-800 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-gradient-to-tr from-rose-500 to-indigo-600 text-white shadow-lg shadow-rose-500/20">
+        <div className="shrink-0 p-4 sm:px-6 bg-slate-900/98 border-b border-slate-800 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2.5 rounded-2xl bg-gradient-to-tr from-rose-500 to-indigo-600 text-white shadow-lg shadow-rose-500/20 shrink-0">
               <ImageIcon className="w-5 h-5" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold text-base sm:text-lg text-white">Sanctuary Media Gallery</h3>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                  <HardDrive className="w-3 h-3" />
-                  Device Stored
-                </span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-bold text-base sm:text-lg text-white truncate">
+                  {currentCollection ? `${currentCollection.title} Collection` : 'All Media Collections'}
+                </h3>
+                {currentCollection ? (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-400 border border-pink-500/30 flex items-center gap-1 shrink-0">
+                    Collection View
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1 shrink-0">
+                    <HardDrive className="w-3 h-3" />
+                    All Sanctuary Media
+                  </span>
+                )}
               </div>
-              <p className="text-xs text-slate-400">
-                Browse, preview, and download all photos, videos, voice notes, and files
+              <p className="text-xs text-slate-400 truncate">
+                {currentCollection
+                  ? `Showing all ${filteredItems.length} media items in ${currentCollection.title}'s collection`
+                  : `Showing all ${allMediaItems.length} items across all conversations & offline vault`}
               </p>
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-            title="Close Gallery"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {currentCollection ? (
+              <button
+                type="button"
+                onClick={() => setSelectedConvFilter('all')}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 hover:text-white transition-colors cursor-pointer border border-slate-700/60"
+                title="View All Media across all collections"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-rose-400" />
+                <span>Show All Collections</span>
+              </button>
+            ) : activeConversation ? (
+              <button
+                type="button"
+                onClick={() => setSelectedConvFilter(activeConversation.id)}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-pink-500/15 hover:bg-pink-500/25 border border-pink-500/30 text-xs font-semibold text-pink-300 hover:text-pink-200 transition-colors cursor-pointer"
+                title={`View ${activeConversation.title}'s Collection`}
+              >
+                <span>📁</span>
+                <span>{activeConversation.title} Collection</span>
+              </button>
+            ) : null}
+
+            <button
+              onClick={onClose}
+              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              title="Close Gallery"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        {/* Toolbar: Scope Filter & Search */}
+        {/* Collection Selector Chips Row */}
+        <div className="shrink-0 px-4 sm:px-6 py-2.5 bg-slate-950/70 border-b border-slate-800/80 flex items-center gap-2 overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-1.5 text-xs text-slate-400 font-semibold shrink-0 pr-1.5 border-r border-slate-800">
+            <Filter className="w-3.5 h-3.5 text-rose-400" />
+            <span className="text-[11px] uppercase tracking-wider text-slate-400 hidden sm:inline">Collections:</span>
+          </div>
+
+          {/* All Collections Chip */}
+          <button
+            type="button"
+            onClick={() => setSelectedConvFilter('all')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
+              selectedConvFilter === 'all'
+                ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white shadow-md shadow-rose-600/30 ring-1 ring-rose-400'
+                : 'bg-slate-800/90 text-slate-400 hover:text-slate-200 hover:bg-slate-800 border border-slate-700/60'
+            }`}
+          >
+            <span>✨ All Media</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+              selectedConvFilter === 'all' ? 'bg-white/20 text-white' : 'bg-slate-700 text-slate-400'
+            }`}>
+              {allMediaItems.length}
+            </span>
+          </button>
+
+          {/* Conversation Collection Chips */}
+          {allConversations.map((c) => {
+            const count = collectionCounts[c.id] || 0;
+            const isSelected = selectedConvFilter === c.id;
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setSelectedConvFilter(c.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                  isSelected
+                    ? 'bg-gradient-to-r from-pink-600 to-rose-600 text-white shadow-md shadow-pink-600/30 ring-1 ring-pink-400'
+                    : 'bg-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/60'
+                }`}
+              >
+                <span>📁</span>
+                <span className="truncate max-w-[120px]">{c.title}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                  isSelected ? 'bg-white/25 text-white' : 'bg-slate-700 text-slate-400'
+                }`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Toolbar: Search and Filter Tabs */}
         <div className="shrink-0 p-3 sm:px-6 bg-slate-900/60 border-b border-slate-800/80 flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center justify-between">
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-            <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0 hidden sm:block" />
-            <select
-              value={selectedConvFilter}
-              onChange={(e) => setSelectedConvFilter(e.target.value)}
-              className="bg-slate-800 border border-slate-700 text-xs text-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-rose-500 cursor-pointer max-w-[200px] truncate"
-            >
-              <option value="all">All Conversations ({allMediaItems.length})</option>
-              {allConversations.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.title}
-                </option>
-              ))}
-            </select>
+          <div className="flex gap-1.5 overflow-x-auto">
+            {[
+              { id: 'all' as TabType, label: 'All', count: counts.all, icon: Sparkles },
+              { id: 'image' as TabType, label: 'Photos', count: counts.image, icon: ImageIcon },
+              { id: 'video' as TabType, label: 'Videos & Notes', count: counts.video, icon: Film },
+              { id: 'voice' as TabType, label: 'Voice Memos', count: counts.voice, icon: Mic },
+              { id: 'document' as TabType, label: 'Documents', count: counts.document, icon: FileText }
+            ].map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                    isActive
+                      ? 'bg-rose-500 text-white shadow-md shadow-rose-500/20'
+                      : 'bg-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{tab.label}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isActive ? 'bg-white/20 text-white' : 'bg-slate-700 text-slate-400'}`}>
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
           <div className="relative flex-1 max-w-sm">
@@ -284,37 +409,6 @@ export const MediaGalleryModal: React.FC<MediaGalleryModalProps> = ({
               </button>
             )}
           </div>
-        </div>
-
-        {/* Navigation Filter Tabs */}
-        <div className="shrink-0 px-4 sm:px-6 pt-3 pb-2 border-b border-slate-800/80 flex gap-2 overflow-x-auto">
-          {[
-            { id: 'all' as TabType, label: 'All', count: counts.all, icon: Sparkles },
-            { id: 'image' as TabType, label: 'Photos', count: counts.image, icon: ImageIcon },
-            { id: 'video' as TabType, label: 'Videos & Notes', count: counts.video, icon: Film },
-            { id: 'voice' as TabType, label: 'Voice Memos', count: counts.voice, icon: Mic },
-            { id: 'document' as TabType, label: 'Documents', count: counts.document, icon: FileText }
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                  isActive
-                    ? 'bg-rose-500 text-white shadow-md shadow-rose-500/20'
-                    : 'bg-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{tab.label}</span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isActive ? 'bg-white/20 text-white' : 'bg-slate-700 text-slate-400'}`}>
-                  {tab.count}
-                </span>
-              </button>
-            );
-          })}
         </div>
 
         {/* Main Content Area */}
@@ -459,6 +553,22 @@ export const MediaGalleryModal: React.FC<MediaGalleryModalProps> = ({
                           {item.fileName}
                         </span>
                       </div>
+
+                      {/* Collection indicator if in All view */}
+                      {selectedConvFilter === 'all' && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedConvFilter(item.conversationId);
+                          }}
+                          className="text-[10px] text-pink-400 hover:text-pink-300 font-semibold truncate max-w-full text-left flex items-center gap-1 cursor-pointer"
+                          title={`Filter to ${item.conversationTitle} collection`}
+                        >
+                          <span>📁</span>
+                          <span className="truncate">{item.conversationTitle}</span>
+                        </button>
+                      )}
 
                       <div className="flex items-center justify-between text-[10px] text-slate-400">
                         <span className="truncate max-w-[80px]">{item.senderName}</span>

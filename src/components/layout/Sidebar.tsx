@@ -96,13 +96,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
     >
       {/* Header Action Bar: Spacious, Prominent Icons (No title, maximum room for large icons) */}
       <div className="p-3 pt-3 sm:pt-3.5 border-b border-rose-950/40 bg-slate-900/98 flex items-center justify-between gap-1.5 sm:gap-2">
-        {/* Gallery Icon - Large & Prominent */}
+        {/* Gallery Icon - Large & Prominent: All Media Gallery */}
         {onOpenMediaGallery && (
           <button
             onClick={onOpenMediaGallery}
             className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-pink-600/25 to-rose-600/15 hover:from-pink-600/35 hover:to-rose-600/25 border border-pink-500/40 text-pink-400 flex items-center justify-center active:scale-95 transition-all shadow-md cursor-pointer shrink-0"
-            title="Sanctuary Media Gallery"
-            aria-label="Sanctuary Media Gallery"
+            title="All Media Gallery (All Chats & Collections)"
+            aria-label="All Media Gallery"
           >
             <ImageIcon className="w-6.5 h-6.5 text-pink-400" />
           </button>

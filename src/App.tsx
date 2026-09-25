@@ -193,6 +193,20 @@ export default function App() {
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [showMediaGalleryModal, setShowMediaGalleryModal] = useState(false);
+  const [mediaGalleryScope, setMediaGalleryScope] = useState<'all' | 'conversation'>('all');
+  const [mediaGalleryTargetConvId, setMediaGalleryTargetConvId] = useState<string | null>(null);
+
+  const handleOpenAllMediaGallery = () => {
+    setMediaGalleryScope('all');
+    setMediaGalleryTargetConvId(null);
+    setShowMediaGalleryModal(true);
+  };
+
+  const handleOpenCollectionMediaGallery = (scope: 'all' | 'conversation' = 'conversation', convId?: string) => {
+    setMediaGalleryScope(scope);
+    setMediaGalleryTargetConvId(scope === 'all' ? null : (convId || activeConversationId || null));
+    setShowMediaGalleryModal(true);
+  };
   const [viewingProfile, setViewingProfile] = useState<{
     user: UserProfile;
     isOwn: boolean;
@@ -1429,7 +1443,7 @@ export default function App() {
             setAddContactType('friend');
             setShowAddContactModal(true);
           }}
-          onOpenMediaGallery={() => setShowMediaGalleryModal(true)}
+          onOpenMediaGallery={handleOpenAllMediaGallery}
           onStartCall={(convId, type) => {
             setActiveConversationId(convId);
             handleStartCall(type);
@@ -1453,6 +1467,8 @@ export default function App() {
           currentUser={currentUser}
           recipient={activeRecipient}
           allContacts={contacts}
+          allConversations={conversations}
+          messagesMap={messagesMap}
           typingUserNames={typingUsers[activeConversationId] || []}
           pendingRequestsCount={pendingRequestsCount}
           onSendMessage={handleSendMessage}
@@ -1468,7 +1484,7 @@ export default function App() {
             setShowAddContactModal(true);
           }}
           onOpenRequestsModal={() => setShowRequestsModal(true)}
-          onOpenMediaGallery={() => setShowMediaGalleryModal(true)}
+          onOpenMediaGallery={handleOpenCollectionMediaGallery}
           onUpdateDisappearingTimer={(mins) => {
             setConversations((prev) =>
               prev.map((c) =>
@@ -1733,9 +1749,15 @@ export default function App() {
         <MediaGalleryModal
           isOpen={showMediaGalleryModal}
           onClose={() => setShowMediaGalleryModal(false)}
-          activeConversation={activeConversation}
+          activeConversation={
+            mediaGalleryTargetConvId
+              ? conversations.find((c) => c.id === mediaGalleryTargetConvId) || activeConversation
+              : activeConversation
+          }
           allConversations={conversations}
           messagesMap={messagesMap}
+          initialScope={mediaGalleryScope}
+          targetConversationId={mediaGalleryTargetConvId}
         />
       )}
     </div>

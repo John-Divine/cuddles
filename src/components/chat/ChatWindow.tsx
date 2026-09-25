@@ -18,7 +18,8 @@ import {
   Copy,
   Check,
   Inbox,
-  Image as ImageIcon
+  Image as ImageIcon,
+  ChevronDown
 } from 'lucide-react';
 import { Conversation, Message, UserProfile, MessagePriority, MessageType } from '../../types';
 import { MessageBubble } from './MessageBubble';
@@ -35,6 +36,8 @@ interface ChatWindowProps {
   currentUser: UserProfile;
   recipient?: UserProfile;
   allContacts?: UserProfile[];
+  allConversations?: Conversation[];
+  messagesMap?: Record<string, Message[]>;
   typingUserNames?: string[];
   onSendMessage: (text: string, priority?: MessagePriority) => void;
   onSendMedia: (
@@ -57,7 +60,7 @@ interface ChatWindowProps {
   onOpenAddContactModal?: () => void;
   pendingRequestsCount?: number;
   onOpenRequestsModal?: () => void;
-  onOpenMediaGallery?: () => void;
+  onOpenMediaGallery?: (scope?: 'all' | 'conversation', conversationId?: string) => void;
   isMobileSidebarOpen?: boolean;
 }
 
@@ -67,6 +70,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   currentUser,
   recipient,
   allContacts = [],
+  allConversations = [],
+  messagesMap = {},
   typingUserNames = [],
   pendingRequestsCount = 0,
   onSendMessage,
@@ -84,6 +89,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 }) => {
   const [showSafetyModal, setShowSafetyModal] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
+  const [showCollectionMenu, setShowCollectionMenu] = useState(false);
   const [selectedVideoNote, setSelectedVideoNote] = useState<Message | null>(null);
   const [selectedVideoFile, setSelectedVideoFile] = useState<Message | null>(null);
   const [copiedUsername, setCopiedUsername] = useState(false);
@@ -314,16 +320,107 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
         {/* Action Controls: Media Gallery, Audio Call & Video Call */}
         <div className="flex items-center gap-1 sm:gap-2">
-          {/* Media Gallery (Prominently visible directly on mobile and laptop) */}
+          {/* Collection Media Gallery (Top bar shows media for this collection, with quick collection switcher) */}
           {onOpenMediaGallery && (
-            <button
-              onClick={onOpenMediaGallery}
-              className="p-2 sm:p-2.5 rounded-xl bg-slate-800 hover:bg-pink-500/20 text-pink-400 hover:text-pink-300 active:scale-95 transition-all border border-slate-700/60 shadow-sm"
-              title="Open Sanctuary Media Gallery"
-              aria-label="Media Gallery"
-            >
-              <ImageIcon className="w-4.5 h-4.5" />
-            </button>
+            <div className="relative">
+              <div className="flex items-center rounded-xl bg-slate-800/90 border border-slate-700/70 p-0.5 shadow-sm hover:border-pink-500/40 transition-colors">
+                <button
+                  type="button"
+                  onClick={() => onOpenMediaGallery('conversation', conversation?.id)}
+                  className="px-2 sm:px-2.5 py-1.5 rounded-lg hover:bg-pink-500/20 text-pink-400 hover:text-pink-300 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+                  title={`View ${displayHeaderTitle}'s Media Collection`}
+                  aria-label="Collection Media Gallery"
+                >
+                  <ImageIcon className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                  <span className="hidden md:inline text-xs font-semibold text-pink-300">
+                    Collection
+                  </span>
+                </button>
+
+                {allConversations.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowCollectionMenu(!showCollectionMenu)}
+                    className="px-1 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/60 transition-colors cursor-pointer"
+                    title="Select Media Collection"
+                    aria-label="Select Media Collection"
+                  >
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Top Navbar Collection Selector Dropdown */}
+              {showCollectionMenu && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setShowCollectionMenu(false)}
+                  />
+                  <div className="absolute right-0 top-11 w-64 rounded-2xl bg-slate-900/98 border border-slate-700/80 shadow-2xl z-50 p-2 backdrop-blur-2xl animate-in fade-in slide-in-from-top-2 text-slate-200">
+                    <div className="px-2.5 py-1.5 border-b border-slate-800 mb-1">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        Select Media Collection
+                      </p>
+                    </div>
+
+                    {/* Current Conversation Collection */}
+                    {conversation && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowCollectionMenu(false);
+                          onOpenMediaGallery('conversation', conversation.id);
+                        }}
+                        className="w-full px-2.5 py-2 rounded-xl bg-pink-500/15 border border-pink-500/30 hover:bg-pink-500/25 text-left flex items-center justify-between text-xs transition-colors cursor-pointer mb-1"
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="text-pink-400">📁</span>
+                          <span className="font-bold text-white truncate">{displayHeaderTitle}</span>
+                        </div>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-pink-500/30 text-pink-300 font-semibold shrink-0">
+                          This Collection
+                        </span>
+                      </button>
+                    )}
+
+                    {/* Other Collections */}
+                    <div className="max-h-48 overflow-y-auto space-y-0.5 py-0.5">
+                      {allConversations
+                        .filter((c) => c.id !== conversation?.id)
+                        .map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => {
+                              setShowCollectionMenu(false);
+                              onOpenMediaGallery('conversation', c.id);
+                            }}
+                            className="w-full px-2.5 py-1.5 rounded-xl hover:bg-slate-800 text-left flex items-center justify-between text-xs text-slate-300 hover:text-white transition-colors cursor-pointer"
+                          >
+                            <span className="truncate">{c.title}</span>
+                            <span className="text-[10px] text-slate-500">Collection</span>
+                          </button>
+                        ))}
+                    </div>
+
+                    <div className="border-t border-slate-800 pt-1 mt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowCollectionMenu(false);
+                          onOpenMediaGallery('all');
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-xl hover:bg-slate-800 text-left flex items-center gap-2 text-xs text-slate-300 hover:text-white transition-colors cursor-pointer"
+                      >
+                        <span>✨</span>
+                        <span className="font-semibold">All Sanctuary Media</span>
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           )}
 
           {/* Audio Call */}
@@ -375,17 +472,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 />
 
                 <div className="absolute right-0 top-12 p-2 rounded-2xl bg-slate-900/98 border border-slate-700 shadow-2xl z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-top-2 flex items-center gap-2 max-w-[calc(100vw-24px)]">
-                  {/* Sanctuary Media Gallery Icon */}
+                  {/* Collection Media Gallery Icon */}
                   {onOpenMediaGallery && (
                     <button
                       type="button"
                       onClick={() => {
                         setShowOptionsMenu(false);
-                        onOpenMediaGallery();
+                        onOpenMediaGallery('conversation', conversation?.id);
                       }}
                       className="w-11 h-11 rounded-xl bg-pink-500/15 border border-pink-500/30 hover:bg-pink-500/25 active:scale-95 flex items-center justify-center transition-all cursor-pointer shadow-sm text-pink-400"
-                      title="Sanctuary Media Gallery"
-                      aria-label="Sanctuary Media Gallery"
+                      title={`View ${displayHeaderTitle}'s Media Collection`}
+                      aria-label="Collection Media Gallery"
                     >
                       <ImageIcon className="w-5 h-5 text-pink-400" />
                     </button>
