@@ -1,71 +1,112 @@
-# Implementation Plan: Fix Phone-Recorded Video Note Playback Across Devices
+# Automated Mobile Add-to-Home-Screen Install Banner & Chrome Mobile Guide
 
-## Problem Diagnosis
-When recording video notes on a mobile device (specifically Android using Google Chrome), the video notes play during the in-modal review step, but after being sent, tapping on them in the chat bubble produces no response ("it just looks as if I didn't tap on it") and they do not play on either sender or receiver devices. In contrast, video notes recorded from laptops work properly.
+Deliver an automated, thumb-friendly bottom install banner that intercepts the browser's native install trigger, provides a one-tap "Add to Home Screen" experience for mobile Chrome, auto-hides after 8 seconds with an easy reopen trigger, and includes an illustrated Chrome mobile walkthrough.
 
-### Root Causes
-1. **Container & MIME Type Mislabeling**:
-   - On Android Chrome, `MediaRecorder` records using `video/webm;codecs=vp8,opus`.
-   - However, the recording logic prioritized `video/mp4` or defaulted the MIME type to `video/mp4`.
-   - When converting the base64 data URL to a `Blob` URL via `dataUrlToBlobUrl()`, it prioritized the external `mimeType` parameter (`video/mp4`) over the actual header in the data URL (`video/webm`). When Chrome or other browsers are handed a Blob URL with `type: video/mp4` that actually contains WebM data, the media demuxer throws `DEMUXER_ERROR_COULD_NOT_PARSE` / `MEDIA_ERR_SRC_NOT_SUPPORTED`.
-2. **`canvas.captureStream` Timestamp Skew on Mobile Hardware**:
-   - The recorder was routing video through a 2D canvas stream (`canvas.captureStream(24)`) and re-attaching microphone audio tracks.
-   - On mobile Android GPUs, `canvas.captureStream` frequently generates desynchronized timestamps between canvas frames and microphone audio, causing `MediaRecorder` to produce corrupted WebM cluster headers that Android's hardware `MediaCodec` rejects on subsequent playback.
-   - The native camera `MediaStream` from `getUserMedia` produces hardware-synchronized, standard-compliant streams with zero frame corruption. The circular appearance is natively achieved via CSS (`rounded-full overflow-hidden object-cover`), making canvas capture unnecessary.
-3. **Silent Playback Rejection in `MessageBubble.tsx`**:
-   - In `MessageBubble.tsx`, `setIsPlayingVideoNote(true)` was only called inside `video.play().then()`.
-   - When `video.play()` rejected due to demux/decode failure, the error was swallowed silently. The poster image and play overlay remained visible, creating the symptom where tapping did nothing.
-   - The `<video>` element lacked `onPlay`, `onPause`, `onEnded`, and `onError` event listeners to sync state with the actual HTML5 video element.
+### User Review & Critical Decisions
+
+> [!IMPORTANT]
+> The following choices were confirmed based on your preferences:
+
+- **Prompt Placement**: Positioned as a floating bottom banner anchored within the natural thumb zone on mobile devices, ensuring it never obstructs critical top navigation or input fields.
+- **Auto-Dismissal & Retention**: The banner will display automatically for 8 seconds with an animated countdown line, then smoothly glide away into a subtle floating reopen badge (and top bar trigger) so you can summon it back with a single tap.
+- **Chrome Mobile Guidance**: In addition to triggering the native browser install dialog via `beforeinstallprompt`, the banner includes an instant "How to Install in Chrome" quick visual guide explaining how modern Chrome handles "Install app" vs. "Add to Home screen".
 
 ---
 
-## Proposed Changes
+### 1. Overview & Core Concept
 
-### 1. `src/components/chat/VideoNoteRecorder.tsx`
-- **Stream Directly from Camera `MediaStream`**: Record directly from the camera `stream` (using mobile-optimized VGA constraints `width: { ideal: 480, max: 720 }, height: { ideal: 480, max: 720 }, frameRate: { ideal: 24, max: 30 }`). Remove intermediate canvas capture stream to eliminate timestamp desynchronization.
-- **Accurate Browser-Native MIME Type**:
-  - Query supported types in order: `video/webm;codecs=vp8,opus`, `video/webm`, `video/mp4;codecs=avc1`, `video/mp4`.
-  - Use `recorder.mimeType` as the source of truth for the resulting `Blob` and metadata so the encoded container matches its declared MIME type.
-- **Maintain File Size Safety Cap**: Keep the 650 KB safety limit to guarantee every video note fits within Firestore's 1 MiB document limit.
-
-### 2. `src/lib/deviceMediaStorage.ts`
-- **Strict Data URL Header Inspection in `dataUrlToBlobUrl()`**:
-  - Parse the exact MIME type directly from the data URL's header (`data:<mimeType>;base64`).
-  - Only fall back to external `mimeType` if the data URL lacks one.
-  - Never allow an external `'video/mp4'` parameter to override a `'video/webm'` data URL payload.
-
-### 3. `src/components/chat/MessageBubble.tsx`
-- **Synchronize Video Lifecycle via Native Event Listeners**:
-  - Attach `onPlay={() => setIsPlayingVideoNote(true)}`, `onPause={() => setIsPlayingVideoNote(false)}`, and `onEnded={() => { setIsPlayingVideoNote(false); setVideoProgress(0); }}` directly to `<video>`.
-  - Attach `onError={(e) => handleVideoError(e)}` to detect unplayable streams and provide clear user feedback or automatic fallback.
-- **Resilient Playback Handlers**:
-  - In `toggleVideoNote()`, ensure that if unmuted autoplay is blocked by mobile Chrome, it falls back to muted playback and prompts the user to unmute.
-  - If direct inline playback fails, provide an immediate option to open the video in the fullscreen `VideoNotePlayerModal`.
-
-### 4. `src/components/chat/VideoNotePlayerModal.tsx`
-- Ensure fullscreen popup modal loads the verified blob URL and correctly handles WebM and MP4 formats across all mobile browsers.
+- **What It Does**: When visiting Cuddles on Android or mobile browsers, a dedicated bottom banner appears asking to add Cuddles to your Home Screen. Tapping "Install" immediately fires the browser's native prompt so you can install the standalone app directly. If Chrome restricts automatic triggering or delays the prompt event, a one-tap visual walkthrough guides you through Chrome's 3-dot menu options.
+- **Target Audience / Persona**: Mobile users (specifically on Android using Google Chrome) who want a native-app-like icon on their phone's home screen without dealing with hidden or missing browser menu items.
+- **Key Value**: Guarantees anyone on mobile can install Cuddles with zero friction, even when Google Chrome modernizes or renames the traditional "Add to Home Screen" menu entry to "Install App".
 
 ---
 
-## Verification Plan
+### 2. User Experience & Visual Design
 
-### Automated Verification
-1. Run `lint_applet` (`tsc --noEmit`) to verify zero TypeScript errors.
-2. Run `compile_applet` (`npm run build`) to ensure production build succeeds.
+#### Key User Flows
+1. **First Arrival & Auto-Trigger**:
+   - The user opens Cuddles on their mobile phone.
+   - After a gentle 1.2-second entry delay, the floating bottom banner slides up gracefully from the bottom edge.
+   - A subtle progress track indicates the 8-second view window.
+2. **One-Tap Direct Install**:
+   - The user taps the primary "Add to Home Screen" / "Install" button.
+   - Cuddles immediately calls the captured `beforeinstallprompt` event.
+   - The official native Chrome prompt appears directly on the phone screen: *"Install app? Cuddles"*.
+   - Confirming adds Cuddles to the home screen and app launcher.
+3. **Auto-Hide & Gentle Reopen**:
+   - If untouched for 8 seconds, the banner quietly glides down, leaving a floating, compact install badge in the bottom corner (plus an install icon in the top header).
+   - Tapping either trigger instantly restores the prompt or launches the install dialog.
+4. **Interactive Chrome Walkthrough Fallback**:
+   - If the browser does not expose the prompt event, tapping the guide opens a focused 3-step visual bottom sheet explaining Chrome's menu steps (3-dots ⋮ &rarr; "Install app" or "Add to Home screen").
 
-### Manual Verification Flow
-1. **Record Video Note on Android Chrome**:
-   - Tap the video note camera button.
-   - Record a 5–10 second video note.
-   - Verify it plays in the review step.
-   - Tap Send.
-2. **Sender Device Playback**:
-   - Tap the sent video note in the chat bubble.
-   - Verify the play overlay disappears, the circular progress indicator animates, and the video note plays with audio.
-3. **Recipient Device Playback**:
-   - Open the conversation on another device or tab.
-   - Tap the received video note.
-   - Verify it plays immediately without being blocked or stuck on the poster frame.
-4. **Fullscreen Modal**:
-   - Tap the maximize button on the circular video note.
-   - Verify playback continues seamlessly in the fullscreen player.
+#### Visual Identity & Ergonomics
+- **Positioning**: Bottom floating card with safe-area padding (`pb-safe bottom-4 mx-3 md:mx-auto max-w-md`), adhering to mobile thumb-zone principles ($375\text{px}$–$430\text{px}$).
+- **Surface Elevation**: Dark slate container (`bg-slate-900/95 backdrop-blur-xl border border-rose-500/30 shadow-2xl shadow-rose-950/40 rounded-2xl`).
+- **Interactive Controls**: Touch target hitboxes $\ge 44\text{px}$ height with vibrant rose-to-pink gradient action button (`bg-gradient-to-r from-rose-600 to-pink-600`), clear dismiss `✕` target, and high-contrast text.
+- **Height Discipline**: Less than 12% of the mobile viewport height to maintain content visibility and strictly obey overlay rules.
+
+---
+
+### 3. Key Product Decisions & Trade-Offs
+
+- **Decision 1: Native Event Interception (`beforeinstallprompt`) with Stored Prompt**
+  - *Chosen Approach*: Cache the `beforeinstallprompt` event at the window level so even if Chrome fires it prior to full UI mount, the event is retained and callable upon the user's tap.
+  - *Why*: Browsers strictly prohibit invoking `prompt()` without user interaction; caching the event allows a single user tap on the floating banner to launch the native browser install dialog.
+  - *Alternatives Considered*: Showing generic text instructions only. Discarded because modern Chrome can install the app natively in one tap when given the prompt call.
+
+- **Decision 2: 8-Second Progress-Aware Auto-Dismiss with Persistent Recovery**
+  - *Chosen Approach*: Display an animated 8-second indicator that pauses on touch/hover, auto-collapsing to a floating mini-pill or header icon rather than vanishing permanently.
+  - *Why*: Fulfills the user's explicit request for a temporary pop-up that doesn't permanently obstruct the screen while ensuring the option remains accessible if missed.
+
+- **Decision 3: Standalone Display Mode Detection**
+  - *Chosen Approach*: Automatically suppress both the floating banner and reopen badge whenever the app is already running in standalone display mode (`display-mode: standalone` or `navigator.standalone`).
+  - *Why*: Once installed and launched from the home screen, users should never see installation prompts inside the native-feel window.
+
+---
+
+### 4. Technical Architecture & Data Strategy *(Technical Reference)*
+
+#### System Architecture & Flow
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                 Mobile Web Browser (Chrome)                 │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+               (fires 'beforeinstallprompt')
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   usePWAInstall Engine                      │
+│   • Captures & caches BeforeInstallPromptEvent              │
+│   • Detects platform (Android, iOS, Desktop)                │
+│   • Checks standalone display mode state                    │
+└──────────────┬──────────────────────────────┬───────────────┘
+               │                              │
+        Prompt Ready                     Auto-Timer
+               │                          (8 seconds)
+               ▼                              ▼
+┌──────────────────────────────┐ ┌───────────────────────────┐
+│     PWAInstallBanner         │ │   Floating Reopen Pill    │
+│  • Floating bottom card      │ │ • Displays on auto-hide   │
+│  • "Add to Home Screen" CTA  │ │ • 1-tap reopens banner    │
+│  • "Need help?" guide link   │ └───────────────────────────┘
+└──────────────┬───────────────┘
+               │
+      [User Taps Install]
+               │
+        Is Event Ready?
+        ├── YES ──► event.prompt() ──► Native Chrome Dialog
+        └── NO  ──► Step-by-Step Chrome Visual Bottom Sheet
+```
+
+#### State & Interaction Mapping
+
+| State / Trigger | Behavior | UI Transition |
+| :--- | :--- | :--- |
+| **Initial Visit** (Non-standalone) | Starts 1.2s delay, then sets `isOpen: true` | Banner slides up from bottom with spring animation |
+| **8-Second Timer** | Countdown runs; user hover/touch pauses timer | Progress bar smoothly decrements to 0% |
+| **Timer Expiry** | Closes banner, sets `minimized: true` | Slides down; small floating install badge appears |
+| **Tap Install (Prompt available)** | Calls `deferredPrompt.prompt()`, awaits outcome | Native Android Chrome install bottom sheet appears |
+| **Tap Install (Prompt unavailable)** | Opens step-by-step Chrome guide modal | Detailed visual sheet highlights 3-dot Chrome menu |
+| **Tap Dismiss (✕)** | Sets `dismissed: true` for the session | Banner glides away cleanly |
+| **App Installed Event** | Listens for `appinstalled` | Hides all banners and persists installed state |

@@ -8,8 +8,12 @@ const STATIC_ASSETS = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
+    caches.open(CACHE_NAME).then(async (cache) => {
+      try {
+        await cache.addAll(STATIC_ASSETS);
+      } catch (err) {
+        console.warn('PWA static assets cache non-fatal error:', err);
+      }
     }).then(() => self.skipWaiting())
   );
 });
