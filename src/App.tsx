@@ -56,7 +56,7 @@ import {
   getDirectConversationId,
   subscribeToUserConversations
 } from './lib/firebase';
-import { saveMediaToDeviceVault, getMediaFromDeviceVault } from './lib/deviceMediaStorage';
+import { saveMediaToDeviceVault, getMediaFromDeviceVault, clearDeviceVault } from './lib/deviceMediaStorage';
 import { encryptMessage } from './lib/encryption';
 import { playSentSound, playReceivedSound, playUrgentSound, playConnectSound, playEndCallSound } from './lib/audio';
 
@@ -536,45 +536,58 @@ export default function App() {
 
             // CRITICAL: When media is deleted or purged from the cloud, leave what is on the device
             // for the user to see, play, view, or interact with without disruption!
-            if (existed && existed.attachment?.url && (!m.attachment?.url || m.attachment?.isPurgedFromOnlineDatabase)) {
+            if (existed?.attachment?.url && (!m.attachment?.url || m.attachment?.isPurgedFromOnlineDatabase)) {
               map.set(m.id, {
                 ...m,
                 attachment: {
                   ...m.attachment,
                   ...existed.attachment,
                   isPurgedFromOnlineDatabase: true,
-                  isDownloadedToDevice: true
+                  isDownloadedToDevice: true,
+                  isStoredLocally: true
+                }
+              });
+            } else if (m.attachment?.url) {
+              // Immediately back up any incoming media to device IndexedDB vault
+              saveMediaToDeviceVault(
+                m.id,
+                m.attachment.url,
+                m.type,
+                m.attachment.fileName || `cuddles_${m.type}_${Date.now()}`
+              );
+
+              // If incoming from partner/friend, auto-purge from cloud once downloaded to device
+              if (m.senderId !== activeAccount?.id && !m.attachment.isPurgedFromOnlineDatabase) {
+                purgeMessageMediaFromFirestore(activeConversationId, m.id);
+              }
+
+              map.set(m.id, {
+                ...m,
+                attachment: {
+                  ...m.attachment,
+                  isDownloadedToDevice: true,
+                  isPurgedFromOnlineDatabase: true,
+                  isStoredLocally: true
                 }
               });
             } else {
-              // Immediately back up any incoming media to device IndexedDB vault,
-              // then purge ephemeral payload from cloud database once downloaded!
-              if (m.attachment?.url) {
-                saveMediaToDeviceVault(
-                  m.id,
-                  m.attachment.url,
-                  m.type,
-                  m.attachment.fileName || `cuddles_${m.type}_${Date.now()}`
-                );
-
-                // If incoming from partner/friend, auto-purge from cloud once downloaded to device
-                if (m.senderId !== activeAccount?.id && !m.attachment.isDownloadedToDevice) {
-                  purgeMessageMediaFromFirestore(activeConversationId, m.id);
-                  map.set(m.id, {
-                    ...m,
-                    attachment: {
-                      ...m.attachment,
-                      isDownloadedToDevice: true,
-                      isPurgedFromOnlineDatabase: true,
-                      isStoredLocally: true
-                    }
-                  });
-                } else {
-                  map.set(m.id, m);
-                }
-              } else {
-                map.set(m.id, m);
+              // If cloud attachment url is already purged, check if device vault has it
+              if (m.attachment) {
+                getMediaFromDeviceVault(m.id).then((vaultData) => {
+                  if (vaultData) {
+                    setMessagesMap((prevMap) => {
+                      const list = prevMap[activeConversationId] || [];
+                      const updated = list.map((item) =>
+                        item.id === m.id && item.attachment && !item.attachment.url
+                          ? { ...item, attachment: { ...item.attachment, url: vaultData, isDownloadedToDevice: true } }
+                          : item
+                      );
+                      return { ...prevMap, [activeConversationId]: updated };
+                    });
+                  }
+                });
               }
+              map.set(m.id, m);
             }
           });
 
@@ -587,6 +600,9 @@ export default function App() {
             ...prev,
             [activeConversationId]: merged
           };
+          if (activeAccount?.id) {
+            saveUserMessages(activeAccount.id, nextMap);
+          }
           saveStoredData(STORAGE_KEYS.MESSAGES, nextMap);
           return nextMap;
         });
@@ -797,6 +813,7 @@ export default function App() {
       fileSizeBytes?: number;
       fileSize?: string;
       mimeType?: string;
+      thumbnailUrl?: string;
     }
   ) => {
     if (!activeConversation) return;
@@ -850,6 +867,9 @@ export default function App() {
         ...prev,
         [activeConversation.id]: [...(prev[activeConversation.id] || []), newMessage]
       };
+      if (activeAccount?.id) {
+        saveUserMessages(activeAccount.id, nextMap);
+      }
       saveStoredData(STORAGE_KEYS.MESSAGES, nextMap);
       return nextMap;
     });
@@ -861,7 +881,9 @@ export default function App() {
         ? {
             ...newMessage.attachment,
             url: url || '',
-            thumbnailUrl: attachmentMeta?.thumbnailUrl
+            thumbnailUrl: attachmentMeta?.thumbnailUrl,
+            isDownloadedToDevice: false,
+            isPurgedFromOnlineDatabase: false
           }
         : undefined
     });
@@ -1364,7 +1386,12 @@ export default function App() {
   const handleDeleteAccount = async () => {
     if (!currentUser.id) return;
     const accountId = currentUser.id;
-    await deleteUserFromFirestore(accountId);
+    try {
+      await deleteUserFromFirestore(accountId);
+    } catch (e) {
+      console.warn('Firestore user delete notice:', e);
+    }
+    await clearDeviceVault();
     deleteStoredAccount(accountId);
     setActiveAccount(null);
     setCurrentUser(CURRENT_USER);
@@ -1376,7 +1403,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex flex-col h-[100dvh] w-screen bg-slate-950 text-slate-100 overflow-hidden select-none font-sans antialiased">
+    <div className="flex flex-col h-[100dvh] w-full max-w-[100vw] bg-slate-950 text-slate-100 overflow-hidden select-none font-sans antialiased">
       <OfflineIndicator />
 
       {/* Main Container */}
