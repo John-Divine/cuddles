@@ -24,13 +24,14 @@ export function dataUrlToBlobUrl(url: string, mimeType?: string): string {
 
   try {
     const parts = url.split(',');
+    if (parts.length < 2) return url;
     const match = parts[0].match(/:(.*?);/);
-    const mime = mimeType || (match ? match[1] : 'application/octet-stream');
+    const mime = mimeType || (match ? match[1] : 'video/mp4');
     const bstr = atob(parts[1]);
-    let n = bstr.length;
-    const u8arr = new Uint8Array(n);
-    while (n--) {
-      u8arr[n] = bstr.charCodeAt(n);
+    const len = bstr.length;
+    const u8arr = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      u8arr[i] = bstr.charCodeAt(i);
     }
     const blob = new Blob([u8arr], { type: mime });
     const blobUrl = URL.createObjectURL(blob);

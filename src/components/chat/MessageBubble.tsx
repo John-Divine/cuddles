@@ -170,34 +170,42 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   };
 
   // Video note inline controls
-  const toggleVideoNote = async (e?: React.MouseEvent) => {
+  const toggleVideoNote = (e?: React.MouseEvent) => {
     e?.stopPropagation();
     if (!videoNoteRef.current) return;
     if (isPlayingVideoNote) {
       videoNoteRef.current.pause();
       setIsPlayingVideoNote(false);
     } else {
-      if (!currentMediaUrl && message.attachment) {
-        const vaultUrl = await getMediaFromDeviceVault(message.id);
-        if (vaultUrl) {
-          setResolvedMediaUrl(vaultUrl);
-        }
-      }
       if (videoNoteRef.current.ended) {
         videoNoteRef.current.currentTime = 0;
       }
       videoNoteRef.current.muted = isVideoNoteMuted;
-      try {
-        await videoNoteRef.current.play();
-        setIsPlayingVideoNote(true);
-      } catch {
-        // Autoplay with sound restricted by browser policy, fallback to muted play
-        if (videoNoteRef.current) {
-          videoNoteRef.current.muted = true;
-          setIsVideoNoteMuted(true);
-          await videoNoteRef.current.play().catch(() => {});
-          setIsPlayingVideoNote(true);
-        }
+
+      // Play synchronously within the user interaction gesture for iOS Safari compatibility
+      const playPromise = videoNoteRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            setIsPlayingVideoNote(true);
+          })
+          .catch((err) => {
+            console.warn('Autoplay unmuted restricted by mobile browser, falling back to muted play:', err);
+            if (videoNoteRef.current) {
+              videoNoteRef.current.muted = true;
+              setIsVideoNoteMuted(true);
+              videoNoteRef.current.play().then(() => setIsPlayingVideoNote(true)).catch(() => {});
+            }
+          });
+      }
+
+      // Check device vault in background if currentMediaUrl is missing
+      if (!currentMediaUrl && message.attachment) {
+        getMediaFromDeviceVault(message.id).then((vaultUrl) => {
+          if (vaultUrl) {
+            setResolvedMediaUrl(vaultUrl);
+          }
+        });
       }
 
       // Auto-save to device & trigger purge on first play for receiver

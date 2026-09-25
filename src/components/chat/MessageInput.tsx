@@ -217,11 +217,16 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       {/* Video Note Recorder Modal (portaled to document.body, centered overlay) */}
       {isRecordingVideoNote && (
         <VideoNoteRecorder
-          onComplete={(url, duration, posterUrl) => {
+          onComplete={(url, duration, posterUrl, mimeType, fileSizeBytes) => {
             setIsRecordingVideoNote(false);
+            const ext = mimeType?.includes('webm') ? 'webm' : 'mp4';
+            const sizeFormatted = fileSizeBytes ? `${Math.round(fileSizeBytes / 1024)} KB` : undefined;
             onSendMedia('video_note', url, duration, {
-              fileName: `vnote_${Date.now()}.mp4`,
-              thumbnailUrl: posterUrl
+              fileName: `vnote_${Date.now()}.${ext}`,
+              thumbnailUrl: posterUrl,
+              mimeType: mimeType || 'video/mp4',
+              fileSizeBytes,
+              fileSize: sizeFormatted
             });
           }}
           onCancel={() => setIsRecordingVideoNote(false)}

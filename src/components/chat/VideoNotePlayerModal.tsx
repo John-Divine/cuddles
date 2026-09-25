@@ -18,7 +18,8 @@ import { Message } from '../../types';
 import {
   downloadMediaToDeviceGallery,
   saveMediaToDeviceVault,
-  getMediaFromDeviceVault
+  getMediaFromDeviceVault,
+  dataUrlToBlobUrl
 } from '../../lib/deviceMediaStorage';
 
 interface VideoNotePlayerModalProps {
@@ -42,6 +43,10 @@ export const VideoNotePlayerModal: React.FC<VideoNotePlayerModalProps> = ({
   const [statusNotification, setStatusNotification] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string>(message.attachment?.url || '');
   const [isAutoplayMutedBlocked, setIsAutoplayMutedBlocked] = useState(false);
+
+  const playableUrl = React.useMemo(() => {
+    return dataUrlToBlobUrl(videoUrl, message.attachment?.mimeType);
+  }, [videoUrl, message.attachment?.mimeType]);
 
   // If initial URL is empty or was purged from cloud, look in local device vault
   useEffect(() => {
@@ -293,10 +298,10 @@ export const VideoNotePlayerModal: React.FC<VideoNotePlayerModalProps> = ({
 
           {/* Video Container */}
           <div className="w-full h-full rounded-full overflow-hidden bg-black flex items-center justify-center relative">
-            {videoUrl ? (
+            {playableUrl ? (
               <video
                 ref={videoRef}
-                src={videoUrl}
+                src={playableUrl}
                 playsInline
                 loop
                 onTimeUpdate={handleTimeUpdate}

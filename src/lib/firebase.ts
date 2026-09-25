@@ -231,7 +231,7 @@ export async function syncConversationToFirestore(conv: Conversation): Promise<v
 /**
  * Sync message to Firestore under /conversations/{conversationId}/messages/{messageId}
  */
-export async function syncMessageToFirestore(message: Message): Promise<void> {
+export async function syncMessageToFirestore(message: Message): Promise<boolean> {
   const path = `conversations/${message.conversationId}/messages/${message.id}`;
   try {
     const msgRef = doc(db, 'conversations', message.conversationId, 'messages', message.id);
@@ -239,9 +239,15 @@ export async function syncMessageToFirestore(message: Message): Promise<void> {
       ...message,
       createdAtISO: message.createdAtISO || new Date().toISOString()
     });
+    const payloadStr = JSON.stringify(sanitized);
+    if (payloadStr.length > 1000000) {
+      console.warn(`[Firestore Transfer] Notice: Message payload size (${payloadStr.length} bytes) is near or exceeds 1 MiB limit!`);
+    }
     await setDoc(msgRef, sanitized);
+    return true;
   } catch (err) {
-    console.warn('Could not sync message to Firestore:', err);
+    console.error('Could not sync message to Firestore:', err);
+    return false;
   }
 }
 
