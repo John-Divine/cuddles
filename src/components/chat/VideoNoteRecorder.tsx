@@ -31,7 +31,7 @@ export const VideoNoteRecorder: React.FC<VideoNoteRecorderProps> = ({ onComplete
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const recordedBlobRef = useRef<Blob | null>(null);
-  const recordedMimeRef = useRef<string>('video/mp4');
+  const recordedMimeRef = useRef<string>('video/webm');
   const totalRecordedBytesRef = useRef<number>(0);
   const posterDataUrlRef = useRef<string | null>(null);
   const timerRef = useRef<number | null>(null);
@@ -48,41 +48,33 @@ export const VideoNoteRecorder: React.FC<VideoNoteRecorderProps> = ({ onComplete
     }
   };
 
-  // Capture current video frame to JPEG data URL so video note never renders dark
+  // Capture center-cropped video frame to JPEG data URL so video note never renders dark
   const captureCurrentPoster = () => {
-    const canvas = canvasRef.current;
-    if (canvas) {
-      try {
-        const snap = canvas.toDataURL('image/jpeg', 0.80);
-        if (snap && snap.length > 100) {
-          posterDataUrlRef.current = snap;
-          return;
-        }
-      } catch (err) {
-        console.warn('Canvas poster capture fallback:', err);
-      }
-    }
     const video = videoRef.current;
-    if (video) {
-      try {
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = 240;
-        tempCanvas.height = 240;
-        const ctx = tempCanvas.getContext('2d');
-        if (ctx) {
-          if (facingMode === 'user') {
-            ctx.translate(240, 0);
-            ctx.scale(-1, 1);
-          }
-          ctx.drawImage(video, 0, 0, 240, 240);
-          const snap = tempCanvas.toDataURL('image/jpeg', 0.80);
-          if (snap && snap.length > 100) {
-            posterDataUrlRef.current = snap;
-          }
+    if (!video || video.readyState < 2) return;
+    try {
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = 360;
+      tempCanvas.height = 360;
+      const ctx = tempCanvas.getContext('2d');
+      if (ctx) {
+        const vw = video.videoWidth || 480;
+        const vh = video.videoHeight || 480;
+        const size = Math.min(vw, vh);
+        const sx = (vw - size) / 2;
+        const sy = (vh - size) / 2;
+        if (facingMode === 'user') {
+          ctx.translate(360, 0);
+          ctx.scale(-1, 1);
         }
-      } catch (err) {
-        console.warn('Could not grab poster frame:', err);
+        ctx.drawImage(video, sx, sy, size, size, 0, 0, 360, 360);
+        const snap = tempCanvas.toDataURL('image/jpeg', 0.82);
+        if (snap && snap.length > 200) {
+          posterDataUrlRef.current = snap;
+        }
       }
+    } catch (err) {
+      console.warn('Could not grab poster frame:', err);
     }
   };
 
@@ -91,7 +83,7 @@ export const VideoNoteRecorder: React.FC<VideoNoteRecorderProps> = ({ onComplete
     try {
       stopTracks();
 
-      // Request strict mobile-friendly constraints to avoid unconstrained 4K streams
+      // Request mobile-optimized VGA constraints to keep file size small and hardware-accelerated
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: facingMode,
@@ -108,40 +100,11 @@ export const VideoNoteRecorder: React.FC<VideoNoteRecorderProps> = ({ onComplete
       mediaStreamRef.current = stream;
       setHasPermission(true);
 
-      // Create an offscreen 360x360 canvas for square 1:1 circle-crop encoding
-      const canvas = document.createElement('canvas');
-      canvas.width = 360;
-      canvas.height = 360;
-      canvasRef.current = canvas;
-      const ctx = canvas.getContext('2d', { alpha: false });
-
-      // Frame render loop: crops raw camera stream to clean 1:1 square at 24fps
-      const renderCanvasFrame = () => {
-        const v = videoRef.current;
-        if (v && v.readyState >= 2 && ctx) {
-          const vw = v.videoWidth || 480;
-          const vh = v.videoHeight || 480;
-          const size = Math.min(vw, vh);
-          const sx = (vw - size) / 2;
-          const sy = (vh - size) / 2;
-
-          ctx.save();
-          if (facingMode === 'user') {
-            ctx.translate(360, 0);
-            ctx.scale(-1, 1);
-          }
-          ctx.drawImage(v, sx, sy, size, size, 0, 0, 360, 360);
-          ctx.restore();
-        }
-        animFrameRef.current = requestAnimationFrame(renderCanvasFrame);
-      };
-
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.muted = true;
         await videoRef.current.play().catch(() => {});
-        renderCanvasFrame();
-        setTimeout(captureCurrentPoster, 300);
+        setTimeout(captureCurrentPoster, 400);
       }
 
       // Start recording immediately
@@ -150,58 +113,41 @@ export const VideoNoteRecorder: React.FC<VideoNoteRecorderProps> = ({ onComplete
       totalRecordedBytesRef.current = 0;
       setSeconds(0);
 
-      // Priority list: MP4 first (supported natively by both iOS Safari and Android Chrome)
-      let mimeType = '';
+      // Determine the browser's best native recording MIME type
+      let preferredMime = '';
       if (typeof MediaRecorder !== 'undefined') {
         const candidateTypes = [
-          'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
-          'video/mp4;codecs=avc1',
-          'video/mp4',
           'video/webm;codecs=vp8,opus',
           'video/webm;codecs=vp9,opus',
-          'video/webm'
+          'video/webm',
+          'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+          'video/mp4;codecs=avc1',
+          'video/mp4'
         ];
         for (const t of candidateTypes) {
           if (MediaRecorder.isTypeSupported(t)) {
-            mimeType = t;
+            preferredMime = t;
             break;
           }
         }
       }
 
-      // Capture stream from the 360x360 canvas with mic audio track
-      let recordStream: MediaStream = stream;
-      try {
-        if (typeof canvas.captureStream === 'function') {
-          const cStream = canvas.captureStream(24);
-          const audioTracks = stream.getAudioTracks();
-          if (audioTracks.length > 0) {
-            cStream.addTrack(audioTracks[0]);
-          }
-          recordStream = cStream;
-        }
-      } catch (err) {
-        console.warn('Canvas captureStream not supported, falling back to camera stream:', err);
-        recordStream = stream;
-      }
-
       const recorderOptions: MediaRecorderOptions = {
-        videoBitsPerSecond: 280000, // 280 kbps is optimal for 360x360 circular note (stays well under 650KB)
+        videoBitsPerSecond: 320000, // 320 kbps for clean mobile note (stays under 600KB)
         audioBitsPerSecond: 48000
       };
-      if (mimeType) {
-        recorderOptions.mimeType = mimeType;
+      if (preferredMime) {
+        recorderOptions.mimeType = preferredMime;
       }
 
-      const recorder = new MediaRecorder(recordStream, recorderOptions);
+      // Record directly from hardware stream for perfect audio/video sync and zero canvas drops
+      const recorder = new MediaRecorder(stream, recorderOptions);
 
       recorder.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) {
           chunksRef.current.push(e.data);
           totalRecordedBytesRef.current += e.data.size;
-          // Safety cap: Firestore maximum doc size is 1,048,576 bytes.
-          // Base64 is ~1.33x binary. 650,000 bytes binary = ~866,000 bytes base64.
-          // Leave headroom for metadata, reactions, and poster frame.
+          // Firestore 1MB safety cap: 650KB binary leaves comfortable room for base64 + metadata
           if (totalRecordedBytesRef.current >= 650000) {
             console.log('Video note reached cloud storage size limit, finishing note...');
             stopRecording();
@@ -211,14 +157,12 @@ export const VideoNoteRecorder: React.FC<VideoNoteRecorderProps> = ({ onComplete
 
       recorder.onstop = () => {
         captureCurrentPoster();
-        if (animFrameRef.current) {
-          cancelAnimationFrame(animFrameRef.current);
-          animFrameRef.current = null;
-        }
-        const finalMime = mimeType || 'video/mp4';
-        const blob = new Blob(chunksRef.current, { type: finalMime });
+        // The real MIME type produced by the browser's MediaRecorder
+        const actualMime = recorder.mimeType || preferredMime || 'video/webm';
+        const containerMime = actualMime.toLowerCase().includes('webm') ? 'video/webm' : 'video/mp4';
+        const blob = new Blob(chunksRef.current, { type: containerMime });
         recordedBlobRef.current = blob;
-        recordedMimeRef.current = finalMime;
+        recordedMimeRef.current = containerMime;
         const url = URL.createObjectURL(blob);
         setReviewUrl(url);
         setRecordedDuration((prev) => (prev > 0 ? prev : 1));
@@ -293,7 +237,7 @@ export const VideoNoteRecorder: React.FC<VideoNoteRecorderProps> = ({ onComplete
     const dur = Math.max(1, recordedDuration);
     const poster = posterDataUrlRef.current || undefined;
     const blob = recordedBlobRef.current;
-    const mime = recordedMimeRef.current || 'video/mp4';
+    const mime = recordedMimeRef.current || 'video/webm';
     if (blob) {
       const reader = new FileReader();
       reader.onloadend = () => {

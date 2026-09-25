@@ -209,7 +209,8 @@ export const MediaGalleryModal: React.FC<MediaGalleryModalProps> = ({
     let mime = 'application/octet-stream';
     if (item.type === 'image') mime = 'image/jpeg';
     if (item.type === 'gif') mime = 'image/gif';
-    if (item.type === 'video' || item.type === 'video_note') mime = 'video/mp4';
+    if (item.type === 'video') mime = 'video/mp4';
+    if (item.type === 'video_note') mime = item.fileName?.includes('.mp4') ? 'video/mp4' : 'video/webm';
     if (item.type === 'voice') mime = 'audio/webm';
 
     await downloadMediaToDeviceGallery(item.url, item.fileName, mime);

@@ -224,7 +224,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             onSendMedia('video_note', url, duration, {
               fileName: `vnote_${Date.now()}.${ext}`,
               thumbnailUrl: posterUrl,
-              mimeType: mimeType || 'video/mp4',
+              mimeType: mimeType || 'video/webm',
               fileSizeBytes,
               fileSize: sizeFormatted
             });

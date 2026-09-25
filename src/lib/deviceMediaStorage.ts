@@ -10,6 +10,45 @@ const vaultMemoryCache = new Map<string, string>();
 const blobUrlCache = new Map<string, string>();
 
 /**
+ * Safely extracts MIME type and base64 payload from a data URL.
+ * Handles headers containing commas such as `data:video/webm;codecs=vp8,opus;base64,...`
+ */
+export function parseDataUrl(url: string): { mime: string; base64Data: string } | null {
+  if (!url || !url.startsWith('data:')) return null;
+  const base64Index = url.indexOf(';base64,');
+  if (base64Index !== -1) {
+    const rawMime = url.substring(5, base64Index).trim();
+    const base64Data = url.substring(base64Index + ';base64,'.length);
+    return { mime: rawMime, base64Data };
+  }
+  const commaIndex = url.indexOf(',');
+  if (commaIndex === -1) return null;
+  const rawMime = url.substring(5, commaIndex).trim();
+  const base64Data = url.substring(commaIndex + 1);
+  return { mime: rawMime, base64Data };
+}
+
+/**
+ * Normalizes container MIME type to ensure compatibility with mobile media demuxers.
+ * Strips codecs parameters (e.g., 'video/webm;codecs=vp8,opus' -> 'video/webm')
+ * because Blob/HTML5 video players expect clean container types.
+ */
+export function normalizeMediaMime(mime: string, fallback?: string): string {
+  const target = (mime || fallback || '').toLowerCase().trim();
+  if (target.includes('webm')) return target.includes('audio') ? 'audio/webm' : 'video/webm';
+  if (target.includes('mp4')) return 'video/mp4';
+  if (target.includes('jpeg') || target.includes('jpg')) return 'image/jpeg';
+  if (target.includes('png')) return 'image/png';
+  if (target.includes('gif')) return 'image/gif';
+  if (target.includes('webp')) return 'image/webp';
+  if (target.includes('ogg')) return target.includes('video') ? 'video/ogg' : 'audio/ogg';
+  if (target.includes('mp3') || target.includes('mpeg')) return 'audio/mpeg';
+  // Strip any parameters if present
+  const base = target.split(';')[0].trim();
+  return base || 'application/octet-stream';
+}
+
+/**
  * Converts a base64 Data URL to a native Blob URL for high-performance hardware decoding
  * (Fixes black/unplayable video notes and audio notes in mobile Safari & Chrome)
  */
@@ -23,17 +62,18 @@ export function dataUrlToBlobUrl(url: string, mimeType?: string): string {
   }
 
   try {
-    const parts = url.split(',');
-    if (parts.length < 2) return url;
-    const match = parts[0].match(/:(.*?);/);
-    const mime = mimeType || (match ? match[1] : 'video/mp4');
-    const bstr = atob(parts[1]);
+    const parsed = parseDataUrl(url);
+    if (!parsed) return url;
+
+    // Prefer detected header from actual binary, fallback to mimeType parameter
+    const cleanMime = normalizeMediaMime(parsed.mime, mimeType);
+    const bstr = atob(parsed.base64Data);
     const len = bstr.length;
     const u8arr = new Uint8Array(len);
     for (let i = 0; i < len; i++) {
       u8arr[i] = bstr.charCodeAt(i);
     }
-    const blob = new Blob([u8arr], { type: mime });
+    const blob = new Blob([u8arr], { type: cleanMime });
     const blobUrl = URL.createObjectURL(blob);
     blobUrlCache.set(url, blobUrl);
     return blobUrl;
@@ -191,10 +231,10 @@ export async function downloadMediaToDeviceGallery(
 
     if (url.startsWith('data:')) {
       // Data URL to blob
-      const parts = url.split(',');
-      const match = parts[0].match(/:(.*?);/);
-      const determinedMime = mimeType || (match ? match[1] : 'application/octet-stream');
-      const bstr = atob(parts[1]);
+      const parsed = parseDataUrl(url);
+      if (!parsed) throw new Error('Invalid data URL format');
+      const determinedMime = normalizeMediaMime(parsed.mime, mimeType);
+      const bstr = atob(parsed.base64Data);
       let n = bstr.length;
       const u8arr = new Uint8Array(n);
       while (n--) {

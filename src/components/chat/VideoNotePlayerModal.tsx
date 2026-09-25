@@ -304,8 +304,11 @@ export const VideoNotePlayerModal: React.FC<VideoNotePlayerModalProps> = ({
                 src={playableUrl}
                 playsInline
                 loop
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
                 onTimeUpdate={handleTimeUpdate}
                 onEnded={() => setIsPlaying(false)}
+                onError={(err) => console.warn('Modal video error:', err)}
                 className="w-full h-full object-cover"
               />
             ) : (

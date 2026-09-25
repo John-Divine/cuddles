@@ -182,7 +182,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       }
       videoNoteRef.current.muted = isVideoNoteMuted;
 
-      // Play synchronously within the user interaction gesture for iOS Safari compatibility
+      // Play synchronously within the user interaction gesture for iOS Safari & Android Chrome compatibility
       const playPromise = videoNoteRef.current.play();
       if (playPromise !== undefined) {
         playPromise
@@ -194,7 +194,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             if (videoNoteRef.current) {
               videoNoteRef.current.muted = true;
               setIsVideoNoteMuted(true);
-              videoNoteRef.current.play().then(() => setIsPlayingVideoNote(true)).catch(() => {});
+              videoNoteRef.current
+                .play()
+                .then(() => {
+                  setIsPlayingVideoNote(true);
+                })
+                .catch((secondErr) => {
+                  console.warn('Inline playback failed on mobile device, opening popup modal:', secondErr);
+                  if (onOpenVideoNoteModal) {
+                    onOpenVideoNoteModal(message);
+                  }
+                });
             }
           });
       }
@@ -633,6 +643,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     preload="auto"
                     loop
                     muted={isVideoNoteMuted}
+                    onPlay={() => setIsPlayingVideoNote(true)}
+                    onPause={() => setIsPlayingVideoNote(false)}
+                    onEnded={() => {
+                      setIsPlayingVideoNote(false);
+                      setVideoProgress(0);
+                    }}
+                    onError={(err) => {
+                      console.warn('Video note inline playback error:', err);
+                    }}
                     onLoadedMetadata={(e) => {
                       const v = e.currentTarget;
                       if (!message.attachment?.thumbnailUrl && v.currentTime === 0) {
