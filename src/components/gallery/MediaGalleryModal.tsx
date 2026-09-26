@@ -243,20 +243,36 @@ export const MediaGalleryModal: React.FC<MediaGalleryModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-2 sm:p-4 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="w-full max-w-5xl h-[92vh] max-h-[850px] rounded-3xl bg-slate-900 border border-slate-700/80 shadow-2xl text-slate-100 flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-0 sm:p-4 backdrop-blur-xl animate-in fade-in duration-200">
+      <div className="w-full max-w-5xl h-full sm:h-[92vh] sm:max-h-[850px] rounded-none sm:rounded-3xl bg-slate-900 border-0 sm:border border-slate-700/80 shadow-2xl text-slate-100 flex flex-col overflow-hidden">
         {/* Top Header */}
-        <div className="shrink-0 p-4 sm:px-6 bg-slate-900/98 border-b border-slate-800 flex items-center justify-between gap-3">
+        <div className="shrink-0 p-3.5 sm:p-4 sm:px-6 bg-slate-900/98 border-b border-slate-800 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="p-2.5 rounded-2xl bg-gradient-to-tr from-rose-500 to-indigo-600 text-white shadow-lg shadow-rose-500/20 shrink-0">
-              <ImageIcon className="w-5 h-5" />
-            </div>
+            {initialScope === 'conversation' && (currentCollection?.avatar || activeConversation?.avatar) ? (
+              <img
+                src={currentCollection?.avatar || activeConversation?.avatar}
+                alt="Avatar"
+                className="w-10 h-10 rounded-full object-cover ring-2 ring-rose-500/50 shrink-0"
+              />
+            ) : (
+              <div className="p-2.5 rounded-2xl bg-gradient-to-tr from-rose-500 to-indigo-600 text-white shadow-lg shadow-rose-500/20 shrink-0">
+                <ImageIcon className="w-5 h-5" />
+              </div>
+            )}
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="font-bold text-base sm:text-lg text-white truncate">
-                  {currentCollection ? `${currentCollection.title} Collection` : 'All Media Collections'}
+                  {initialScope === 'conversation'
+                    ? `${currentCollection?.title || activeConversation?.title || 'Chat'} Media`
+                    : currentCollection
+                    ? `${currentCollection.title} Collection`
+                    : 'All Media Collections'}
                 </h3>
-                {currentCollection ? (
+                {initialScope === 'conversation' ? (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1 shrink-0">
+                    This Chat Only
+                  </span>
+                ) : currentCollection ? (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-400 border border-pink-500/30 flex items-center gap-1 shrink-0">
                     Collection View
                   </span>
@@ -268,7 +284,9 @@ export const MediaGalleryModal: React.FC<MediaGalleryModalProps> = ({
                 )}
               </div>
               <p className="text-xs text-slate-400 truncate">
-                {currentCollection
+                {initialScope === 'conversation'
+                  ? `Showing all ${filteredItems.length} media items & attachments in this chat`
+                  : currentCollection
                   ? `Showing all ${filteredItems.length} media items in ${currentCollection.title}'s collection`
                   : `Showing all ${allMediaItems.length} items across all conversations & offline vault`}
               </p>
@@ -276,31 +294,9 @@ export const MediaGalleryModal: React.FC<MediaGalleryModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {currentCollection ? (
-              <button
-                type="button"
-                onClick={() => setSelectedConvFilter('all')}
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 hover:text-white transition-colors cursor-pointer border border-slate-700/60"
-                title="View All Media across all collections"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-rose-400" />
-                <span>Show All Collections</span>
-              </button>
-            ) : activeConversation ? (
-              <button
-                type="button"
-                onClick={() => setSelectedConvFilter(activeConversation.id)}
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-pink-500/15 hover:bg-pink-500/25 border border-pink-500/30 text-xs font-semibold text-pink-300 hover:text-pink-200 transition-colors cursor-pointer"
-                title={`View ${activeConversation.title}'s Collection`}
-              >
-                <span>📁</span>
-                <span>{activeConversation.title} Collection</span>
-              </button>
-            ) : null}
-
             <button
               onClick={onClose}
-              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              className="p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
               title="Close Gallery"
             >
               <X className="w-5 h-5" />
@@ -308,8 +304,9 @@ export const MediaGalleryModal: React.FC<MediaGalleryModalProps> = ({
           </div>
         </div>
 
-        {/* Collection Selector Chips Row */}
-        <div className="shrink-0 px-4 sm:px-6 py-2.5 bg-slate-950/70 border-b border-slate-800/80 flex items-center gap-2 overflow-x-auto no-scrollbar">
+        {/* Collection Selector Chips Row (Strictly hidden in dedicated chat view) */}
+        {initialScope !== 'conversation' && (
+          <div className="shrink-0 px-4 sm:px-6 py-2.5 bg-slate-950/70 border-b border-slate-800/80 flex items-center gap-2 overflow-x-auto no-scrollbar">
           <div className="flex items-center gap-1.5 text-xs text-slate-400 font-semibold shrink-0 pr-1.5 border-r border-slate-800">
             <Filter className="w-3.5 h-3.5 text-rose-400" />
             <span className="text-[11px] uppercase tracking-wider text-slate-400 hidden sm:inline">Collections:</span>
@@ -359,6 +356,7 @@ export const MediaGalleryModal: React.FC<MediaGalleryModalProps> = ({
             );
           })}
         </div>
+        )}
 
         {/* Toolbar: Search and Filter Tabs */}
         <div className="shrink-0 p-3 sm:px-6 bg-slate-900/60 border-b border-slate-800/80 flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center justify-between">

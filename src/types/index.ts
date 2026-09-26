@@ -118,6 +118,9 @@ export interface Message {
     text: string;
   };
   expiresAt?: string; // Ephemeral messages
+  isDeletedForEveryone?: boolean;
+  deletedForUsers?: string[];
+  deletedAt?: string;
 }
 
 export interface Conversation {

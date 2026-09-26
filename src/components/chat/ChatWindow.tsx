@@ -19,7 +19,9 @@ import {
   Check,
   Inbox,
   Image as ImageIcon,
-  ChevronDown
+  ChevronDown,
+  Trash2,
+  X
 } from 'lucide-react';
 import { Conversation, Message, UserProfile, MessagePriority, MessageType } from '../../types';
 import { MessageBubble } from './MessageBubble';
@@ -53,6 +55,7 @@ interface ChatWindowProps {
   ) => void;
   onAddReaction: (messageId: string, emoji: string) => void;
   onDownloadAttachment?: (messageId: string) => void;
+  onDeleteMessages?: (messageIds: string[], deleteForEveryone: boolean) => Promise<void> | void;
   onStartCall: (type: 'audio' | 'video') => void;
   onToggleMobileSidebar: () => void;
   onViewProfile?: (user: UserProfile) => void;
@@ -78,6 +81,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onSendMedia,
   onAddReaction,
   onDownloadAttachment,
+  onDeleteMessages,
   onStartCall,
   onToggleMobileSidebar,
   onViewProfile,
@@ -89,10 +93,68 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 }) => {
   const [showSafetyModal, setShowSafetyModal] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
-  const [showCollectionMenu, setShowCollectionMenu] = useState(false);
   const [selectedVideoNote, setSelectedVideoNote] = useState<Message | null>(null);
   const [selectedVideoFile, setSelectedVideoFile] = useState<Message | null>(null);
   const [copiedUsername, setCopiedUsername] = useState(false);
+
+  // Message multi-selection & deletion state
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set());
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  const handleStartSelection = (messageId: string) => {
+    setIsSelectionMode(true);
+    setSelectedMessageIds(new Set([messageId]));
+  };
+
+  const handleToggleSelect = (messageId: string) => {
+    setSelectedMessageIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(messageId)) {
+        next.delete(messageId);
+        if (next.size === 0) {
+          setIsSelectionMode(false);
+        }
+      } else {
+        next.add(messageId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedMessageIds.size === messages.length) {
+      setSelectedMessageIds(new Set());
+      setIsSelectionMode(false);
+    } else {
+      setSelectedMessageIds(new Set(messages.map((m) => m.id)));
+    }
+  };
+
+  const handleCancelSelection = () => {
+    setIsSelectionMode(false);
+    setSelectedMessageIds(new Set());
+  };
+
+  const handleSingleDelete = (msg: Message) => {
+    setSelectedMessageIds(new Set([msg.id]));
+    setShowDeleteDialog(true);
+  };
+
+  const selectedMessages = messages.filter((m) => selectedMessageIds.has(m.id));
+  const canDeleteForEveryone =
+    selectedMessages.length > 0 && selectedMessages.every((m) => m.senderId === currentUser.id);
+
+  const handleConfirmDelete = async (deleteForEveryone: boolean) => {
+    const ids = Array.from(selectedMessageIds);
+    setShowDeleteDialog(false);
+    setIsSelectionMode(false);
+    setSelectedMessageIds(new Set());
+    if (onDeleteMessages && ids.length > 0) {
+      await onDeleteMessages(ids, deleteForEveryone);
+    }
+  };
+
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const scrollToBottom = () => {
@@ -254,8 +316,51 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   return (
     <main className="flex-1 flex flex-col h-full min-h-0 bg-slate-950 text-slate-100 relative overflow-hidden">
-      {/* Header - Fixed & Locked at top, sits under mobile drawer z-[100] when open */}
-      <header className="shrink-0 w-full p-2.5 sm:p-3 sm:px-4 bg-slate-900/98 border-b border-rose-950/50 flex items-center justify-between gap-2 z-20 backdrop-blur-xl shadow-md">
+      {/* Header / Multi-Select Action Bar */}
+      {isSelectionMode ? (
+        <header className="shrink-0 w-full p-2.5 sm:p-3 sm:px-6 bg-slate-900 border-b border-rose-950/60 flex items-center justify-between gap-3 z-30 shadow-xl animate-in slide-in-from-top-1 text-white">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleCancelSelection}
+              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              title="Cancel Selection"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div>
+              <span className="font-bold text-sm sm:text-base text-rose-300">
+                {selectedMessageIds.size} Selected
+              </span>
+              <p className="text-[10px] text-slate-400 hidden sm:block">
+                Tap messages to select or deselect
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSelectAll}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 hover:text-white transition-colors cursor-pointer"
+            >
+              {selectedMessageIds.size === messages.length ? 'Deselect All' : 'Select All'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowDeleteDialog(true)}
+              disabled={selectedMessageIds.size === 0}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-xs font-bold text-white shadow-md shadow-rose-600/30 transition-all cursor-pointer"
+              title="Delete Selected Messages"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Delete</span>
+            </button>
+          </div>
+        </header>
+      ) : (
+        <header className="shrink-0 w-full p-2.5 sm:p-3 sm:px-4 bg-slate-900/98 border-b border-rose-950/50 flex items-center justify-between gap-2 z-20 backdrop-blur-xl shadow-md">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           {/* Mobile hamburger menu */}
           <button
@@ -318,109 +423,22 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </div>
         </div>
 
-        {/* Action Controls: Media Gallery, Audio Call & Video Call */}
+        {/* Action Controls: Chat Media Gallery, Audio Call & Video Call */}
         <div className="flex items-center gap-1 sm:gap-2">
-          {/* Collection Media Gallery (Top bar shows media for this collection, with quick collection switcher) */}
+          {/* Dedicated Chat Media Gallery Icon (Strictly for this chat, no dropdown) */}
           {onOpenMediaGallery && (
-            <div className="relative">
-              <div className="flex items-center rounded-xl bg-slate-800/90 border border-slate-700/70 p-0.5 shadow-sm hover:border-pink-500/40 transition-colors">
-                <button
-                  type="button"
-                  onClick={() => onOpenMediaGallery('conversation', conversation?.id)}
-                  className="px-2 sm:px-2.5 py-1.5 rounded-lg hover:bg-pink-500/20 text-pink-400 hover:text-pink-300 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
-                  title={`View ${displayHeaderTitle}'s Media Collection`}
-                  aria-label="Collection Media Gallery"
-                >
-                  <ImageIcon className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
-                  <span className="hidden md:inline text-xs font-semibold text-pink-300">
-                    Collection
-                  </span>
-                </button>
-
-                {allConversations.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setShowCollectionMenu(!showCollectionMenu)}
-                    className="px-1 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/60 transition-colors cursor-pointer"
-                    title="Select Media Collection"
-                    aria-label="Select Media Collection"
-                  >
-                    <ChevronDown className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-
-              {/* Top Navbar Collection Selector Dropdown */}
-              {showCollectionMenu && (
-                <>
-                  <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setShowCollectionMenu(false)}
-                  />
-                  <div className="absolute right-0 top-11 w-64 rounded-2xl bg-slate-900/98 border border-slate-700/80 shadow-2xl z-50 p-2 backdrop-blur-2xl animate-in fade-in slide-in-from-top-2 text-slate-200">
-                    <div className="px-2.5 py-1.5 border-b border-slate-800 mb-1">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                        Select Media Collection
-                      </p>
-                    </div>
-
-                    {/* Current Conversation Collection */}
-                    {conversation && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowCollectionMenu(false);
-                          onOpenMediaGallery('conversation', conversation.id);
-                        }}
-                        className="w-full px-2.5 py-2 rounded-xl bg-pink-500/15 border border-pink-500/30 hover:bg-pink-500/25 text-left flex items-center justify-between text-xs transition-colors cursor-pointer mb-1"
-                      >
-                        <div className="flex items-center gap-2 truncate">
-                          <span className="text-pink-400">📁</span>
-                          <span className="font-bold text-white truncate">{displayHeaderTitle}</span>
-                        </div>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-pink-500/30 text-pink-300 font-semibold shrink-0">
-                          This Collection
-                        </span>
-                      </button>
-                    )}
-
-                    {/* Other Collections */}
-                    <div className="max-h-48 overflow-y-auto space-y-0.5 py-0.5">
-                      {allConversations
-                        .filter((c) => c.id !== conversation?.id)
-                        .map((c) => (
-                          <button
-                            key={c.id}
-                            type="button"
-                            onClick={() => {
-                              setShowCollectionMenu(false);
-                              onOpenMediaGallery('conversation', c.id);
-                            }}
-                            className="w-full px-2.5 py-1.5 rounded-xl hover:bg-slate-800 text-left flex items-center justify-between text-xs text-slate-300 hover:text-white transition-colors cursor-pointer"
-                          >
-                            <span className="truncate">{c.title}</span>
-                            <span className="text-[10px] text-slate-500">Collection</span>
-                          </button>
-                        ))}
-                    </div>
-
-                    <div className="border-t border-slate-800 pt-1 mt-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowCollectionMenu(false);
-                          onOpenMediaGallery('all');
-                        }}
-                        className="w-full px-2.5 py-1.5 rounded-xl hover:bg-slate-800 text-left flex items-center gap-2 text-xs text-slate-300 hover:text-white transition-colors cursor-pointer"
-                      >
-                        <span>✨</span>
-                        <span className="font-semibold">All Sanctuary Media</span>
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
+            <button
+              type="button"
+              onClick={() => onOpenMediaGallery('conversation', conversation?.id)}
+              className="px-2 sm:px-2.5 py-1.5 rounded-xl bg-slate-800/90 border border-slate-700/70 hover:border-pink-500/40 hover:bg-pink-500/20 text-pink-400 hover:text-pink-300 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+              title={`View ${displayHeaderTitle}'s Media`}
+              aria-label="Chat Media Gallery"
+            >
+              <ImageIcon className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+              <span className="hidden md:inline text-xs font-semibold text-pink-300">
+                Media
+              </span>
+            </button>
           )}
 
           {/* Audio Call */}
@@ -541,6 +559,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </div>
         </div>
       </header>
+    )}
 
       {/* Recipient Busy & Focus Schedule Banner */}
       {isBusy && recipient && (
@@ -589,6 +608,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             onOpenVideoNoteModal={(videoMsg) => setSelectedVideoNote(videoMsg)}
             onOpenVideoModal={(videoMsg) => setSelectedVideoFile(videoMsg)}
             onDownloadAttachment={onDownloadAttachment}
+            isSelectionMode={isSelectionMode}
+            isSelected={selectedMessageIds.has(msg.id)}
+            onToggleSelect={handleToggleSelect}
+            onStartSelection={handleStartSelection}
+            onDeleteMessage={handleSingleDelete}
           />
         ))}
 
@@ -642,6 +666,61 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           conversation={conversation}
           onClose={() => setShowSafetyModal(false)}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-md animate-in fade-in duration-150">
+          <div className="w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-700/80 p-5 sm:p-6 shadow-2xl space-y-4 text-slate-100">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30 shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="font-bold text-base text-white truncate">
+                  Delete {selectedMessageIds.size > 1 ? `${selectedMessageIds.size} Messages` : 'Message'}?
+                </h3>
+                <p className="text-xs text-slate-400">
+                  {selectedMessageIds.size} message{selectedMessageIds.size > 1 ? 's' : ''} selected
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed">
+              {canDeleteForEveryone
+                ? 'Would you like to delete these messages for everyone in this chat, or delete them for yourself only?'
+                : 'You can delete these messages from this device for yourself.'}
+            </p>
+
+            <div className="flex flex-col gap-2 pt-1">
+              {canDeleteForEveryone && (
+                <button
+                  type="button"
+                  onClick={() => handleConfirmDelete(true)}
+                  className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white text-xs font-bold shadow-lg shadow-rose-600/30 active:scale-98 transition-all cursor-pointer"
+                >
+                  Delete for Everyone
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => handleConfirmDelete(false)}
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-bold border border-slate-700/60 active:scale-98 transition-all cursor-pointer"
+              >
+                Delete for Me
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowDeleteDialog(false)}
+                className="w-full py-2 px-4 rounded-xl text-slate-400 hover:text-slate-200 text-xs font-semibold hover:bg-slate-800/50 transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </main>
   );

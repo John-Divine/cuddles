@@ -17,7 +17,10 @@ import {
   Maximize2,
   CheckCircle2,
   CloudOff,
-  X
+  X,
+  Trash2,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import { Message } from '../../types';
 import {
@@ -34,6 +37,11 @@ interface MessageBubbleProps {
   onOpenVideoNoteModal?: (msg: Message) => void;
   onOpenVideoModal?: (msg: Message) => void;
   onDownloadAttachment?: (messageId: string) => void;
+  isSelectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (messageId: string) => void;
+  onStartSelection?: (messageId: string) => void;
+  onDeleteMessage?: (message: Message) => void;
 }
 
 const REACTION_PALETTE = ['❤️', '🔥', '😂', '👍', '🥰', '✨'];
@@ -44,7 +52,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onAddReaction,
   onOpenVideoNoteModal,
   onOpenVideoModal,
-  onDownloadAttachment
+  onDownloadAttachment,
+  isSelectionMode = false,
+  isSelected = false,
+  onToggleSelect,
+  onStartSelection,
+  onDeleteMessage
 }) => {
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [audioSpeed, setAudioSpeed] = useState<number>(1);
@@ -253,9 +266,86 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     }
   };
 
+  const touchTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
+    if (touchTimerRef.current) clearTimeout(touchTimerRef.current);
+    touchTimerRef.current = setTimeout(() => {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try { navigator.vibrate(40); } catch (_) {}
+      }
+      onStartSelection?.(message.id);
+    }, 450);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartPosRef.current) return;
+    const touch = e.touches[0];
+    const dx = Math.abs(touch.clientX - touchStartPosRef.current.x);
+    const dy = Math.abs(touch.clientY - touchStartPosRef.current.y);
+    if (dx > 10 || dy > 10) {
+      if (touchTimerRef.current) {
+        clearTimeout(touchTimerRef.current);
+        touchTimerRef.current = null;
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (touchTimerRef.current) {
+      clearTimeout(touchTimerRef.current);
+      touchTimerRef.current = null;
+    }
+  };
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    onStartSelection?.(message.id);
+  };
+
+  const handleBubbleClick = (e: React.MouseEvent) => {
+    if (isSelectionMode) {
+      e.stopPropagation();
+      onToggleSelect?.(message.id);
+    }
+  };
+
   return (
-    <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} my-1 px-2 group relative`}>
-      <div className={`flex items-end gap-2 max-w-[85%] sm:max-w-md ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+    <div
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onContextMenu={handleContextMenu}
+      onClick={handleBubbleClick}
+      className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} my-1 px-2 group relative transition-all ${
+        isSelectionMode ? 'cursor-pointer' : ''
+      }`}
+    >
+      <div className={`flex items-center gap-2 max-w-[90%] sm:max-w-md ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+        {/* Selection Checkbox */}
+        {isSelectionMode && (
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSelect?.(message.id);
+            }}
+            className="shrink-0 p-1 cursor-pointer transition-transform active:scale-90"
+          >
+            <div
+              className={`w-5 h-5 rounded-lg flex items-center justify-center transition-all ${
+                isSelected
+                  ? 'bg-rose-500 text-white shadow-md shadow-rose-500/40 ring-2 ring-rose-400'
+                  : 'bg-slate-800 border border-slate-600 text-transparent'
+              }`}
+            >
+              <Check className="w-3.5 h-3.5 text-white" />
+            </div>
+          </div>
+        )}
+
         {!isMe && (
           <img
             src={message.senderAvatar}
@@ -268,7 +358,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           {/* Main Bubble */}
           <div
             className={`relative rounded-2xl overflow-hidden transition-all shadow-md ${
-              message.type === 'video_note'
+              isSelected ? 'ring-2 ring-rose-400 shadow-rose-500/30' : ''
+            } ${
+              message.isDeletedForEveryone
+                ? 'bg-slate-900/90 text-slate-400 border border-slate-800/80 px-3.5 py-2'
+                : message.type === 'video_note'
                 ? 'bg-transparent p-0 shadow-none'
                 : message.priority === 'urgent' || message.priority === 'emergency'
                 ? 'bg-gradient-to-br from-red-600 via-rose-600 to-amber-600 text-white border-2 border-amber-400/80 shadow-xl shadow-rose-600/30 px-3.5 py-2.5 ring-2 ring-amber-400/40 animate-pulse'
@@ -277,6 +371,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 : 'bg-slate-800 text-slate-100 border border-rose-900/30 rounded-bl-xs px-3.5 py-2.5'
             }`}
           >
+            {/* Deleted for everyone placeholder */}
+            {message.isDeletedForEveryone ? (
+              <div className="flex items-center gap-1.5 text-xs italic text-slate-400 select-none py-0.5">
+                <Trash2 className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                <span>{isMe ? 'You deleted this message' : 'This message was deleted'}</span>
+              </div>
+            ) : (
+              <>
             {/* Urgent / Emergency Alert Header */}
             {(message.priority === 'urgent' || message.priority === 'emergency') && (
               <div className="flex items-center gap-1.5 mb-1.5 px-2 py-0.5 rounded-full bg-black/40 text-[10px] font-extrabold uppercase tracking-wider text-amber-300 w-fit">
@@ -807,6 +909,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 )}
               </div>
             )}
+            </>
+          )}
           </div>
 
           {/* Toast on save */}
@@ -818,7 +922,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           )}
 
           {/* Reactions Pill Display */}
-          {message.reactions && message.reactions.length > 0 && (
+          {!message.isDeletedForEveryone && message.reactions && message.reactions.length > 0 && (
             <div
               className={`flex items-center gap-1 mt-1 flex-wrap ${
                 isMe ? 'justify-end' : 'justify-start'
@@ -837,20 +941,31 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             </div>
           )}
 
-          {/* Quick Reaction Button on Hover */}
-          <div
-            className={`absolute top-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 ${
-              isMe ? '-left-8' : '-right-8'
-            }`}
-          >
-            <button
-              onClick={() => setShowReactionPicker(!showReactionPicker)}
-              className="p-1 rounded-full bg-slate-800 border border-slate-700 text-slate-400 hover:text-amber-400 shadow-md"
-              title="Add reaction"
+          {/* Quick Reaction & Delete Action on Hover */}
+          {!isSelectionMode && !message.isDeletedForEveryone && (
+            <div
+              className={`absolute top-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 ${
+                isMe ? '-left-16' : '-right-16'
+              }`}
             >
-              <Smile className="w-3.5 h-3.5" />
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={() => setShowReactionPicker(!showReactionPicker)}
+                className="p-1 rounded-full bg-slate-800 border border-slate-700 text-slate-400 hover:text-amber-400 shadow-md cursor-pointer"
+                title="Add reaction"
+              >
+                <Smile className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => onDeleteMessage?.(message)}
+                className="p-1 rounded-full bg-slate-800 border border-slate-700 text-slate-400 hover:text-rose-400 shadow-md cursor-pointer"
+                title="Delete message"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
 
           {/* Reaction Palette Popup */}
           {showReactionPicker && (

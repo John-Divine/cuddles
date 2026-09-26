@@ -147,6 +147,25 @@ export async function saveMediaToDeviceVault(
 }
 
 /**
+ * Remove a specific media item from device IndexedDB and memory caches
+ */
+export async function deleteMediaFromDeviceVault(messageId: string): Promise<boolean> {
+  vaultMemoryCache.delete(messageId);
+  try {
+    const db = await openDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      store.delete(messageId);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+    });
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Retrieve media from device IndexedDB or instant memory cache
  */
 export async function getMediaFromDeviceVault(messageId: string): Promise<string | null> {

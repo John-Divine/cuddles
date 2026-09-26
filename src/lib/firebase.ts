@@ -274,6 +274,38 @@ export async function purgeMessageMediaFromFirestore(
 }
 
 /**
+ * Delete a message from Firestore for everyone
+ */
+export async function deleteMessageFromFirestore(
+  conversationId: string,
+  messageId: string
+): Promise<boolean> {
+  const path = `conversations/${conversationId}/messages/${messageId}`;
+  try {
+    const msgRef = doc(db, 'conversations', conversationId, 'messages', messageId);
+    // Set isDeletedForEveryone and purge attachment so media is wiped from cloud
+    await setDoc(
+      msgRef,
+      {
+        id: messageId,
+        conversationId,
+        isDeletedForEveryone: true,
+        text: 'This message was deleted',
+        attachment: null,
+        deletedAt: new Date().toISOString()
+      },
+      { merge: true }
+    );
+    console.log(`Message deleted from Firestore for everyone: ${messageId}`);
+    return true;
+  } catch (err) {
+    console.warn('Could not delete message from Firestore:', err);
+    return false;
+  }
+}
+
+
+/**
  * Real-time listener for messages in an active conversation
  */
 export function subscribeToConversationMessages(

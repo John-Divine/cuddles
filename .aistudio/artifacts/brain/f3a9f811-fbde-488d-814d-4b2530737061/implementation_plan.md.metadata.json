@@ -1,6 +1,6 @@
 {
-  "summary":  "Implementation plan for an automated mobile bottom install banner, Chrome beforeinstallprompt trigger, 8-second auto-hide with reopen affordance, and step-by-step Chrome mobile installation guide.",
-  "updatedAt":  "2026-09-25T20:11:33.339409446Z",
+  "summary":  "Comprehensive implementation plan for message & media deletion (long-press, multi-select, delete for me vs everyone), chat-specific WhatsApp-style media gallery, camera video recorder with playback preview, and bottom gallery picker fix.",
+  "updatedAt":  "2026-09-26T12:09:48.703032903Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

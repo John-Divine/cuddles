@@ -41,6 +41,7 @@ import {
   syncUserToFirestore,
   deleteUserFromFirestore,
   syncMessageToFirestore,
+  deleteMessageFromFirestore,
   purgeMessageMediaFromFirestore,
   syncConversationToFirestore,
   subscribeToConversationMessages,
@@ -539,10 +540,29 @@ export default function App() {
         setMessagesMap((prev) => {
           const currentList = prev[activeConversationId] || [];
           const map = new Map<string, Message>();
-          currentList.forEach((m) => map.set(m.id, m));
+          const deletedForMeKey = `cuddles_deleted_for_me_${currentUser.id}`;
+          const deletedForMeIds = new Set(loadStoredData<string[]>(deletedForMeKey, []));
+
+          currentList.forEach((m) => {
+            if (!deletedForMeIds.has(m.id)) {
+              map.set(m.id, m);
+            }
+          });
           let hasNewIncoming = false;
 
           cloudMsgs.forEach((m) => {
+            if (deletedForMeIds.has(m.id)) return;
+
+            if (m.isDeletedForEveryone) {
+              map.set(m.id, {
+                ...m,
+                isDeletedForEveryone: true,
+                text: 'This message was deleted',
+                attachment: undefined
+              });
+              return;
+            }
+
             const existed = map.get(m.id);
             if (!existed && m.senderId !== activeAccount?.id) {
               hasNewIncoming = true;
@@ -815,6 +835,61 @@ export default function App() {
       saveStoredData(STORAGE_KEYS.MESSAGES, newMap);
       return newMap;
     });
+  };
+
+  // Delete Messages Handler (Single or Multi-select, Delete for Me or Delete for Everyone)
+  const handleDeleteMessages = async (messageIds: string[], deleteForEveryone: boolean) => {
+    if (!activeConversation || messageIds.length === 0) return;
+    const convId = activeConversation.id;
+    const idsSet = new Set(messageIds);
+
+    if (deleteForEveryone) {
+      // 1. Mark as deleted in Firestore for real-time sync across devices
+      for (const msgId of messageIds) {
+        await deleteMessageFromFirestore(convId, msgId);
+      }
+
+      // 2. Update local state to show 'This message was deleted' placeholder
+      setMessagesMap((prev) => {
+        const list = prev[convId] || [];
+        const updated = list.map((m) => {
+          if (idsSet.has(m.id)) {
+            return {
+              ...m,
+              isDeletedForEveryone: true,
+              text: 'This message was deleted',
+              attachment: undefined,
+              deletedAt: new Date().toISOString()
+            };
+          }
+          return m;
+        });
+        const nextMap = { ...prev, [convId]: updated };
+        if (activeAccount?.id) {
+          saveUserMessages(activeAccount.id, nextMap);
+        }
+        saveStoredData(STORAGE_KEYS.MESSAGES, nextMap);
+        return nextMap;
+      });
+    } else {
+      // Delete for Me: permanently remove from this user's view
+      // Save to user's deleted-for-me registry so cloud snapshot re-fetches don't re-add them
+      const storageKey = `cuddles_deleted_for_me_${currentUser.id}`;
+      const existingDeleted = loadStoredData<string[]>(storageKey, []);
+      const newDeleted = Array.from(new Set([...existingDeleted, ...messageIds]));
+      saveStoredData(storageKey, newDeleted);
+
+      setMessagesMap((prev) => {
+        const list = prev[convId] || [];
+        const updated = list.filter((m) => !idsSet.has(m.id));
+        const nextMap = { ...prev, [convId]: updated };
+        if (activeAccount?.id) {
+          saveUserMessages(activeAccount.id, nextMap);
+        }
+        saveStoredData(STORAGE_KEYS.MESSAGES, nextMap);
+        return nextMap;
+      });
+    }
   };
 
   // Send Media Message (Image, Voice, Video Note, GIF, Document, Video)
@@ -1475,6 +1550,7 @@ export default function App() {
           onSendMedia={handleSendMedia}
           onAddReaction={handleReaction}
           onDownloadAttachment={handleDownloadAttachment}
+          onDeleteMessages={handleDeleteMessages}
           onStartCall={handleStartCall}
           onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
           isMobileSidebarOpen={isMobileSidebarOpen}

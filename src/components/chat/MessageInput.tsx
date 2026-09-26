@@ -18,6 +18,8 @@ import { GifPicker } from './GifPicker';
 import { VoiceRecorder } from './VoiceRecorder';
 import { VideoNoteRecorder } from './VideoNoteRecorder';
 import { CameraCaptureModal } from './CameraCaptureModal';
+import { CameraVideoModal } from './CameraVideoModal';
+import { MediaSendPreviewModal } from './MediaSendPreviewModal';
 import { compressImage } from '../../lib/imageUtils';
 import { MessagePriority, MessageType } from '../../types';
 
@@ -70,8 +72,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [showGifPicker, setShowGifPicker] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [isRecordingVideoNote, setIsRecordingVideoNote] = useState(false);
+  const [isRecordingVideo, setIsRecordingVideo] = useState(false);
   const [isTakingPhoto, setIsTakingPhoto] = useState(false);
   const [pendingImage, setPendingImage] = useState<string | null>(null);
+  const [selectedImageFile, setSelectedImageFile] = useState<{
+    file: File;
+    previewUrl: string;
+  } | null>(null);
   const [pendingDocument, setPendingDocument] = useState<PendingDocument | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [isUrgent, setIsUrgent] = useState(false);
@@ -135,32 +142,68 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
   };
 
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     if (file.size > MAX_DOCUMENT_BYTES) {
       setFileError(`Image exceeds the 50MB limit (${formatBytes(file.size)}). Please choose a smaller image.`);
-      e.target.value = '';
       return;
     }
 
     setFileError(null);
     try {
-      // Auto-compress phone camera / gallery photos to crisp, fast, lightweight JPEG (<200KB)
-      const compressedDataUrl = await compressImage(file, 960, 960, 0.75);
-      setPendingImage(compressedDataUrl);
-    } catch (err) {
-      console.warn('Image compression fallback:', err);
+      const previewUrl = URL.createObjectURL(file);
+      setSelectedImageFile({ file, previewUrl });
+    } catch {
       const reader = new FileReader();
       reader.onload = () => {
         if (typeof reader.result === 'string') {
-          setPendingImage(reader.result);
+          setSelectedImageFile({ file, previewUrl: reader.result });
         }
       };
       reader.readAsDataURL(file);
     }
-    e.target.value = '';
+  };
+
+  const handleConfirmSendPreviewImage = async (caption?: string) => {
+    if (!selectedImageFile) return;
+    const { file, previewUrl } = selectedImageFile;
+    try {
+      let finalDataUrl = '';
+      try {
+        finalDataUrl = await compressImage(file, 1080, 1080, 0.75);
+      } catch (compErr) {
+        console.warn('Image compression error, using FileReader fallback:', compErr);
+      }
+
+      if (!finalDataUrl) {
+        finalDataUrl = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+          reader.onerror = () => resolve('');
+          reader.readAsDataURL(file);
+        });
+      }
+
+      if (finalDataUrl) {
+        onSendMedia('image', finalDataUrl, undefined, {
+          fileName: file.name || `photo_${Date.now()}.jpg`,
+          fileSizeBytes: file.size,
+          mimeType: 'image/jpeg'
+        });
+        if (caption && caption.trim()) {
+          onSendMessage(caption.trim(), isUrgent ? 'urgent' : 'normal');
+        }
+      }
+    } catch (err) {
+      console.error('Failed to send image preview:', err);
+    } finally {
+      if (previewUrl && previewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(previewUrl);
+      }
+      setSelectedImageFile(null);
+    }
   };
 
   const handleDocumentChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -246,6 +289,39 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             }
           }}
           onClose={() => setIsTakingPhoto(false)}
+        />
+      )}
+
+      {/* Normal Camera Video Recorder Modal */}
+      {isRecordingVideo && (
+        <CameraVideoModal
+          onCapture={(videoUrl, durationSeconds, caption) => {
+            setIsRecordingVideo(false);
+            onSendMedia('video', videoUrl, durationSeconds, {
+              fileName: `video_${Date.now()}.mp4`,
+              mimeType: 'video/mp4'
+            });
+            if (caption && caption.trim()) {
+              onSendMessage(caption.trim(), isUrgent ? 'urgent' : 'normal');
+            }
+          }}
+          onClose={() => setIsRecordingVideo(false)}
+        />
+      )}
+
+      {/* Mobile Photo Gallery Send Preview Modal */}
+      {selectedImageFile && (
+        <MediaSendPreviewModal
+          isOpen={!!selectedImageFile}
+          imageUrl={selectedImageFile.previewUrl}
+          fileName={selectedImageFile.file.name}
+          onSend={handleConfirmSendPreviewImage}
+          onClose={() => {
+            if (selectedImageFile.previewUrl.startsWith('blob:')) {
+              URL.revokeObjectURL(selectedImageFile.previewUrl);
+            }
+            setSelectedImageFile(null);
+          }}
         />
       )}
 
@@ -339,20 +415,26 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             />
           )}
 
-          {/* Hidden File Inputs */}
+          {/* File Inputs (zero-size, accessible to browser event dispatch on mobile) */}
           <input
             type="file"
             ref={imageInputRef}
+            onClick={(e) => {
+              (e.target as HTMLInputElement).value = '';
+            }}
             onChange={handleImageChange}
             accept="image/*"
-            className="hidden"
+            className="fixed -top-96 -left-96 opacity-0 pointer-events-none w-1 h-1"
           />
           <input
             type="file"
             ref={docInputRef}
+            onClick={(e) => {
+              (e.target as HTMLInputElement).value = '';
+            }}
             onChange={handleDocumentChange}
             accept="*/*"
-            className="hidden"
+            className="fixed -top-96 -left-96 opacity-0 pointer-events-none w-1 h-1"
           />
 
           {/* Main Input Row */}
@@ -426,16 +508,16 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                         <Paperclip className="w-7 h-7 text-white" />
                       </button>
 
-                      {/* Video Note Icon */}
+                      {/* Normal Camera Video Recorder Icon */}
                       <button
                         type="button"
                         onClick={() => {
                           setShowPlusMenu(false);
-                          setIsRecordingVideoNote(true);
+                          setIsRecordingVideo(true);
                         }}
-                        className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/30 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-emerald-400/40"
-                        title="Record Video Note"
-                        aria-label="Record Video Note"
+                        className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-rose-600 to-red-500 text-white flex items-center justify-center shadow-lg shadow-rose-600/30 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-rose-400/40"
+                        title="Record Video with Camera"
+                        aria-label="Record Video with Camera"
                       >
                         <Video className="w-7 h-7 text-white" />
                       </button>
@@ -486,6 +568,15 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 title="Take Photo with Camera"
               >
                 <Camera className="w-5 h-5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsRecordingVideo(true)}
+                className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 active:scale-95 transition-all"
+                title="Record Video with Camera"
+              >
+                <Video className="w-5 h-5" />
               </button>
 
               <button
