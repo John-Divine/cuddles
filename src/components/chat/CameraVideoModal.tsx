@@ -9,6 +9,9 @@ import {
   AlertCircle,
   Play,
   Pause,
+  Volume2,
+  VolumeX,
+  RotateCw,
   Loader2
 } from 'lucide-react';
 
@@ -25,18 +28,40 @@ export const CameraVideoModal: React.FC<CameraVideoModalProps> = ({
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
-  const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
+
+  // Playback & Review State
+  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+  const [recordedBlobUrl, setRecordedBlobUrl] = useState<string | null>(null);
   const [recordedDuration, setRecordedDuration] = useState(0);
   const [caption, setCaption] = useState('');
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Custom Player State
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [isMuted, setIsMuted] = useState(false);
+  const [showCenterPlayHint, setShowCenterPlayHint] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const reviewVideoRef = useRef<HTMLVideoElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const recordingSecondsRef = useRef<number>(0);
+  const objectUrlRef = useRef<string | null>(null);
   const fileInputFallbackRef = useRef<HTMLInputElement | null>(null);
+
+  // Clean up object URL on unmount
+  useEffect(() => {
+    return () => {
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
+    };
+  }, []);
 
   // Initialize camera and microphone stream
   const startCamera = async () => {
@@ -59,7 +84,7 @@ export const CameraVideoModal: React.FC<CameraVideoModalProps> = ({
 
       if (videoRef.current) {
         videoRef.current.srcObject = newStream;
-        videoRef.current.muted = true; // prevent acoustic feedback during live viewfinder
+        videoRef.current.muted = true; // prevent acoustic feedback in viewfinder
         videoRef.current.play().catch(() => {});
       }
     } catch (err) {
@@ -69,7 +94,7 @@ export const CameraVideoModal: React.FC<CameraVideoModalProps> = ({
   };
 
   useEffect(() => {
-    if (!recordedVideoUrl) {
+    if (!recordedBlobUrl) {
       startCamera();
     }
     return () => {
@@ -80,7 +105,7 @@ export const CameraVideoModal: React.FC<CameraVideoModalProps> = ({
         clearInterval(timerRef.current);
       }
     };
-  }, [facingMode, recordedVideoUrl]);
+  }, [facingMode, recordedBlobUrl]);
 
   // Start recording
   const handleStartRecording = () => {
@@ -116,17 +141,22 @@ export const CameraVideoModal: React.FC<CameraVideoModalProps> = ({
         setIsProcessing(true);
         const actualMime = recorder.mimeType || selectedMime || 'video/webm';
         const blob = new Blob(chunksRef.current, { type: actualMime });
+        setRecordedBlob(blob);
 
-        // Convert to data URL for persistent offline storage and cross-device sync
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          if (typeof reader.result === 'string') {
-            setRecordedVideoUrl(reader.result);
-            setRecordedDuration(recordingSeconds);
-          }
-          setIsProcessing(false);
-        };
-        reader.readAsDataURL(blob);
+        // Hardware-accelerated mobile playback requires blob: URLs (not multi-megabyte data:video strings)
+        if (objectUrlRef.current) {
+          URL.revokeObjectURL(objectUrlRef.current);
+        }
+        const blobUrl = URL.createObjectURL(blob);
+        objectUrlRef.current = blobUrl;
+        setRecordedBlobUrl(blobUrl);
+
+        const duration = Math.max(recordingSecondsRef.current, 1);
+        setRecordedDuration(duration);
+        setVideoDuration(duration);
+        setCurrentTime(0);
+        setIsPlaying(true);
+        setIsProcessing(false);
 
         // Stop live tracks while reviewing
         if (stream) {
@@ -135,12 +165,14 @@ export const CameraVideoModal: React.FC<CameraVideoModalProps> = ({
         }
       };
 
-      recorder.start(500); // 500ms time slice for reliability
+      recorder.start(400); // 400ms time slice for reliability
       setIsRecording(true);
+      recordingSecondsRef.current = 0;
       setRecordingSeconds(0);
 
       timerRef.current = setInterval(() => {
-        setRecordingSeconds((prev) => prev + 1);
+        recordingSecondsRef.current += 1;
+        setRecordingSeconds(recordingSecondsRef.current);
       }, 1000);
     } catch (err) {
       console.error('Failed to start MediaRecorder:', err);
@@ -159,21 +191,86 @@ export const CameraVideoModal: React.FC<CameraVideoModalProps> = ({
     setIsRecording(false);
   };
 
+  // Toggle Video Play / Pause
+  const togglePlay = () => {
+    if (!reviewVideoRef.current) return;
+    if (reviewVideoRef.current.paused || reviewVideoRef.current.ended) {
+      reviewVideoRef.current.play().then(() => {
+        setIsPlaying(true);
+      }).catch(console.warn);
+    } else {
+      reviewVideoRef.current.pause();
+      setIsPlaying(false);
+    }
+    setShowCenterPlayHint(true);
+    setTimeout(() => setShowCenterPlayHint(false), 800);
+  };
+
+  // Scrub handler
+  const handleScrub = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newTime = parseFloat(e.target.value);
+    setCurrentTime(newTime);
+    if (reviewVideoRef.current) {
+      reviewVideoRef.current.currentTime = newTime;
+    }
+  };
+
+  // Toggle Mute
+  const toggleMute = () => {
+    if (!reviewVideoRef.current) return;
+    reviewVideoRef.current.muted = !isMuted;
+    setIsMuted(!isMuted);
+  };
+
+  // Replay from start
+  const handleReplay = () => {
+    if (!reviewVideoRef.current) return;
+    reviewVideoRef.current.currentTime = 0;
+    setCurrentTime(0);
+    reviewVideoRef.current.play().then(() => {
+      setIsPlaying(true);
+    }).catch(console.warn);
+  };
+
   // Retake video
   const handleRetake = () => {
-    setRecordedVideoUrl(null);
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+    setRecordedBlob(null);
+    setRecordedBlobUrl(null);
     setRecordedDuration(0);
+    setVideoDuration(0);
+    setCurrentTime(0);
     setRecordingSeconds(0);
+    setIsPlaying(false);
     setCaption('');
     startCamera();
   };
 
-  // Send recorded video
+  // Send recorded video: serialize blob to Data URL for persistent offline storage & Firestore
   const handleSend = () => {
-    if (recordedVideoUrl) {
-      onCapture(recordedVideoUrl, recordedDuration || 1, caption.trim() || undefined);
-      onClose();
-    }
+    if (!recordedBlob) return;
+    setIsProcessing(true);
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        onCapture(reader.result, recordedDuration || 1, caption.trim() || undefined);
+        if (objectUrlRef.current) {
+          URL.revokeObjectURL(objectUrlRef.current);
+          objectUrlRef.current = null;
+        }
+        onClose();
+      }
+      setIsProcessing(false);
+    };
+    reader.onerror = () => {
+      setIsProcessing(false);
+      console.error('Failed to read recorded video blob');
+    };
+    reader.readAsDataURL(recordedBlob);
   };
 
   // Flip camera between front and back
@@ -187,27 +284,31 @@ export const CameraVideoModal: React.FC<CameraVideoModalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     setIsProcessing(true);
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setRecordedVideoUrl(reader.result);
-        setRecordedDuration(5);
-      }
-      setIsProcessing(false);
-    };
-    reader.readAsDataURL(file);
+
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+    }
+    const blobUrl = URL.createObjectURL(file);
+    objectUrlRef.current = blobUrl;
+    setRecordedBlob(file);
+    setRecordedBlobUrl(blobUrl);
+    setRecordedDuration(10);
+    setVideoDuration(10);
+    setCurrentTime(0);
+    setIsPlaying(true);
+    setIsProcessing(false);
     e.target.value = '';
   };
 
   const formatTimer = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
+    const secs = Math.floor(totalSeconds % 60);
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   const modalContent = (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-2 sm:p-4 backdrop-blur-2xl animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg h-[92vh] max-h-[820px] bg-slate-950 rounded-3xl overflow-hidden border border-slate-800 shadow-2xl flex flex-col justify-between">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-0 sm:p-4 backdrop-blur-2xl animate-in fade-in duration-200">
+      <div className="relative w-full max-w-lg h-full sm:h-[92vh] sm:max-h-[820px] bg-slate-950 sm:rounded-3xl overflow-hidden sm:border border-slate-800 shadow-2xl flex flex-col justify-between">
         {/* Top Control Bar */}
         <div className="absolute top-0 inset-x-0 p-4 z-20 flex items-center justify-between bg-gradient-to-b from-black/80 via-black/40 to-transparent">
           <div className="flex items-center gap-2">
@@ -215,12 +316,12 @@ export const CameraVideoModal: React.FC<CameraVideoModalProps> = ({
               <Video className="w-4 h-4" />
             </span>
             <span className="text-white text-xs font-bold tracking-wide">
-              {recordedVideoUrl ? 'Preview Video' : isRecording ? 'Recording Video' : 'Camera Video'}
+              {recordedBlobUrl ? 'Preview Video' : isRecording ? 'Recording Video' : 'Camera Video'}
             </span>
           </div>
 
           <div className="flex items-center gap-2">
-            {!recordedVideoUrl && !isRecording && (
+            {!recordedBlobUrl && !isRecording && (
               <button
                 type="button"
                 onClick={flipCamera}
@@ -243,22 +344,108 @@ export const CameraVideoModal: React.FC<CameraVideoModalProps> = ({
         </div>
 
         {/* Viewfinder or Video Preview Area */}
-        <div className="flex-1 w-full h-full relative flex items-center justify-center bg-black overflow-hidden">
+        <div className="flex-1 w-full h-full relative flex items-center justify-center bg-black overflow-hidden select-none">
           {isProcessing ? (
             <div className="flex flex-col items-center gap-3 text-slate-300">
-              <Loader2 className="w-8 h-8 animate-spin text-rose-500" />
+              <Loader2 className="w-9 h-9 animate-spin text-rose-500" />
               <p className="text-xs font-semibold">Processing video...</p>
             </div>
-          ) : recordedVideoUrl ? (
-            <div className="relative w-full h-full flex items-center justify-center bg-black">
+          ) : recordedBlobUrl ? (
+            <div
+              className="relative w-full h-full flex items-center justify-center bg-black cursor-pointer group"
+              onClick={togglePlay}
+            >
               <video
                 ref={reviewVideoRef}
-                src={recordedVideoUrl}
-                controls
-                autoPlay
+                src={recordedBlobUrl}
                 playsInline
+                autoPlay
+                preload="auto"
+                onLoadedMetadata={(e) => {
+                  const dur = e.currentTarget.duration;
+                  if (dur && !isNaN(dur) && isFinite(dur)) {
+                    setVideoDuration(dur);
+                  }
+                }}
+                onTimeUpdate={(e) => {
+                  setCurrentTime(e.currentTarget.currentTime);
+                }}
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                onEnded={() => setIsPlaying(false)}
                 className="max-h-full max-w-full object-contain"
               />
+
+              {/* Center Floating Play / Pause Overlay */}
+              {(!isPlaying || showCenterPlayHint) && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="w-16 h-16 rounded-full bg-rose-600/90 hover:bg-rose-500 text-white backdrop-blur-md flex items-center justify-center shadow-2xl ring-4 ring-white/30 transition-transform active:scale-90 animate-in fade-in zoom-in-90 duration-150">
+                    {isPlaying ? (
+                      <Pause className="w-7 h-7 fill-white text-white" />
+                    ) : (
+                      <Play className="w-7 h-7 fill-white text-white ml-1" />
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Custom Scrubber Bar Overlay */}
+              <div
+                className="absolute bottom-3 inset-x-3 sm:inset-x-4 p-2.5 rounded-2xl bg-black/80 border border-white/15 backdrop-blur-xl z-30 space-y-2 pointer-events-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Timeline Scrubber Slider */}
+                <div className="relative w-full flex items-center">
+                  <input
+                    type="range"
+                    min={0}
+                    max={videoDuration || recordedDuration || 1}
+                    step={0.05}
+                    value={currentTime}
+                    onChange={handleScrub}
+                    className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-rose-500 hover:accent-rose-400"
+                    aria-label="Video scrubber timeline"
+                  />
+                </div>
+
+                {/* Scrubber Controls Row */}
+                <div className="flex items-center justify-between text-xs text-white">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={togglePlay}
+                      className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white transition-all cursor-pointer"
+                      title={isPlaying ? 'Pause' : 'Play'}
+                    >
+                      {isPlaying ? <Pause className="w-3.5 h-3.5 fill-white" /> : <Play className="w-3.5 h-3.5 fill-white ml-0.5" />}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleReplay}
+                      className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer"
+                      title="Replay from start"
+                    >
+                      <RotateCw className="w-3.5 h-3.5" />
+                    </button>
+
+                    <span className="font-mono text-[11px] text-slate-300 tracking-wider">
+                      {formatTimer(currentTime)} / {formatTimer(videoDuration || recordedDuration)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={toggleMute}
+                      className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer"
+                      title={isMuted ? 'Unmute' : 'Mute'}
+                    >
+                      {isMuted ? <VolumeX className="w-3.5 h-3.5 text-rose-400" /> : <Volume2 className="w-3.5 h-3.5 text-white" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           ) : hasPermission === false ? (
             <div className="p-6 text-center max-w-xs space-y-4">
@@ -308,7 +495,7 @@ export const CameraVideoModal: React.FC<CameraVideoModalProps> = ({
 
         {/* Bottom Action Controls */}
         <div className="p-4 sm:p-5 bg-gradient-to-t from-black via-black/90 to-transparent z-20">
-          {recordedVideoUrl ? (
+          {recordedBlobUrl ? (
             <div className="space-y-3">
               <input
                 type="text"
@@ -322,7 +509,8 @@ export const CameraVideoModal: React.FC<CameraVideoModalProps> = ({
                 <button
                   type="button"
                   onClick={handleRetake}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold active:scale-95 transition-all cursor-pointer"
+                  disabled={isProcessing}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold active:scale-95 transition-all cursor-pointer disabled:opacity-50"
                 >
                   <RotateCcw className="w-4 h-4" />
                   <span>Retake</span>
@@ -331,10 +519,20 @@ export const CameraVideoModal: React.FC<CameraVideoModalProps> = ({
                 <button
                   type="button"
                   onClick={handleSend}
-                  className="flex-1 flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 text-white text-xs font-bold shadow-lg shadow-rose-500/30 active:scale-95 transition-all cursor-pointer"
+                  disabled={isProcessing}
+                  className="flex-1 flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 text-white text-xs font-bold shadow-lg shadow-rose-500/30 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
                 >
-                  <Send className="w-4 h-4" />
-                  <span>Send Video</span>
+                  {isProcessing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Sending Video...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      <span>Send Video</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>

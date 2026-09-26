@@ -315,21 +315,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const displayHeaderAvatar = displayDetails.avatar;
 
   return (
-    <main className="flex-1 flex flex-col h-full min-h-0 bg-slate-950 text-slate-100 relative overflow-hidden">
+    <main className="flex-1 flex flex-col h-full min-h-0 w-full max-w-full bg-slate-950 text-slate-100 relative overflow-hidden">
       {/* Header / Multi-Select Action Bar */}
       {isSelectionMode ? (
-        <header className="shrink-0 w-full p-2.5 sm:p-3 sm:px-6 bg-slate-900 border-b border-rose-950/60 flex items-center justify-between gap-3 z-30 shadow-xl animate-in slide-in-from-top-1 text-white">
-          <div className="flex items-center gap-3">
+        <header className="shrink-0 w-full max-w-full p-2.5 sm:p-3 sm:px-6 bg-slate-900 border-b border-rose-950/60 flex items-center justify-between gap-2 z-30 shadow-xl animate-in slide-in-from-top-1 text-white overflow-hidden">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
               type="button"
               onClick={handleCancelSelection}
-              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              className="p-1.5 sm:p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
               title="Cancel Selection"
             >
               <X className="w-5 h-5" />
             </button>
-            <div>
-              <span className="font-bold text-sm sm:text-base text-rose-300">
+            <div className="min-w-0">
+              <span className="font-bold text-sm sm:text-base text-rose-300 truncate block">
                 {selectedMessageIds.size} Selected
               </span>
               <p className="text-[10px] text-slate-400 hidden sm:block">
@@ -338,11 +338,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               type="button"
               onClick={handleSelectAll}
-              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 hover:text-white transition-colors cursor-pointer"
+              className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 hover:text-white transition-colors cursor-pointer"
             >
               {selectedMessageIds.size === messages.length ? 'Deselect All' : 'Select All'}
             </button>
@@ -351,7 +351,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               type="button"
               onClick={() => setShowDeleteDialog(true)}
               disabled={selectedMessageIds.size === 0}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-xs font-bold text-white shadow-md shadow-rose-600/30 transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-xs font-bold text-white shadow-md shadow-rose-600/30 transition-all cursor-pointer"
               title="Delete Selected Messages"
             >
               <Trash2 className="w-4 h-4" />
@@ -360,7 +360,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </div>
         </header>
       ) : (
-        <header className="shrink-0 w-full p-2.5 sm:p-3 sm:px-4 bg-slate-900/98 border-b border-rose-950/50 flex items-center justify-between gap-2 z-20 backdrop-blur-xl shadow-md">
+        <header className="shrink-0 w-full max-w-full p-2 sm:p-3 sm:px-4 bg-slate-900/98 border-b border-rose-950/50 flex items-center justify-between gap-1.5 sm:gap-2 z-20 backdrop-blur-xl shadow-md overflow-hidden">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           {/* Mobile hamburger menu */}
           <button
@@ -563,14 +563,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
       {/* Recipient Busy & Focus Schedule Banner */}
       {isBusy && recipient && (
-        <div className="shrink-0 bg-amber-950/50 border-b border-amber-600/30 px-3.5 py-2 flex items-center justify-between gap-2 text-xs text-amber-200 z-10 animate-in slide-in-from-top-2">
-          <div className="flex items-center gap-2 truncate">
-            <Moon className="w-4 h-4 text-amber-400 shrink-0" />
+        <div className="shrink-0 bg-amber-950/50 border-b border-amber-600/30 px-3 py-1.5 flex flex-wrap items-center justify-between gap-1 text-xs text-amber-200 z-10 animate-in slide-in-from-top-2 w-full max-w-full overflow-hidden">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            <Moon className="w-3.5 h-3.5 text-amber-400 shrink-0" />
             <span className="truncate">
               <strong>{recipient.name}</strong> is currently {recipient.currentSchedule?.activityTitle} (until {recipient.currentSchedule?.untilTime}). Normal messages arrive silently.
             </span>
           </div>
-          <span className="text-[11px] font-bold text-amber-300 shrink-0 flex items-center gap-1">
+          <span className="text-[10px] sm:text-[11px] font-bold text-amber-300 shrink-0 flex items-center gap-1">
             <Zap className="w-3 h-3 text-amber-400 fill-current" />
             Use Urgent for emergencies
           </span>
@@ -578,13 +578,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       )}
 
       {/* Ephemeral Text & Device Media Notice */}
-      <div className="shrink-0 bg-slate-900/60 border-b border-rose-950/30 px-3 py-1 text-center text-[11px] text-slate-400 flex items-center justify-center gap-1.5">
-        <HardDrive className="w-3 h-3 text-rose-400" />
-        <span>Media stored on device • Online texts auto-purge every {AUTO_PURGE_DAYS} days</span>
+      <div className="shrink-0 bg-slate-900/60 border-b border-rose-950/30 px-3 py-1 text-center text-[10px] sm:text-[11px] text-slate-400 flex items-center justify-center gap-1.5 w-full max-w-full overflow-hidden truncate">
+        <HardDrive className="w-3 h-3 text-rose-400 shrink-0" />
+        <span className="truncate">Media stored on device • Online texts auto-purge every {AUTO_PURGE_DAYS} days</span>
       </div>
 
-      {/* Messages Scroll Area - Scrollable with min-h-0 */}
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-2 sm:p-4 space-y-2">
+      {/* Messages Scroll Area - Strictly vertical scrolling only, zero horizontal overflow */}
+      <div className="flex-1 min-h-0 w-full max-w-full overflow-y-auto overflow-x-hidden overscroll-contain p-2 sm:p-4 space-y-2">
         {/* E2EE Guarantee Banner */}
         <div className="my-3 p-3 max-w-sm mx-auto rounded-2xl bg-slate-900/80 border border-slate-800 text-center text-xs text-slate-400 shadow-sm flex flex-col items-center gap-1.5">
           <div className="w-7 h-7 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
@@ -631,8 +631,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Message Input Bottom Bar - Locked & Sticky at bottom */}
-      <footer className="shrink-0 sticky bottom-0 z-20 w-full">
+      {/* Message Input Bottom Bar - Locked & Sticky at bottom with strict containment */}
+      <footer className="shrink-0 sticky bottom-0 z-20 w-full max-w-full overflow-hidden">
         <MessageInput
           onSendMessage={onSendMessage}
           onSendMedia={onSendMedia}

@@ -1,6 +1,6 @@
 {
-  "summary":  "Comprehensive implementation plan for message & media deletion (long-press, multi-select, delete for me vs everyone), chat-specific WhatsApp-style media gallery, camera video recorder with playback preview, and bottom gallery picker fix.",
-  "updatedAt":  "2026-09-26T12:09:48.703032903Z",
+  "summary":  "Implementation plan for eliminating mobile horizontal scrolling with strict viewport containment and implementing custom overlay video playback with scrub controls for the camera video recorder.",
+  "updatedAt":  "2026-09-26T13:20:34.782017474Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

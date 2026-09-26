@@ -256,7 +256,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   };
 
   return (
-    <div className="relative p-2.5 sm:p-3 bg-slate-900/90 border-t border-rose-950/40 backdrop-blur-md">
+    <div className="relative p-2.5 sm:p-3 bg-slate-900/90 border-t border-rose-950/40 backdrop-blur-md w-full max-w-full overflow-x-hidden">
       {/* Video Note Recorder Modal (portaled to document.body, centered overlay) */}
       {isRecordingVideoNote && (
         <VideoNoteRecorder

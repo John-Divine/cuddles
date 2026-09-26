@@ -1,153 +1,113 @@
-# Message Deletion, Chat Media Gallery, Camera Video Recorder & Gallery Picker Fix
+# Implementation Plan: Strict Mobile Viewport Containment & Camera Video Playback with Scrub Controls
 
-Comprehensive plan to implement multi-message deletion (with "Delete for Everyone" and "Delete for Me"), chat-isolated media gallery, full-screen camera video recorder with playback preview, and reliable mobile gallery image picking.
+## 1. User Intent & Product Strategy
 
----
+### The Problem
+1. **Unwanted Mobile Horizontal Scrolling**: When viewing the chat interface on mobile devices, the viewport is prone to horizontal shifts and side-scrolling, breaking the native app-like experience. This is caused by overflowing header action docks, absolute hover action buttons positioned outside message boundaries (`-left-16` / `-right-16`), and lack of strict `overflow-x: hidden` constraints across mobile containers.
+2. **Camera Video Playback Failure**: In the camera video recorder, recorded videos fail to play upon stopping, appearing blank or missing. Mobile browser decoders (specifically Android Chrome and iOS Safari) reject multi-megabyte `data:video/*;base64` strings as video `src` attributes, requiring real `blob:` URLs created via `URL.createObjectURL(blob)` for hardware-accelerated playback, alongside proper video duration metadata and scrub controls.
 
-### User Review & Critical Decisions
-
-> [!IMPORTANT]
-> Key design and architectural decisions confirmed from user answers:
-
-- **Message Deletion Scope**: Long-pressing or tapping and holding a message opens message selection mode. Deleting provides a choice: **"Delete for everyone"** (purges from Firestore cloud database and both users' chats) or **"Delete for me"** (hides/removes message on current device only).
-- **Chat Media Gallery**: When opened from the chat header icon, it strictly scopes to that individual chat. All collection dropdowns and cross-chat switchers are removed from the chat header view, presenting a clean full-screen media explorer with filter tabs (All, Photos & GIFs, Videos, Voice Notes, Docs).
-- **Sidebar Media Gallery**: Retains global multi-chat view for browsing all sanctuary media across conversations and local vault.
-- **Camera Video Recorder**: Replaces the circular video note button in the mobile `+` attachments menu with a full camera video recorder matching the `CameraCaptureModal` design. Records standard rectangular video, offers camera switching (front/back), timer, and transitions to a playback review screen with **Send** and **Retake** buttons.
-- **Gallery Image Picker Fix**: Fixes the issue where picking an image from Android's gallery doesn't send or show anything. Enhances file reading with immediate preview modal and reliable compression/fallback.
+### Confirmed User Preferences
+- **Video Playback**: Custom overlay video player with intuitive scrub controls, elapsed/total time readout, play/pause toggle, and sound toggle.
+- **Horizontal Scroll Fix**: Strict viewport lock with automatic text wrap, media containment, and responsive mobile flex layout.
 
 ---
 
-## 1. Overview & Core Concept
+## 2. UX, Layout & Visual Design System
 
-1. **Message Management**: Users can delete individual or multiple selected messages and media. If the message was sent by the user, they can choose to delete for everyone or just for themselves.
-2. **Context-Aware Media Explorer**: Opening the gallery from a chat header displays only media exchanged within that specific conversation.
-3. **Mobile Video Camera**: A native-feeling in-app video recorder that captures videos using the device camera, lets the user preview the recorded video, and send with an optional caption.
-4. **Resilient Photo Picker**: Mobile image picking immediately opens an interactive preview modal with Send/Cancel, eliminating silent drops or stalled uploads on Android Chrome.
+### A. Mobile Viewport & Chat Layout Integrity
+- **Zero Horizontal Overflow**:
+  - `html, body, #root`: Hard-locked with `overflow-x: hidden !important; width: 100%; max-width: 100vw;`.
+  - Chat messages feed: Container constrained with `w-full max-w-full overflow-x-hidden overflow-y-auto overscroll-contain`.
+  - Message bubbles: Text wrapping enforced with `break-words [overflow-wrap:anywhere] max-w-[85%] sm:max-w-md`.
+  - Hover Action Docks: Restricted to desktop view (`hidden sm:flex`) so `-left-16` / `-right-16` buttons never bleed beyond mobile screen bounds.
+  - Header & Status Banners: Fluid flex layouts with text truncation and compact responsive hitboxes on narrow screens (<380px).
 
----
-
-## 2. User Experience & Visual Design
-
-### Key User Flows
+### B. Custom Video Playback Review Player
+- **Visual Symmetry**: Continues the dark romantic sanctuary design (`bg-slate-950` with rose/amber highlights).
+- **Controls & Ergonomics**:
+  - **Center Play/Pause Toggle**: Floating circular touch trigger (`w-14 h-14 bg-rose-600/90 text-white backdrop-blur-md shadow-xl`) that fades smoothly during active playback and reappears on tap or pause.
+  - **Scrubber Bar**: Custom draggable timeline scrubber with rose progress fill, allowing instantaneous seeking through recorded footage.
+  - **Time Counters**: Clear monospace timestamps showing current elapsed time and total recorded duration (e.g. `00:04 / 00:15`).
+  - **Audio Toggle**: One-tap mute/unmute control for the review video.
+  - **Action Footers**: Clean, accessible "Retake" button and prominent "Send Video" CTA with optional caption input.
 
 ```
-[Chat Messages] ──(Long Press / Tap & Hold)──> [Multi-Select Mode Active]
-                                                        │
-                                                        ├── Tap messages to toggle selection
-                                                        ├── Top Bar: "N Selected" | [Select All] | [Cancel] | [Trash]
-                                                        │
-                                                        ▼
-                                                [Delete Dialog]
-                                              ┌────────────────────────┐
-                                              │  Delete 2 messages?    │
-                                              │                        │
-                                              │  [Delete for Everyone] │ (if sender)
-                                              │  [Delete for Me]       │
-                                              │  [Cancel]              │
-                                              └────────────────────────┘
-
-[Chat Header Gallery Icon] ──> [Chat Media Explorer (Current Chat Only)]
-                               ├── Header: "[Contact Name] Media"
-                               ├── No dropdowns or other chat collections
-                               └── Tabs: All | Photos | Videos | Voice | Docs
-
-[Mobile + Menu] ──(Video Icon)──> [Camera Video Recorder Modal]
-                                       ├── Live Viewfinder (Front/Back Camera flip)
-                                       ├── Shutter: Red Record / Stop with Live Timer
-                                       └── [Review Screen] ──> Play/Pause + Retake + Send
-
-[Mobile + Menu] ──(Gallery Icon)──> [Native Android Picker] ──> [Image Send Preview Modal]
-                                                                     ├── Large Image Preview
-                                                                     ├── Caption Input
-                                                                     └── [Send Now] / [Cancel]
-```
-
-### Visual Styling & Interactions
-- **Selection Highlights**: Selected message bubbles receive a soft rose-tinted border (`ring-2 ring-rose-500/70 bg-rose-950/20`), with subtle checkmark pills along the edge.
-- **Selection Action Bar**: An animated top bar (`bg-slate-900/95 backdrop-blur-md border-b border-rose-950/50`) displaying selection count, quick "Select All", and a red-accented Trash button.
-- **Camera Video Recorder**: Dark translucent cinematic interface matching `CameraCaptureModal`, with pulsing red recording indicator, duration timer, flip camera toggle, and immediate video playback preview with a glowing Send button.
-
----
-
-## 3. Key Technical Decisions & Trade-Offs
-
-### 1. Message Deletion Architecture ("Delete for Everyone" vs "Delete for Me")
-- **Delete for Everyone**:
-  - Checks that the user is the author of the message(s).
-  - Deletes the document from Firestore (`conversations/{convId}/messages/{msgId}`).
-  - Emits real-time removal or updates message to `{ isDeleted: true, text: 'This message was deleted' }` or complete removal from both participants' state. Complete document removal with synchronized local state ensures zero trace left behind.
-  - Purges any corresponding media file from the device IndexedDB vault if requested.
-- **Delete for Me**:
-  - Adds the message ID to a local `hiddenMessageIds` set stored in `localStorage` / `IndexedDB` under the user account.
-  - Filters out hidden messages from the active view and chat history so the recipient's view remains untouched.
-
-### 2. Chat-Specific Media Gallery Isolation
-- Pass a locked `isChatSpecific={true}` prop to `MediaGalleryModal` when opened from `ChatWindow.tsx`.
-- When `isChatSpecific` is true:
-  - Omit collection dropdowns, chip selectors, and the "Show All Collections" button.
-  - Set the title directly to `${conversation.title} Media`.
-  - Filter `allMediaItems` strictly to `item.conversationId === activeConversation.id`.
-
-### 3. Dedicated Camera Video Recorder Component
-- Build `VideoCameraModal.tsx` utilizing `navigator.mediaDevices.getUserMedia({ video: { facingMode }, audio: true })`.
-- Record standard MP4/WebM video stream via `MediaRecorder`.
-- On stop: Provide an in-modal `<video controls>` review state with Retake (`RotateCcw`) and Send (`Send`), passing the video to `onSendMedia('video', url, duration, ...)`.
-
-### 4. Direct Photo Picker Preview & Send Fix
-- Upgrade `handleImageChange` in `MessageInput.tsx` to handle Android file picker results reliably:
-  - Generate immediate blob preview using `URL.createObjectURL(file)` in addition to base64 compression.
-  - Show a prominent `MediaSendPreviewModal` whenever an image is chosen, with full-size preview, caption bar, and primary "Send" button so the user has immediate visual feedback and clear one-tap delivery.
-
----
-
-## 4. Technical Architecture & Component Hierarchy
-
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                               App.tsx                                  │
-│  - messagesMap, activeConversationId                                   │
-│  - handleDeleteMessages(messageIds, deleteForEveryone)                 │
-│  - showMediaGalleryModal (with scope: 'all' | 'conversation')          │
-└───────────────────┬────────────────────────────────────────────────────┘
-                    │
-        ┌───────────┴───────────────────────────────┐
-        ▼                                           ▼
-┌──────────────────────────────┐        ┌──────────────────────────────┐
-│       ChatWindow.tsx         │        │    MediaGalleryModal.tsx     │
-│  - Selection Mode State      │        │  - When isChatSpecific:      │
-│  - Selection Top Action Bar  │        │    * Hide collection chips   │
-│  - Delete Confirmation Modal │        │    * Lock to single chat     │
-│  - Header Gallery Icon (Only)│        │    * Filter tabs (All/Media/ │
-└──────────────┬───────────────┘        │      Audio/Docs)             │
-               │                        └──────────────────────────────┘
-               ▼
-┌──────────────────────────────────────────────────────────────┐
-│                      MessageInput.tsx                        │
-│  - Mobile Plus Menu (+)                                      │
-│  - Camera Photo Modal (CameraCaptureModal)                   │
-│  - NEW: Camera Video Modal (VideoCameraModal)                │
-│  - NEW: Image Send Preview Modal (MediaSendPreviewModal)     │
-│  - Resilient File Picker Fallbacks                           │
-└──────────────────────────────────────────────────────────────┘
++-------------------------------------------------------+
+|  [Video Icon] Preview Video               [Flip]  [X] |
++-------------------------------------------------------+
+|                                                       |
+|                                                       |
+|                     [ ( > ) Play ]                    |
+|                                                       |
+|                                                       |
+|  [Play/Pause]  ===●==================  00:04 / 00:12  |
+|               Scrubber Timeline Bar         [Mute]    |
++-------------------------------------------------------+
+| [ Add a caption... (optional)                       ] |
+| [ RotateCcw Retake ]             [ Send Send Video  ] |
++-------------------------------------------------------+
 ```
 
 ---
 
-## 5. Verification Plan
+## 3. Technical Architecture & Real Integration Strategy
 
-1. **Message Deletion**:
-   - Long press a message on mobile (or right-click / hold on desktop) -> verify selection mode activates.
-   - Select multiple messages -> check that count updates accurately.
-   - Tap Delete -> verify options for "Delete for everyone" and "Delete for me".
-   - Test "Delete for everyone" -> verify message disappears from chat and Firestore.
-   - Test "Delete for me" -> verify message vanishes from user's screen while remaining intact for peer.
-2. **Chat-Specific Gallery**:
-   - Open a chat and tap the gallery icon in the chat header -> verify only media from this chat is displayed and no collection switcher exists.
-   - Open the sidebar gallery -> verify all media across all conversations remains accessible.
-3. **Camera Video Recorder**:
-   - Tap `+` on mobile -> tap Video camera icon -> verify live camera opens with front/back toggle.
-   - Record video -> tap stop -> verify playback preview plays the recorded video.
-   - Tap Send -> verify video sends as standard video attachment with working playback.
-   - Tap Retake -> verify it returns to recording viewfinder.
-4. **Gallery Image Picker**:
-   - Tap `+` -> tap Photo Gallery -> select image from Android -> verify preview modal immediately opens and tapping Send sends the image to chat without stalls.
+### Architecture Flow
+
+```
++-----------------------------------------------------------------------------------+
+| MediaRecorder (WebM/MP4)                                                          |
+|   |                                                                               |
+|   v (chunksRef -> Blob)                                                           |
+| 1. URL.createObjectURL(blob)                                                      |
+|   |---> Review Video Player (<video src={blobUrl} playsInline />)                |
+|   |---> Custom Overlay Controls (Play/Pause, Scrubber seeking, Mute toggle)       |
+|                                                                                   |
+| 2. User confirms "Send Video"                                                     |
+|   |---> Read Blob via FileReader into persistent Base64 Data URL                  |
+|   |---> Save to IndexedDB Vault (DeviceMediaStorage)                              |
+|   |---> Sync to Firestore collection 'conversations/{id}/messages'                |
+|   |---> Cleanup ObjectURL via URL.revokeObjectURL(blobUrl)                        |
++-----------------------------------------------------------------------------------+
+```
+
+### Key Technical Details
+1. **Blob-First Media Playback**:
+   - `MediaRecorder.onstop` immediately creates a `blobUrl = URL.createObjectURL(blob)` and saves the raw `Blob` reference in state.
+   - The `<video>` element loads `blobUrl`, enabling smooth, hardware-accelerated playback on all mobile devices.
+   - When the user presses "Retake" or unmounts the modal, `URL.revokeObjectURL(blobUrl)` cleanly frees memory.
+2. **Recorded Duration Capture**:
+   - Accurately tracks recorded seconds using a ref counter (`recordingDurationRef.current`) during the recording interval to avoid stale closures.
+3. **Viewport CSS Hardening**:
+   - Eliminate any rogue negative margins (`-ml-1`, `-left-16`, `-right-16`) on mobile touch viewports.
+   - Apply `overflow-x-hidden` on the message scroll container and main chat window.
+
+---
+
+## 4. Work Breakdown & Implementation Phases
+
+### Phase 1: Fix Video Recorder Playback & Custom Scrubber
+- Update `src/components/chat/CameraVideoModal.tsx`:
+  - Store recorded `Blob` and generate `blobUrl` with `URL.createObjectURL(blob)`.
+  - Fix duration calculation via `recordingDurationRef`.
+  - Implement custom overlay scrubber controls:
+    - Scrubber input / timeline with seek handler (`videoRef.current.currentTime = ...`).
+    - Play / Pause overlay and toggle button.
+    - Monospace time indicator (`currentTime` / `duration`).
+    - Audio mute / unmute button.
+  - In `handleSend`, serialize the `blob` to Data URL only upon clicking "Send Video", with a brief encoding loader if needed.
+
+### Phase 2: Eliminate Mobile Horizontal Scrolling
+- Update `src/components/chat/MessageBubble.tsx`:
+  - Guard the hover action dock with `hidden sm:flex` so absolute positioned buttons do not push mobile canvas width.
+  - Enforce `max-w-[85%] sm:max-w-md break-words [overflow-wrap:anywhere]`.
+- Update `src/components/chat/ChatWindow.tsx`:
+  - Add `w-full max-w-full overflow-x-hidden` to the messages container and header wrappers.
+  - Adjust the busy status notification banner to wrap or truncate text on small mobile screens.
+- Update `src/App.tsx` and `src/index.css`:
+  - Ensure strict containment on outer viewports (`max-w-[100vw] overflow-x-hidden`).
+
+### Phase 3: Verification & Compilation
+- Run `compile_applet` and `lint_applet` to verify clean build and type safety.
+- Test video recording, playback controls, retake flow, and send flow.
+- Verify that mobile chat interface only scrolls vertically with zero horizontal sway.
