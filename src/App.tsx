@@ -1492,11 +1492,11 @@ export default function App() {
   };
 
   return (
-    <div className="flex flex-col h-[100dvh] w-full max-w-[100vw] bg-slate-950 text-slate-100 overflow-hidden select-none font-sans antialiased">
+    <div className="flex flex-col h-[100dvh] w-full max-w-[100vw] bg-slate-950 text-slate-100 overflow-hidden overflow-x-hidden select-none font-sans antialiased">
       <OfflineIndicator />
 
       {/* Main Container */}
-      <div className="flex flex-1 h-full overflow-hidden relative">
+      <div className="flex flex-1 h-full w-full max-w-full overflow-hidden overflow-x-hidden relative">
         {/* Sidebar */}
         <Sidebar
           conversations={conversations}

@@ -256,7 +256,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   };
 
   return (
-    <div className="relative p-2.5 sm:p-3 bg-slate-900/90 border-t border-rose-950/40 backdrop-blur-md w-full max-w-full overflow-x-hidden">
+    <div className="relative p-2.5 sm:p-3 bg-slate-900/90 border-t border-rose-950/40 backdrop-blur-md w-full max-w-full overflow-hidden">
       {/* Video Note Recorder Modal (portaled to document.body, centered overlay) */}
       {isRecordingVideoNote && (
         <VideoNoteRecorder
@@ -438,7 +438,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           />
 
           {/* Main Input Row */}
-          <div className="flex items-end gap-1.5 sm:gap-2 relative">
+          <div className="flex items-end gap-1.5 sm:gap-2 relative w-full max-w-full min-w-0">
             {/* Mobile Plus (+) Button & Expandable Action Menu */}
             <div className="relative pb-0.5 sm:hidden" ref={plusMenuRef}>
               <button

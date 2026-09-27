@@ -320,11 +320,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       onTouchEnd={handleTouchEnd}
       onContextMenu={handleContextMenu}
       onClick={handleBubbleClick}
-      className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} my-1 px-1 sm:px-2 group relative transition-all w-full max-w-full overflow-x-hidden ${
+      className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} my-1 px-1 sm:px-2 group relative transition-all w-full max-w-full overflow-hidden ${
         isSelectionMode ? 'cursor-pointer' : ''
       }`}
     >
-      <div className={`flex items-center gap-1.5 sm:gap-2 max-w-[88%] sm:max-w-md min-w-0 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+      <div className={`flex items-center gap-1.5 sm:gap-2 max-w-[88%] sm:max-w-md ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
         {/* Selection Checkbox */}
         {isSelectionMode && (
           <div
@@ -941,10 +941,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             </div>
           )}
 
-          {/* Quick Reaction & Delete Action on Hover (Desktop only, mobile uses tap-and-hold selection) */}
+          {/* Quick Reaction & Delete Action on Hover (Desktop only to prevent horizontal overflow on touch/mobile) */}
           {!isSelectionMode && !message.isDeletedForEveryone && (
             <div
-              className={`absolute top-0 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:flex items-center gap-1 ${
+              className={`hidden sm:flex absolute top-0 opacity-0 group-hover:opacity-100 transition-opacity items-center gap-1 ${
                 isMe ? '-left-16' : '-right-16'
               }`}
             >
