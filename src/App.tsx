@@ -55,7 +55,8 @@ import {
   declineCallInFirestore,
   subscribeToCallStatus,
   getDirectConversationId,
-  subscribeToUserConversations
+  subscribeToUserConversations,
+  markMessageAsReadInFirestore
 } from './lib/firebase';
 import { saveMediaToDeviceVault, getMediaFromDeviceVault, clearDeviceVault } from './lib/deviceMediaStorage';
 import { encryptMessage } from './lib/encryption';
@@ -64,6 +65,7 @@ import { playSentSound, playReceivedSound, playUrgentSound, playConnectSound, pl
 import { AuthScreen } from './components/auth/AuthScreen';
 import { Sidebar } from './components/layout/Sidebar';
 import { ChatWindow } from './components/chat/ChatWindow';
+import { WhatsAppSplashScreen } from './components/layout/WhatsAppSplashScreen';
 import { CallModal } from './components/calls/CallModal';
 import { FloatingCallBar } from './components/calls/FloatingCallBar';
 import { IncomingCallDialog } from './components/calls/IncomingCallDialog';
@@ -132,29 +134,17 @@ export default function App() {
 
   // Conversations state - isolated strictly per account!
   const [conversations, setConversations] = useState<Conversation[]>(() => {
-    const id = getActiveAccountId();
-    if (id) {
-      return getUserConversations(id);
-    }
-    return [];
+    const id = getActiveAccountId() || 'user_me';
+    return getUserConversations(id);
   });
 
-  const [activeConversationId, setActiveConversationId] = useState<string>(() => {
-    const id = getActiveAccountId();
-    if (id) {
-      const userConvs = getUserConversations(id);
-      return userConvs[0]?.id || '';
-    }
-    return '';
-  });
+  // Never auto-select or auto-open a chat on initial load (WhatsApp style)
+  const [activeConversationId, setActiveConversationId] = useState<string>('');
 
-  // Messages state - isolated strictly per account!
+  // Messages state - isolated strictly per account with reliable fallback
   const [messagesMap, setMessagesMap] = useState<Record<string, Message[]>>(() => {
-    const id = getActiveAccountId();
-    if (id) {
-      return getUserMessages(id);
-    }
-    return {};
+    const id = getActiveAccountId() || 'user_me';
+    return getUserMessages(id);
   });
 
   // Contact requests & Modals state
@@ -705,15 +695,50 @@ export default function App() {
     (!currentUser.username || c.username?.trim().toLowerCase().replace(/^@/, '') !== currentUser.username.trim().toLowerCase().replace(/^@/, ''))
   );
 
-  // Active conversation object
-  const activeConversation = conversations.find((c) => c.id === activeConversationId) || conversations[0];
-  const activeMessages = messagesMap[activeConversationId] || [];
+  // Active conversation object (null when no chat is open)
+  const activeConversation = activeConversationId
+    ? (conversations.find((c) => c.id === activeConversationId) || null)
+    : null;
+  const activeMessages = activeConversation ? (messagesMap[activeConversation.id] || []) : [];
 
   // Robust recipient resolution for 1-on-1 chats (guarantees anti-self identity display)
   const activeConversationDisplay = React.useMemo(() => {
+    if (!activeConversation) {
+      return {
+        otherParticipant: null,
+        displayTitle: '',
+        displayAvatar: undefined,
+        isSelfChat: false,
+        isPartner: false
+      };
+    }
     return getConversationDisplayDetails(activeConversation, currentUser, contacts);
   }, [activeConversation, currentUser, contacts]);
   const activeRecipient = activeConversationDisplay.otherParticipant || undefined;
+
+  // Mark incoming messages as read when user is actively viewing this conversation
+  useEffect(() => {
+    if (!activeConversationId) return;
+    const currentList = messagesMap[activeConversationId] || [];
+    const unread = currentList.filter((m) => m.senderId !== currentUser.id && m.status !== 'read');
+    if (unread.length > 0) {
+      unread.forEach((m) => {
+        markMessageAsReadInFirestore(activeConversationId, m.id);
+      });
+      setMessagesMap((prev) => {
+        const list = prev[activeConversationId] || [];
+        const updated = list.map((m) =>
+          m.senderId !== currentUser.id && m.status !== 'read' ? { ...m, status: 'read' as const } : m
+        );
+        const nextMap = { ...prev, [activeConversationId]: updated };
+        if (activeAccount?.id) {
+          saveUserMessages(activeAccount.id, nextMap);
+        }
+        saveStoredData(STORAGE_KEYS.MESSAGES, nextMap);
+        return nextMap;
+      });
+    }
+  }, [activeConversationId, messagesMap[activeConversationId]?.length]);
 
   // Send Text Message with Schedule & Urgent Gating Logic
   const handleSendMessage = async (text: string, priority: MessagePriority = 'normal') => {
@@ -752,6 +777,7 @@ export default function App() {
       senderName: currentUser.name,
       senderAvatar: currentUser.avatar,
       timestamp,
+      createdAtISO: new Date().toISOString(),
       type: 'text',
       text,
       encryptedPayload: encrypted,
@@ -760,11 +786,18 @@ export default function App() {
       deliveredSilently
     };
 
-    // Append to messages list
-    setMessagesMap((prev) => ({
-      ...prev,
-      [activeConversation.id]: [...(prev[activeConversation.id] || []), newMessage]
-    }));
+    // Append to messages list and SAVE IMMEDIATELY to localStorage & account storage
+    setMessagesMap((prev) => {
+      const nextMap = {
+        ...prev,
+        [activeConversation.id]: [...(prev[activeConversation.id] || []), newMessage]
+      };
+      if (activeAccount?.id) {
+        saveUserMessages(activeAccount.id, nextMap);
+      }
+      saveStoredData(STORAGE_KEYS.MESSAGES, nextMap);
+      return nextMap;
+    });
 
     // Sync message to Firebase Firestore
     syncMessageToFirestore(newMessage);
@@ -786,26 +819,33 @@ export default function App() {
       )
     );
 
-    // Update status to delivered then read
+    // Simulate recipient receiving (delivered double tick) then reading (rose-pink double tick)
     setTimeout(() => {
-      setMessagesMap((prev) => ({
-        ...prev,
-        [activeConversation.id]: (prev[activeConversation.id] || []).map((m) =>
-          m.id === newMessage.id ? { ...m, status: 'delivered' } : m
-        )
-      }));
-    }, 1000);
+      setMessagesMap((prev) => {
+        const list = prev[activeConversation.id] || [];
+        const updated = list.map((m) =>
+          m.id === newMessage.id ? { ...m, status: 'delivered' as const } : m
+        );
+        const nextMap = { ...prev, [activeConversation.id]: updated };
+        if (activeAccount?.id) saveUserMessages(activeAccount.id, nextMap);
+        saveStoredData(STORAGE_KEYS.MESSAGES, nextMap);
+        return nextMap;
+      });
+    }, 1200);
 
     setTimeout(() => {
-      setMessagesMap((prev) => ({
-        ...prev,
-        [activeConversation.id]: (prev[activeConversation.id] || []).map((m) =>
-          m.id === newMessage.id ? { ...m, status: 'read' } : m
-        )
-      }));
-    }, 2200);
-
-    // Real-time peer-to-peer: messages are synced to Firestore for real users only
+      setMessagesMap((prev) => {
+        const list = prev[activeConversation.id] || [];
+        const updated = list.map((m) =>
+          m.id === newMessage.id ? { ...m, status: 'read' as const } : m
+        );
+        const nextMap = { ...prev, [activeConversation.id]: updated };
+        if (activeAccount?.id) saveUserMessages(activeAccount.id, nextMap);
+        saveStoredData(STORAGE_KEYS.MESSAGES, nextMap);
+        return nextMap;
+      });
+      markMessageAsReadInFirestore(activeConversation.id, newMessage.id);
+    }, 2800);
   };
 
   // Download Attachment Handler (Auto-Purge from online database upon download to device)

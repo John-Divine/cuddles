@@ -863,12 +863,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                   </div>
                 </div>
 
-                {/* Video Note Device Status pill */}
-                <div className="mt-1 flex items-center gap-1">
+                {/* Video Note Device Status pill & Meta */}
+                <div className="mt-1 flex items-center justify-between gap-2">
                   {message.attachment.isDownloadedToDevice ? (
                     <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-medium bg-slate-900/80 px-2 py-0.5 rounded-full border border-emerald-500/30">
                       <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                      Saved on device • Cloud purged
+                      Saved on device
                     </span>
                   ) : (
                     <button
@@ -876,14 +876,32 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                       className="text-[10px] text-rose-300 hover:text-white flex items-center gap-1 bg-slate-900/80 px-2 py-0.5 rounded-full border border-rose-500/30 transition-colors"
                     >
                       <Download className="w-3 h-3" />
-                      Save to Gallery
+                      Save
                     </button>
                   )}
+
+                  <div className="flex items-center gap-1 text-[10px] text-slate-300">
+                    <span>{message.timestamp}</span>
+                    {isMe && (
+                      <span
+                        className="inline-flex items-center ml-0.5"
+                        title={message.status === 'read' ? 'Seen / Read' : message.status === 'delivered' ? 'Delivered' : 'Sent'}
+                      >
+                        {message.status === 'read' ? (
+                          <CheckCheck className="w-3.5 h-3.5 text-rose-400 drop-shadow-[0_0_6px_rgba(244,63,94,0.95)] inline stroke-[2.5]" />
+                        ) : message.status === 'delivered' ? (
+                          <CheckCheck className="w-3.5 h-3.5 text-slate-400 inline stroke-[2]" />
+                        ) : (
+                          <Check className="w-3.5 h-3.5 text-slate-400 inline stroke-[2]" />
+                        )}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Message Meta: Time + Status */}
+            {/* Message Meta: Time + Status for non-video-note messages */}
             {message.type !== 'video_note' && (
               <div
                 className={`flex items-center justify-end gap-1.5 mt-1 text-[10px] ${
@@ -897,13 +915,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 )}
                 <span>{message.timestamp}</span>
                 {isMe && (
-                  <span>
+                  <span
+                    className="inline-flex items-center ml-0.5"
+                    title={message.status === 'read' ? 'Seen / Read' : message.status === 'delivered' ? 'Delivered' : 'Sent'}
+                  >
                     {message.status === 'read' ? (
-                      <CheckCheck className="w-3.5 h-3.5 text-rose-200 inline" />
+                      <CheckCheck className="w-3.5 h-3.5 text-rose-400 drop-shadow-[0_0_6px_rgba(244,63,94,0.95)] inline stroke-[2.5]" />
                     ) : message.status === 'delivered' ? (
-                      <CheckCheck className="w-3.5 h-3.5 text-slate-300 inline" />
+                      <CheckCheck className="w-3.5 h-3.5 text-slate-400 inline stroke-[2]" />
                     ) : (
-                      <Check className="w-3.5 h-3.5 text-slate-300 inline" />
+                      <Check className="w-3.5 h-3.5 text-slate-400 inline stroke-[2]" />
                     )}
                   </span>
                 )}

@@ -21,7 +21,8 @@ import {
   Image as ImageIcon,
   ChevronDown,
   Trash2,
-  X
+  X,
+  ArrowLeft
 } from 'lucide-react';
 import { Conversation, Message, UserProfile, MessagePriority, MessageType } from '../../types';
 import { MessageBubble } from './MessageBubble';
@@ -58,6 +59,7 @@ interface ChatWindowProps {
   onDeleteMessages?: (messageIds: string[], deleteForEveryone: boolean) => Promise<void> | void;
   onStartCall: (type: 'audio' | 'video') => void;
   onToggleMobileSidebar: () => void;
+  onBackToChatList?: () => void;
   onViewProfile?: (user: UserProfile) => void;
   onUpdateDisappearingTimer?: (minutes: number) => void;
   onOpenAddContactModal?: () => void;
@@ -93,9 +95,27 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 }) => {
   const [showSafetyModal, setShowSafetyModal] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
+  const optionsMenuRef = useRef<HTMLDivElement | null>(null);
   const [selectedVideoNote, setSelectedVideoNote] = useState<Message | null>(null);
   const [selectedVideoFile, setSelectedVideoFile] = useState<Message | null>(null);
   const [copiedUsername, setCopiedUsername] = useState(false);
+
+  // Close options menu when clicking outside
+  useEffect(() => {
+    if (!showOptionsMenu) return;
+    const handleOutside = (e: MouseEvent | PointerEvent) => {
+      if (optionsMenuRef.current && !optionsMenuRef.current.contains(e.target as Node)) {
+        setShowOptionsMenu(false);
+      }
+    };
+    const timer = setTimeout(() => {
+      document.addEventListener('pointerdown', handleOutside);
+    }, 10);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('pointerdown', handleOutside);
+    };
+  }, [showOptionsMenu]);
 
   // Message multi-selection & deletion state
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -315,10 +335,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const displayHeaderAvatar = displayDetails.avatar;
 
   return (
-    <main className="flex-1 w-full max-w-full flex flex-col h-full min-h-0 bg-slate-950 text-slate-100 relative overflow-hidden overflow-x-hidden">
+    <main className="flex-1 w-full max-w-full flex flex-col h-full min-h-0 bg-slate-950 text-slate-100 relative overflow-hidden">
       {/* Header / Multi-Select Action Bar */}
       {isSelectionMode ? (
-        <header className="shrink-0 w-full max-w-full p-2.5 sm:p-3 sm:px-6 bg-slate-900 border-b border-rose-950/60 flex items-center justify-between gap-3 z-30 shadow-xl animate-in slide-in-from-top-1 text-white overflow-hidden">
+        <header className="shrink-0 w-full max-w-full p-2.5 sm:p-3 sm:px-6 bg-slate-900 border-b border-rose-950/60 flex items-center justify-between gap-3 z-30 shadow-xl animate-in slide-in-from-top-1 text-white relative overflow-visible">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -360,21 +380,32 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </div>
         </header>
       ) : (
-        <header className="shrink-0 w-full max-w-full p-2.5 sm:p-3 sm:px-4 bg-slate-900/98 border-b border-rose-950/50 flex items-center justify-between gap-1.5 sm:gap-2 z-20 backdrop-blur-xl shadow-md overflow-hidden">
+        <header className="shrink-0 w-full max-w-full p-2.5 sm:p-3 sm:px-4 bg-slate-900/98 border-b border-rose-950/50 flex items-center justify-between gap-1.5 sm:gap-2 z-20 backdrop-blur-xl shadow-md relative overflow-visible">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          {/* Mobile hamburger menu */}
-          <button
-            onClick={onToggleMobileSidebar}
-            className="lg:hidden p-2 text-slate-300 hover:text-white rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/50 flex items-center justify-center cursor-pointer shrink-0"
-            title="Open chats"
-          >
-            <Menu className="w-5 h-5 text-rose-400" />
-          </button>
+          {/* Mobile Back button or hamburger menu */}
+          {onBackToChatList ? (
+            <button
+              type="button"
+              onClick={onBackToChatList}
+              className="lg:hidden p-2 text-slate-300 hover:text-white rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/50 flex items-center justify-center cursor-pointer shrink-0"
+              title="Back to all chats"
+            >
+              <ArrowLeft className="w-5 h-5 text-rose-400" />
+            </button>
+          ) : (
+            <button
+              onClick={onToggleMobileSidebar}
+              className="lg:hidden p-2 text-slate-300 hover:text-white rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/50 flex items-center justify-center cursor-pointer shrink-0"
+              title="Open chats"
+            >
+              <Menu className="w-5 h-5 text-rose-400" />
+            </button>
+          )}
 
           {/* Conversation Avatar (Clickable to view profile) */}
           <button
             onClick={() => recipient && onViewProfile?.(recipient)}
-            className="relative shrink-0 text-left focus:outline-none group"
+            className="relative shrink-0 text-left focus:outline-none group cursor-pointer"
             title={recipient ? `View ${recipient.name}'s profile` : 'Conversation profile'}
           >
             {displayHeaderAvatar ? (
@@ -390,17 +421,20 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 {displayHeaderTitle.slice(0, 2).toUpperCase()}
               </div>
             )}
-            <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-slate-900 ${
-              isBusy ? 'bg-amber-400' : 'bg-emerald-400'
-            }`} />
+            <span
+              className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-slate-900 ${
+                isBusy ? 'bg-amber-400' : 'bg-emerald-400'
+              }`}
+              title={isBusy ? 'Currently busy / quiet mode' : 'Active and available to chat'}
+            />
           </button>
 
-          {/* Title & E2EE status */}
+          {/* Title & Live Status / Schedule indicator */}
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <button
                 onClick={() => recipient && onViewProfile?.(recipient)}
-                className="font-bold text-sm text-white truncate hover:text-rose-300 transition-colors text-left"
+                className="font-bold text-sm text-white truncate hover:text-rose-300 transition-colors text-left cursor-pointer"
               >
                 {displayHeaderTitle}
               </button>
@@ -412,14 +446,48 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 </span>
               )}
             </div>
-            <button
-              onClick={() => setShowSafetyModal(true)}
-              className="flex items-center gap-1 text-[11px] text-emerald-400 hover:underline hover:text-emerald-300 transition-colors"
-              title="Click to view E2EE Safety Number"
-            >
-              <ShieldCheck className="w-3 h-3 text-emerald-400" />
-              <span>End-to-End Encrypted</span>
-            </button>
+
+            {effectiveRecipient ? (
+              <div className="flex items-center gap-1.5 text-[11px] truncate">
+                {/* Active indicator */}
+                {effectiveRecipient.online !== false ? (
+                  <span className="flex items-center gap-1 text-emerald-400 font-medium shrink-0">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>Active now</span>
+                  </span>
+                ) : (
+                  <span className="text-slate-400 font-medium shrink-0">
+                    <span>Offline</span>
+                  </span>
+                )}
+
+                <span className="text-slate-500 shrink-0">•</span>
+
+                {/* Free vs Busy Schedule Status */}
+                {isBusy ? (
+                  <span className="text-amber-300 font-medium truncate flex items-center gap-1">
+                    <Moon className="w-3 h-3 text-amber-400 shrink-0" />
+                    <span className="truncate">
+                      Busy ({effectiveRecipient.currentSchedule?.activityTitle || 'Focus'} until {effectiveRecipient.currentSchedule?.untilTime || 'later'})
+                    </span>
+                  </span>
+                ) : (
+                  <span className="text-emerald-300 font-medium truncate flex items-center gap-1">
+                    <span className="text-emerald-400">●</span>
+                    <span>Free & Available to chat</span>
+                  </span>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowSafetyModal(true)}
+                className="flex items-center gap-1 text-[11px] text-emerald-400 hover:underline hover:text-emerald-300 transition-colors"
+                title="Click to view E2EE Safety Number"
+              >
+                <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                <span>End-to-End Encrypted</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -470,11 +538,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             <Lock className="w-4 h-4 text-emerald-400" />
           </button>
 
-          {/* More options menu - Pure Action Icons Dock (Never overflows) */}
-          <div className="relative">
+          {/* More options menu (3 Dots) */}
+          <div className="relative shrink-0" ref={optionsMenuRef}>
             <button
-              onClick={() => setShowOptionsMenu(!showOptionsMenu)}
-              className="p-2 sm:p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/60 active:scale-95 transition-all"
+              type="button"
+              onClick={() => setShowOptionsMenu((prev) => !prev)}
+              className={`p-2 sm:p-2.5 rounded-xl border active:scale-95 transition-all cursor-pointer ${
+                showOptionsMenu
+                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/50'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700/60'
+              }`}
               title="More options"
               aria-label="More options"
             >
@@ -482,79 +555,92 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             </button>
 
             {showOptionsMenu && (
-              <>
-                {/* Backdrop dismiss */}
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={() => setShowOptionsMenu(false)}
-                />
-
-                <div className="absolute right-0 top-12 p-2 rounded-2xl bg-slate-900/98 border border-slate-700 shadow-2xl z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-top-2 flex items-center gap-2 max-w-[calc(100vw-24px)]">
-                  {/* Collection Media Gallery Icon */}
-                  {onOpenMediaGallery && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowOptionsMenu(false);
-                        onOpenMediaGallery('conversation', conversation?.id);
-                      }}
-                      className="w-11 h-11 rounded-xl bg-pink-500/15 border border-pink-500/30 hover:bg-pink-500/25 active:scale-95 flex items-center justify-center transition-all cursor-pointer shadow-sm text-pink-400"
-                      title={`View ${displayHeaderTitle}'s Media Collection`}
-                      aria-label="Collection Media Gallery"
-                    >
-                      <ImageIcon className="w-5 h-5 text-pink-400" />
-                    </button>
-                  )}
-
-                  {/* View Contact Profile Icon */}
-                  {effectiveRecipient && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowOptionsMenu(false);
-                        onViewProfile?.(effectiveRecipient);
-                      }}
-                      className="w-11 h-11 rounded-xl bg-rose-500/15 border border-rose-500/30 hover:bg-rose-500/25 active:scale-95 flex items-center justify-center transition-all cursor-pointer shadow-sm text-rose-400"
-                      title="View Contact Profile"
-                      aria-label="View Contact Profile"
-                    >
-                      <User className="w-5 h-5 text-rose-400" />
-                    </button>
-                  )}
-
-                  {/* Verify Safety Number / E2EE Icon */}
+              <div
+                className="absolute right-0 top-12 w-64 rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-2 z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-top-2 select-none"
+                style={{ filter: 'drop-shadow(0 20px 25px rgba(0, 0, 0, 0.75))' }}
+              >
+                {/* Chat Media Gallery */}
+                {onOpenMediaGallery && (
                   <button
                     type="button"
                     onClick={() => {
                       setShowOptionsMenu(false);
-                      setShowSafetyModal(true);
+                      onOpenMediaGallery('conversation', conversation?.id);
                     }}
-                    className="w-11 h-11 rounded-xl bg-emerald-500/15 border border-emerald-500/30 hover:bg-emerald-500/25 active:scale-95 flex items-center justify-center transition-all cursor-pointer shadow-sm text-emerald-400"
-                    title="Verify Safety Number (E2EE)"
-                    aria-label="Verify Safety Number"
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-slate-800/80 active:bg-slate-800 text-slate-200 hover:text-white text-xs font-medium transition-colors cursor-pointer"
                   >
-                    <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                    <div className="w-8 h-8 rounded-lg bg-pink-500/20 text-pink-400 flex items-center justify-center shrink-0">
+                      <ImageIcon className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="block font-semibold">Media & Documents</span>
+                      <span className="block text-[10px] text-slate-400 truncate">Photos, videos, files in this chat</span>
+                    </div>
                   </button>
+                )}
 
-                  {/* Disappearing Messages Timer Icon */}
+                {/* View Contact Profile */}
+                {effectiveRecipient && (
                   <button
                     type="button"
                     onClick={() => {
                       setShowOptionsMenu(false);
-                      onUpdateDisappearingTimer?.(conversation.disappearingTimerMinutes ? 0 : 1440);
+                      onViewProfile?.(effectiveRecipient);
                     }}
-                    className={`w-11 h-11 rounded-xl border active:scale-95 flex items-center justify-center transition-all cursor-pointer shadow-sm ${
-                      conversation.disappearingTimerMinutes
-                        ? 'bg-amber-500/25 border-amber-400 text-amber-300 ring-1 ring-amber-400/50'
-                        : 'bg-amber-500/15 border-amber-500/30 hover:bg-amber-500/25 text-amber-400'
-                    }`}
-                    title={conversation.disappearingTimerMinutes ? 'Disable Disappearing Messages' : 'Enable Disappearing Messages (24h)'}
-                    aria-label="Disappearing Messages Timer"
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-slate-800/80 active:bg-slate-800 text-slate-200 hover:text-white text-xs font-medium transition-colors cursor-pointer"
                   >
-                    <Clock className="w-5 h-5" />
+                    <div className="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
+                      <User className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="block font-semibold">View Contact</span>
+                      <span className="block text-[10px] text-slate-400 truncate">Profile, schedule & nickname</span>
+                    </div>
                   </button>
-                </div>
-              </>
+                )}
+
+                {/* Verify Safety Number / E2EE */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowOptionsMenu(false);
+                    setShowSafetyModal(true);
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-slate-800/80 active:bg-slate-800 text-slate-200 hover:text-white text-xs font-medium transition-colors cursor-pointer"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="block font-semibold">Encryption & Safety</span>
+                    <span className="block text-[10px] text-slate-400 truncate">Verify 256-bit AES-GCM safety number</span>
+                  </div>
+                </button>
+
+                {/* Disappearing Messages Timer */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowOptionsMenu(false);
+                    onUpdateDisappearingTimer?.(conversation.disappearingTimerMinutes ? 0 : 1440);
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-slate-800/80 active:bg-slate-800 text-slate-200 hover:text-white text-xs font-medium transition-colors cursor-pointer"
+                >
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                    conversation.disappearingTimerMinutes
+                      ? 'bg-amber-500/25 text-amber-300 ring-1 ring-amber-400/50'
+                      : 'bg-amber-500/20 text-amber-400'
+                  }`}>
+                    <Clock className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="block font-semibold">Disappearing Messages</span>
+                    <span className="block text-[10px] text-slate-400 truncate">
+                      {conversation.disappearingTimerMinutes ? 'Active: 24h timer (tap to off)' : 'Off (tap to enable 24h)'}
+                    </span>
+                  </div>
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -632,7 +718,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       </div>
 
       {/* Message Input Bottom Bar - Locked & Sticky at bottom */}
-      <footer className="shrink-0 sticky bottom-0 z-20 w-full max-w-full overflow-hidden">
+      <footer className="shrink-0 sticky bottom-0 z-20 w-full max-w-full relative overflow-visible">
         <MessageInput
           onSendMessage={onSendMessage}
           onSendMedia={onSendMedia}
