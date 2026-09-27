@@ -584,7 +584,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       </div>
 
       {/* Messages Scroll Area - Strictly vertical scrolling only, zero horizontal overflow */}
-      <div className="flex-1 min-h-0 w-full max-w-full overflow-y-auto overflow-x-hidden overscroll-contain p-2 sm:p-4 space-y-2">
+      <div className="flex-1 min-h-0 w-full max-w-full overflow-y-auto overflow-x-hidden [touch-action:pan-y] overscroll-contain p-2 sm:p-4 space-y-2">
         {/* E2EE Guarantee Banner */}
         <div className="my-3 p-3 max-w-sm mx-auto rounded-2xl bg-slate-900/80 border border-slate-800 text-center text-xs text-slate-400 shadow-sm flex flex-col items-center gap-1.5">
           <div className="w-7 h-7 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
