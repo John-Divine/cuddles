@@ -356,13 +356,24 @@ export default function App() {
                 );
               }
 
-              const newConvId = getDirectConversationId(activeAccount.id, otherId);
+              const user1 = activeAccount.username || activeAccount.id;
+              const user2 = otherUsername || otherId;
+              const newConvId = getDirectConversationId(user1, user2);
+              const participantList = Array.from(new Set([
+                activeAccount.id,
+                otherId,
+                activeAccount.username,
+                otherUsername,
+                `user_${(activeAccount.username || '').toLowerCase().trim().replace(/^@/, '')}`,
+                `user_${(otherUsername || '').toLowerCase().trim().replace(/^@/, '')}`
+              ].filter(Boolean) as string[]));
+
               const newConv: Conversation = {
                 id: newConvId,
                 title: otherName,
                 avatar: otherAvatar,
                 isGroup: false,
-                participantIds: [activeAccount.id, otherId],
+                participantIds: participantList,
                 partnerIds: req.relationshipType === 'partner' ? [otherId] : [],
                 createdAt: new Date().toISOString(),
                 isE2EESecure: true,
@@ -399,7 +410,7 @@ export default function App() {
                 }
               };
               syncConversationToFirestore(newConv);
-              return [newConv, ...prevConvs];
+              return [newConv, ...prevConvs.filter((c) => c.id !== newConvId)];
             });
           }
         });
@@ -459,7 +470,7 @@ export default function App() {
   // Real-time listener for conversation updates
   useEffect(() => {
     if (!activeAccount) return;
-    const unsubscribe = subscribeToUserConversations(activeAccount.id, (cloudConvs) => {
+    const unsubscribe = subscribeToUserConversations(activeAccount.id, activeAccount.username, (cloudConvs) => {
       if (cloudConvs && cloudConvs.length > 0) {
         setConversations((prev) => {
           const map = new Map<string, Conversation>();
@@ -501,7 +512,7 @@ export default function App() {
     return () => {
       if (typeof unsubscribe === 'function') unsubscribe();
     };
-  }, [activeAccount?.id]);
+  }, [activeAccount?.id, activeAccount?.username]);
 
   // 14-Day Auto-Purge of Ephemeral Online Text Messages on Startup
   useEffect(() => {
@@ -619,9 +630,14 @@ export default function App() {
 
           if (hasNewIncoming) {
             playReceivedSound();
+            markConversationMessagesAsRead(activeConversationId, currentUser.id);
           }
           const merged = Array.from(map.values());
-          merged.sort((a, b) => (a.createdAtISO || a.timestamp).localeCompare(b.createdAtISO || b.timestamp));
+          merged.sort((a, b) => {
+            const tA = a.createdAtISO ? Date.parse(a.createdAtISO) : (a.timestamp ? Date.parse(`1970-01-01T${a.timestamp}`) : 0);
+            const tB = b.createdAtISO ? Date.parse(b.createdAtISO) : (b.timestamp ? Date.parse(`1970-01-01T${b.timestamp}`) : 0);
+            return (isNaN(tA) ? 0 : tA) - (isNaN(tB) ? 0 : tB);
+          });
           const nextMap = {
             ...prev,
             [activeConversationId]: merged
@@ -803,52 +819,37 @@ export default function App() {
     });
 
     // Sync message to Firebase Firestore
-    syncMessageToFirestore(newMessage);
+    syncMessageToFirestore(newMessage).then((synced) => {
+      if (synced) {
+        setMessagesMap((prev) => {
+          const list = prev[activeConversation.id] || [];
+          const updated = list.map((m) =>
+            m.id === newMessage.id ? { ...m, status: 'delivered' as const } : m
+          );
+          const nextMap = { ...prev, [activeConversation.id]: updated };
+          if (activeAccount?.id) saveUserMessages(activeAccount.id, nextMap);
+          saveStoredData(STORAGE_KEYS.MESSAGES, nextMap);
+          return nextMap;
+        });
+      }
+    });
 
-    // Update conversation last message preview
+    // Update conversation last message preview and sync conversation to Firestore
+    const updatedConv: Conversation = {
+      ...activeConversation,
+      lastMessage: {
+        text: priority === 'urgent' ? `⚡ [Urgent] ${text}` : text,
+        timestamp: 'Just now',
+        senderName: currentUser.name,
+        unreadCount: 1
+      },
+      updatedAt: new Date().toISOString()
+    };
+    syncConversationToFirestore(updatedConv);
+
     setConversations((prev) =>
-      prev.map((c) =>
-        c.id === activeConversation.id
-          ? {
-              ...c,
-              lastMessage: {
-                text: priority === 'urgent' ? `⚡ [Urgent] ${text}` : text,
-                timestamp: 'Just now',
-                senderName: 'You',
-                unreadCount: 0
-              }
-            }
-          : c
-      )
+      prev.map((c) => (c.id === activeConversation.id ? updatedConv : c))
     );
-
-    // Simulate recipient receiving (delivered double tick) then reading (rose-pink double tick)
-    setTimeout(() => {
-      setMessagesMap((prev) => {
-        const list = prev[activeConversation.id] || [];
-        const updated = list.map((m) =>
-          m.id === newMessage.id ? { ...m, status: 'delivered' as const } : m
-        );
-        const nextMap = { ...prev, [activeConversation.id]: updated };
-        if (activeAccount?.id) saveUserMessages(activeAccount.id, nextMap);
-        saveStoredData(STORAGE_KEYS.MESSAGES, nextMap);
-        return nextMap;
-      });
-    }, 1200);
-
-    setTimeout(() => {
-      setMessagesMap((prev) => {
-        const list = prev[activeConversation.id] || [];
-        const updated = list.map((m) =>
-          m.id === newMessage.id ? { ...m, status: 'read' as const } : m
-        );
-        const nextMap = { ...prev, [activeConversation.id]: updated };
-        if (activeAccount?.id) saveUserMessages(activeAccount.id, nextMap);
-        saveStoredData(STORAGE_KEYS.MESSAGES, nextMap);
-        return nextMap;
-      });
-      markMessageAsReadInFirestore(activeConversation.id, newMessage.id);
-    }, 2800);
   };
 
   // Download Attachment Handler (Auto-Purge from online database upon download to device)
@@ -1018,22 +1019,35 @@ export default function App() {
             isPurgedFromOnlineDatabase: false
           }
         : undefined
+    }).then((synced) => {
+      if (synced) {
+        setMessagesMap((prev) => {
+          const list = prev[activeConversation.id] || [];
+          const updated = list.map((m) =>
+            m.id === newMessage.id ? { ...m, status: 'delivered' as const } : m
+          );
+          const nextMap = { ...prev, [activeConversation.id]: updated };
+          if (activeAccount?.id) saveUserMessages(activeAccount.id, nextMap);
+          saveStoredData(STORAGE_KEYS.MESSAGES, nextMap);
+          return nextMap;
+        });
+      }
     });
 
+    const updatedMediaConv: Conversation = {
+      ...activeConversation,
+      lastMessage: {
+        text: previewText,
+        timestamp: 'Just now',
+        senderName: currentUser.name,
+        unreadCount: 1
+      },
+      updatedAt: new Date().toISOString()
+    };
+    syncConversationToFirestore(updatedMediaConv);
+
     setConversations((prev) =>
-      prev.map((c) =>
-        c.id === activeConversation.id
-          ? {
-              ...c,
-              lastMessage: {
-                text: previewText,
-                timestamp: 'Just now',
-                senderName: 'You',
-                unreadCount: 0
-              }
-            }
-          : c
-      )
+      prev.map((c) => (c.id === activeConversation.id ? updatedMediaConv : c))
     );
 
     // Media message dispatched cleanly to cloud and recipient without simulated responses
@@ -1307,11 +1321,74 @@ export default function App() {
 
   // Start Chat with contact from modal
   const handleStartChatWithContact = (contactId: string) => {
+    const contact = contacts.find((c) => c.id === contactId);
     let conv = conversations.find(
-      (c) => !c.isGroup && c.participantIds.includes(contactId)
+      (c) =>
+        !c.isGroup &&
+        (c.participantIds.includes(contactId) ||
+          (contact?.username && c.participantIds.includes(contact.username)) ||
+          (contact?.username && c.participantIds.includes(`user_${contact.username.toLowerCase().replace(/^@/, '')}`)))
     );
     if (conv) {
       setActiveConversationId(conv.id);
+      return;
+    }
+    if (contact && activeAccount) {
+      const user1 = activeAccount.username || activeAccount.id;
+      const user2 = contact.username || contact.id;
+      const convId = getDirectConversationId(user1, user2);
+      const participantList = Array.from(new Set([
+        activeAccount.id,
+        contact.id,
+        activeAccount.username,
+        contact.username,
+        `user_${(activeAccount.username || '').toLowerCase().trim().replace(/^@/, '')}`,
+        `user_${(contact.username || '').toLowerCase().trim().replace(/^@/, '')}`
+      ].filter(Boolean) as string[]));
+
+      const newConv: Conversation = {
+        id: convId,
+        title: contact.name,
+        avatar: contact.avatar,
+        isGroup: false,
+        participantIds: participantList,
+        partnerIds: contact.relationshipType === 'partner' ? [contact.id] : [],
+        createdAt: new Date().toISOString(),
+        isE2EESecure: true,
+        sharedKeyFingerprint: Math.random().toString(16).substring(2, 10).toUpperCase(),
+        titles: {
+          [activeAccount.id]: contact.name,
+          [contact.id]: activeAccount.name
+        },
+        avatars: {
+          [activeAccount.id]: contact.avatar || '',
+          [contact.id]: activeAccount.avatar || ''
+        },
+        participantDetails: {
+          [activeAccount.id]: {
+            id: activeAccount.id,
+            name: activeAccount.name,
+            username: activeAccount.username,
+            avatar: activeAccount.avatar
+          },
+          [contact.id]: {
+            id: contact.id,
+            name: contact.name,
+            username: contact.username || '',
+            avatar: contact.avatar || '',
+            relationshipType: contact.relationshipType
+          }
+        },
+        lastMessage: {
+          text: 'Start chatting securely in Sanctuary.',
+          timestamp: 'Just now',
+          senderName: 'Cuddles',
+          unreadCount: 0
+        }
+      };
+      syncConversationToFirestore(newConv);
+      setConversations((prev) => [newConv, ...prev.filter((c) => c.id !== convId)]);
+      setActiveConversationId(newConv.id);
     }
   };
 
@@ -1395,13 +1472,24 @@ export default function App() {
       return [...prevContacts, newContact];
     });
 
-    const newConvId = getDirectConversationId(activeAccount.id, otherId);
+    const user1 = activeAccount.username || activeAccount.id;
+    const user2 = otherUsername || otherId;
+    const newConvId = getDirectConversationId(user1, user2);
+    const participantList = Array.from(new Set([
+      activeAccount.id,
+      otherId,
+      activeAccount.username,
+      otherUsername,
+      `user_${(activeAccount.username || '').toLowerCase().trim().replace(/^@/, '')}`,
+      `user_${(otherUsername || '').toLowerCase().trim().replace(/^@/, '')}`
+    ].filter(Boolean) as string[]));
+
     const newConv: Conversation = {
       id: newConvId,
       title: otherName,
       avatar: otherAvatar,
       isGroup: false,
-      participantIds: [activeAccount.id, otherId],
+      participantIds: participantList,
       partnerIds: req.relationshipType === 'partner' ? [otherId] : [],
       createdAt: new Date().toISOString(),
       isE2EESecure: true,

@@ -652,7 +652,7 @@ export function loadStoredData<T>(key: string, fallback: T): T {
 export function saveStoredData<T>(key: string, data: T): void {
   try {
     // If saving messages map, ensure massive base64 media (which are safely in IndexedDB vault)
-    // don't exceed the browser's strict 5MB localStorage quota.
+    // and large avatars don't exceed the browser's strict 5MB localStorage quota.
     let payloadToStore = data;
     if (
       (key === STORAGE_KEYS.MESSAGES || key.includes('_messages')) &&
@@ -663,17 +663,25 @@ export function saveStoredData<T>(key: string, data: T): void {
       const source = data as Record<string, Message[]>;
       for (const convId of Object.keys(source)) {
         sanitizedMap[convId] = (source[convId] || []).map((msg) => {
-          if (msg.attachment?.url && msg.attachment.url.length > 30000) {
-            return {
-              ...msg,
+          let cleaned = msg;
+          // Prune massive senderAvatar data URLs to save quota
+          if (cleaned.senderAvatar && cleaned.senderAvatar.startsWith('data:') && cleaned.senderAvatar.length > 5000) {
+            cleaned = {
+              ...cleaned,
+              senderAvatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleaned.senderName || cleaned.senderId)}`
+            };
+          }
+          if (cleaned.attachment?.url && cleaned.attachment.url.length > 30000) {
+            cleaned = {
+              ...cleaned,
               attachment: {
-                ...msg.attachment,
-                url: '', // Stored in IndexedDB device vault
+                ...cleaned.attachment,
+                url: '', // Stored safely in IndexedDB device vault
                 isStoredLocally: true
               }
             };
           }
-          return msg;
+          return cleaned;
         });
       }
       payloadToStore = sanitizedMap as unknown as T;
@@ -681,7 +689,7 @@ export function saveStoredData<T>(key: string, data: T): void {
 
     localStorage.setItem(key, JSON.stringify(payloadToStore));
   } catch (e) {
-    console.error('Storage save error (safely handled):', e);
+    console.warn('Storage save warning (safely handled quota protection):', e);
   }
 }
 

@@ -54,9 +54,18 @@ export function sanitizeForFirestore<T>(obj: T): T {
 /**
  * Deterministic conversation ID for two users so both User A and User B
  * always connect to the exact same conversation document and messages subcollection.
+ * Normalizes usernames/IDs by stripping 'user_' and '@' prefixes and lowercasing.
  */
 export function getDirectConversationId(userId1: string, userId2: string): string {
-  const sorted = [userId1, userId2].sort();
+  const clean = (val: string) =>
+    (val || '')
+      .toLowerCase()
+      .trim()
+      .replace(/^user_/, '')
+      .replace(/^@/, '');
+  const c1 = clean(userId1);
+  const c2 = clean(userId2);
+  const sorted = [c1, c2].sort();
   return `conv_${sorted[0]}_${sorted[1]}`;
 }
 
@@ -203,21 +212,78 @@ export async function fetchUsersFromFirestore(): Promise<UserAccount[]> {
 }
 
 /**
+ * Find an existing 1-on-1 conversation in Firestore between two users
+ * by checking if both users' IDs or usernames are in participantIds.
+ */
+export async function findExistingConversationInFirestore(
+  user1Identifiers: string[],
+  user2Identifiers: string[]
+): Promise<Conversation | null> {
+  try {
+    const convsCol = collection(db, 'conversations');
+    const snapshot = await getDocs(convsCol);
+    const cleanSet1 = new Set(
+      user1Identifiers
+        .filter(Boolean)
+        .map((u) => u.toLowerCase().trim().replace(/^user_/, '').replace(/^@/, ''))
+    );
+    const cleanSet2 = new Set(
+      user2Identifiers
+        .filter(Boolean)
+        .map((u) => u.toLowerCase().trim().replace(/^user_/, '').replace(/^@/, ''))
+    );
+
+    for (const d of snapshot.docs) {
+      const data = d.data() as Conversation;
+      if (!data || data.isGroup || !data.participantIds) continue;
+      const cleanParticipants = data.participantIds.map((p) =>
+        (p || '').toLowerCase().trim().replace(/^user_/, '').replace(/^@/, '')
+      );
+      const hasUser1 = cleanParticipants.some((p) => cleanSet1.has(p));
+      const hasUser2 = cleanParticipants.some((p) => cleanSet2.has(p));
+      if (hasUser1 && hasUser2) {
+        return data;
+      }
+    }
+  } catch (err) {
+    console.warn('Error finding conversation in Firestore:', err);
+  }
+  return null;
+}
+
+/**
  * Save / update conversation in Firestore
  */
 export async function syncConversationToFirestore(conv: Conversation): Promise<void> {
   const path = `conversations/${conv.id}`;
   try {
     const convRef = doc(db, 'conversations', conv.id);
+
+    // Ensure all variants of participant identifiers are present
+    const rawParticipants = conv.participantIds || [];
+    const normalizedSet = new Set<string>();
+    rawParticipants.forEach((p) => {
+      if (!p) return;
+      normalizedSet.add(p);
+      const clean = p.toLowerCase().trim().replace(/^user_/, '').replace(/^@/, '');
+      if (clean) {
+        normalizedSet.add(clean);
+        normalizedSet.add(`user_${clean}`);
+      }
+    });
+
     const sanitized = sanitizeForFirestore({
       id: conv.id,
       title: conv.title || '',
       avatar: conv.avatar || '',
-      participantIds: conv.participantIds || [],
+      participantIds: Array.from(normalizedSet),
       partnerIds: conv.partnerIds || [],
       isGroup: !!conv.isGroup,
       isE2EESecure: !!conv.isE2EESecure,
       sharedKeyFingerprint: conv.sharedKeyFingerprint || '',
+      titles: conv.titles || {},
+      avatars: conv.avatars || {},
+      participantDetails: conv.participantDetails || {},
       lastMessage: conv.lastMessage || null,
       disappearingTimerMinutes: conv.disappearingTimerMinutes || 0,
       updatedAt: new Date().toISOString()
@@ -239,6 +305,14 @@ export async function syncMessageToFirestore(message: Message): Promise<boolean>
       ...message,
       createdAtISO: message.createdAtISO || new Date().toISOString()
     };
+
+    // If sender avatar is a massive base64 string (> 15KB), use clean Dicebear avatar URL in cloud to prevent bloat
+    if (messageToSave.senderAvatar && messageToSave.senderAvatar.startsWith('data:') && messageToSave.senderAvatar.length > 15000) {
+      messageToSave = {
+        ...messageToSave,
+        senderAvatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(message.senderName || message.senderId)}`
+      };
+    }
 
     // If attachment dataUrl is too large for a Firestore doc (>850KB),
     // save message with thumbnail/metadata in Firestore to avoid 1MiB reject error.
@@ -392,14 +466,21 @@ export function subscribeToConversationMessages(
       (snapshot) => {
         const msgs: Message[] = [];
         snapshot.forEach((docSnap) => {
-          msgs.push(docSnap.data() as Message);
+          const data = docSnap.data() as Message;
+          if (data && data.id) {
+            msgs.push(data);
+          }
         });
-        // Sort messages chronologically by timestamp or createdAtISO
-        msgs.sort((a, b) => (a.createdAtISO || a.timestamp).localeCompare(b.createdAtISO || b.timestamp));
+        // Sort messages strictly chronologically by milliseconds
+        msgs.sort((a, b) => {
+          const tA = a.createdAtISO ? Date.parse(a.createdAtISO) : (a.timestamp ? Date.parse(`1970-01-01T${a.timestamp}`) : 0);
+          const tB = b.createdAtISO ? Date.parse(b.createdAtISO) : (b.timestamp ? Date.parse(`1970-01-01T${b.timestamp}`) : 0);
+          return (isNaN(tA) ? 0 : tA) - (isNaN(tB) ? 0 : tB);
+        });
         onUpdate(msgs);
       },
       (error) => {
-        console.warn('Real-time listener notice on path:', path, error);
+        console.warn('Real-time message listener notice on path:', path, error);
       }
     );
   } catch (err) {
@@ -413,8 +494,15 @@ export function subscribeToConversationMessages(
  */
 export function subscribeToUserConversations(
   userId: string,
-  onUpdate: (conversations: Conversation[]) => void
+  userUsername?: string,
+  onUpdate?: (conversations: Conversation[]) => void
 ): Unsubscribe {
+  // Support both (userId, onUpdate) and (userId, userUsername, onUpdate)
+  const actualOnUpdate = typeof userUsername === 'function' ? (userUsername as unknown as (conversations: Conversation[]) => void) : onUpdate;
+  const usernameClean = typeof userUsername === 'string' ? userUsername.toLowerCase().trim().replace(/^@/, '') : '';
+
+  if (!actualOnUpdate) return () => {};
+
   try {
     const convsCol = collection(db, 'conversations');
     return onSnapshot(
@@ -423,13 +511,22 @@ export function subscribeToUserConversations(
         const list: Conversation[] = [];
         snapshot.forEach((d) => {
           const data = d.data() as Conversation;
-          if (data && data.participantIds && data.participantIds.includes(userId)) {
+          if (!data || !data.participantIds) return;
+
+          const isParticipant = data.participantIds.some((p) => {
+            if (!p) return false;
+            const cleanP = p.toLowerCase().trim().replace(/^user_/, '').replace(/^@/, '');
+            if (p === userId) return true;
+            if (usernameClean && cleanP === usernameClean) return true;
+            if (usernameClean && p === `user_${usernameClean}`) return true;
+            return false;
+          });
+
+          if (isParticipant) {
             list.push(data);
           }
         });
-        if (list.length > 0) {
-          onUpdate(list);
-        }
+        actualOnUpdate(list);
       },
       (err) => console.warn('Conversations listener warning:', err)
     );
@@ -446,21 +543,24 @@ export async function purgeExpiredOnlineMessagesFromFirestore(
   conversationId: string,
   olderThanDays: number = 15
 ): Promise<number> {
-  const cutoffTime = new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000).toISOString();
+  const cutoffMs = Date.now() - olderThanDays * 24 * 60 * 60 * 1000;
   try {
     const messagesRef = collection(db, 'conversations', conversationId, 'messages');
     const snapshot = await getDocs(messagesRef);
     let deletedCount = 0;
     for (const docSnap of snapshot.docs) {
       const data = docSnap.data();
-      const time = data.createdAtISO || data.timestamp;
-      if (time && time < cutoffTime) {
-        await deleteDoc(doc(db, 'conversations', conversationId, 'messages', docSnap.id));
-        deletedCount++;
+      if (data.createdAtISO) {
+        const msgTime = Date.parse(data.createdAtISO);
+        // Only delete if it's a valid date and strictly older than 15 days
+        if (!isNaN(msgTime) && msgTime < cutoffMs) {
+          await deleteDoc(doc(db, 'conversations', conversationId, 'messages', docSnap.id));
+          deletedCount++;
+        }
       }
     }
     if (deletedCount > 0) {
-      console.log(`[Online Retention] Purged ${deletedCount} messages older than 15 days from Firestore: ${conversationId}`);
+      console.log(`[Online Retention] Purged ${deletedCount} messages older than ${olderThanDays} days from Firestore: ${conversationId}`);
     }
     return deletedCount;
   } catch (err) {
@@ -513,6 +613,36 @@ export async function searchUserByUsernameInFirestore(username: string): Promise
     }
   } catch (err) {
     console.warn('Search user by username error:', err);
+  }
+  return null;
+}
+
+/**
+ * Authenticate against Firestore users collection for cross-device sign-in.
+ */
+export async function authenticateWithFirestore(
+  identifier: string,
+  pass: string
+): Promise<UserAccount | null> {
+  const clean = identifier.trim().replace(/^@/, '').toLowerCase();
+  if (!clean || !pass) return null;
+  try {
+    const usersCol = collection(db, 'users');
+    const snapshot = await getDocs(usersCol);
+    for (const d of snapshot.docs) {
+      const data = d.data() as UserAccount;
+      if (!data) continue;
+      const cleanDataUser = (data.username || '').trim().replace(/^@/, '').toLowerCase();
+      const matchIdentifier =
+        cleanDataUser === clean ||
+        (data.email && data.email.toLowerCase().trim() === clean) ||
+        data.id === clean;
+      if (matchIdentifier && data.password === pass) {
+        return data;
+      }
+    }
+  } catch (err) {
+    console.warn('Firestore authentication check notice:', err);
   }
   return null;
 }
