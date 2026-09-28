@@ -25,7 +25,7 @@ import {
   setActiveAccountId,
   saveStoredAccount
 } from '../../lib/storage';
-import { syncUserToFirestore, authenticateWithFirestore } from '../../lib/firebase';
+import { syncUserToFirestore } from '../../lib/firebase';
 import { UserAccount } from '../../types';
 import { PWAInstallBanner } from '../pwa/PWAInstallBanner';
 import { PWAInstallModal } from '../pwa/PWAInstallModal';
@@ -131,15 +131,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
         return;
       }
 
-      let account = authenticateAccount(email, password);
-      if (!account) {
-        // Fallback to checking Firestore cloud database for cross-device sign-in
-        account = await authenticateWithFirestore(email, password);
-        if (account) {
-          saveStoredAccount(account);
-        }
-      }
-
+      const account = authenticateAccount(email, password);
       if (!account) {
         setError('Incorrect username/email or password. If you do not have an account yet, tap Create Account.');
         return;

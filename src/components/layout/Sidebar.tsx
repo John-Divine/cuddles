@@ -44,7 +44,6 @@ interface SidebarProps {
   onOpenMediaGallery?: () => void;
   onStartCall: (conversationId: string, type: 'audio' | 'video') => void;
   isMobileOpen?: boolean;
-  isMobileFullWidth?: boolean;
   onCloseMobile?: () => void;
 }
 
@@ -66,7 +65,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenMediaGallery,
   onStartCall,
   isMobileOpen = false,
-  isMobileFullWidth = false,
   onCloseMobile,
 }) => {
   const { isInstalled, platformName } = usePWAInstall();
@@ -92,13 +90,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside
-      className={
-        isMobileFullWidth
-          ? 'w-full max-w-full lg:max-w-sm lg:w-88 bg-slate-900 border-r border-rose-950/40 flex flex-col shadow-2xl h-full static translate-x-0 backdrop-blur-2xl z-30'
-          : `fixed inset-y-0 left-0 z-[100] w-full max-w-[340px] sm:max-w-sm sm:w-88 bg-slate-900 border-r border-rose-950/40 flex flex-col shadow-2xl transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 backdrop-blur-2xl ${
-              isMobileOpen ? 'translate-x-0' : '-translate-x-full'
-            }`
-      }
+      className={`fixed inset-y-0 left-0 z-[100] w-full max-w-[340px] sm:max-w-sm sm:w-88 bg-slate-900 border-r border-rose-950/40 flex flex-col shadow-2xl transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 backdrop-blur-2xl ${
+        isMobileOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}
     >
       {/* Header Action Bar: Spacious, Prominent Icons (No title, maximum room for large icons) */}
       <div className="p-3 pt-3 sm:pt-3.5 border-b border-rose-950/40 bg-slate-900/98 flex items-center justify-between gap-1.5 sm:gap-2">
