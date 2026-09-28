@@ -1,6 +1,6 @@
 {
-  "summary":  "Comprehensive implementation plan for message & media deletion (long-press, multi-select, delete for me vs everyone), chat-specific WhatsApp-style media gallery, camera video recorder with playback preview, and bottom gallery picker fix.",
-  "updatedAt":  "2026-09-26T12:09:48.703032903Z",
+  "summary":  "Implementation plan for WhatsApp-style chat selection landing, romantic double-tick read receipts, live active/schedule status with quiet delivery, fixing plus/3-dots menu clipping, and restoring full media & message persistence.",
+  "updatedAt":  "2026-09-27T18:14:27.599016920Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

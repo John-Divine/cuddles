@@ -235,15 +235,29 @@ export async function syncMessageToFirestore(message: Message): Promise<boolean>
   const path = `conversations/${message.conversationId}/messages/${message.id}`;
   try {
     const msgRef = doc(db, 'conversations', message.conversationId, 'messages', message.id);
-    const sanitized = sanitizeForFirestore({
+    let messageToSave = {
       ...message,
       createdAtISO: message.createdAtISO || new Date().toISOString()
-    });
-    const payloadStr = JSON.stringify(sanitized);
-    if (payloadStr.length > 1000000) {
-      console.warn(`[Firestore Transfer] Notice: Message payload size (${payloadStr.length} bytes) is near or exceeds 1 MiB limit!`);
+    };
+
+    // If attachment dataUrl is too large for a Firestore doc (>850KB),
+    // save message with thumbnail/metadata in Firestore to avoid 1MiB reject error.
+    if (messageToSave.attachment?.url && messageToSave.attachment.url.length > 850000) {
+      console.warn(`[Firestore Transfer] Large media payload (${messageToSave.attachment.url.length} chars) preserved locally in IndexedDB; metadata saved to cloud.`);
+      messageToSave = {
+        ...messageToSave,
+        attachment: {
+          ...messageToSave.attachment,
+          url: '',
+          isPurgedFromOnlineDatabase: true,
+          isStoredLocally: true,
+          isDownloadedToDevice: true
+        }
+      };
     }
-    await setDoc(msgRef, sanitized);
+
+    const sanitized = sanitizeForFirestore(messageToSave);
+    await setDoc(msgRef, sanitized, { merge: true });
     return true;
   } catch (err) {
     console.error('Could not sync message to Firestore:', err);
@@ -301,6 +315,63 @@ export async function deleteMessageFromFirestore(
   } catch (err) {
     console.warn('Could not delete message from Firestore:', err);
     return false;
+  }
+}
+
+/**
+ * Update message status to 'read' in Firestore when the recipient views it
+ */
+export async function markMessageAsReadInFirestore(
+  conversationId: string,
+  messageId: string
+): Promise<void> {
+  try {
+    const msgRef = doc(db, 'conversations', conversationId, 'messages', messageId);
+    await updateDoc(msgRef, {
+      status: 'read',
+      readAt: new Date().toISOString()
+    });
+  } catch (err) {
+    // If updateDoc fails (e.g. document does not exist yet or offline), non-critical warning
+    console.warn('Could not mark message as read in Firestore:', err);
+  }
+}
+
+/**
+ * Mark all unread messages from other participants as 'read' in Firestore
+ */
+export async function markConversationMessagesAsRead(
+  conversationId: string,
+  currentUserId: string
+): Promise<number> {
+  if (!conversationId || !currentUserId) return 0;
+  try {
+    const messagesCollection = collection(db, 'conversations', conversationId, 'messages');
+    const snapshot = await getDocs(messagesCollection);
+    let count = 0;
+    const updatePromises: Promise<any>[] = [];
+    const readAt = new Date().toISOString();
+
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data() as Message;
+      if (data && data.senderId !== currentUserId && data.status !== 'read') {
+        count++;
+        updatePromises.push(
+          updateDoc(docSnap.ref, {
+            status: 'read',
+            readAt
+          }).catch((e) => console.warn('Could not update msg read status:', e))
+        );
+      }
+    });
+
+    if (updatePromises.length > 0) {
+      await Promise.all(updatePromises);
+    }
+    return count;
+  } catch (err) {
+    console.warn('Could not mark conversation messages as read:', err);
+    return 0;
   }
 }
 

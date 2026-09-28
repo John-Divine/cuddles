@@ -592,10 +592,17 @@ export function saveUserContacts(userId: string, contacts: UserProfile[]): void 
 }
 
 export function getUserConversations(userId: string): Conversation[] {
-  if (userId === 'user_me') {
-    return loadStoredData<Conversation[]>(getUserScopedKey(userId, 'conversations'), INITIAL_CONVERSATIONS);
+  const scopedKey = getUserScopedKey(userId, 'conversations');
+  const storedScoped = loadStoredData<Conversation[] | null>(scopedKey, null);
+  if (storedScoped && Array.isArray(storedScoped) && storedScoped.length > 0) {
+    return storedScoped;
   }
-  return loadStoredData<Conversation[]>(getUserScopedKey(userId, 'conversations'), []);
+  const legacyStored = loadStoredData<Conversation[] | null>(STORAGE_KEYS.CONVERSATIONS, null);
+  if (legacyStored && Array.isArray(legacyStored) && legacyStored.length > 0) {
+    saveStoredData(scopedKey, legacyStored);
+    return legacyStored;
+  }
+  return INITIAL_CONVERSATIONS;
 }
 
 export function saveUserConversations(userId: string, conversations: Conversation[]): void {
@@ -603,10 +610,17 @@ export function saveUserConversations(userId: string, conversations: Conversatio
 }
 
 export function getUserMessages(userId: string): Record<string, Message[]> {
-  if (userId === 'user_me') {
-    return loadStoredData<Record<string, Message[]>>(getUserScopedKey(userId, 'messages'), INITIAL_MESSAGES);
+  const scopedKey = getUserScopedKey(userId, 'messages');
+  const storedScoped = loadStoredData<Record<string, Message[]> | null>(scopedKey, null);
+  if (storedScoped && typeof storedScoped === 'object' && Object.keys(storedScoped).length > 0) {
+    return storedScoped;
   }
-  return loadStoredData<Record<string, Message[]>>(getUserScopedKey(userId, 'messages'), {});
+  const legacyStored = loadStoredData<Record<string, Message[]> | null>(STORAGE_KEYS.MESSAGES, null);
+  if (legacyStored && typeof legacyStored === 'object' && Object.keys(legacyStored).length > 0) {
+    saveStoredData(scopedKey, legacyStored);
+    return legacyStored;
+  }
+  return INITIAL_MESSAGES;
 }
 
 export function saveUserMessages(userId: string, messages: Record<string, Message[]>): void {
@@ -637,10 +651,39 @@ export function loadStoredData<T>(key: string, fallback: T): T {
 
 export function saveStoredData<T>(key: string, data: T): void {
   try {
-    localStorage.setItem(key, JSON.stringify(data));
+    // If saving messages map, ensure massive base64 media (which are safely in IndexedDB vault)
+    // don't exceed the browser's strict 5MB localStorage quota.
+    let payloadToStore = data;
+    if (
+      (key === STORAGE_KEYS.MESSAGES || key.includes('_messages')) &&
+      data &&
+      typeof data === 'object'
+    ) {
+      const sanitizedMap: Record<string, Message[]> = {};
+      const source = data as Record<string, Message[]>;
+      for (const convId of Object.keys(source)) {
+        sanitizedMap[convId] = (source[convId] || []).map((msg) => {
+          if (msg.attachment?.url && msg.attachment.url.length > 30000) {
+            return {
+              ...msg,
+              attachment: {
+                ...msg.attachment,
+                url: '', // Stored in IndexedDB device vault
+                isStoredLocally: true
+              }
+            };
+          }
+          return msg;
+        });
+      }
+      payloadToStore = sanitizedMap as unknown as T;
+    }
+
+    localStorage.setItem(key, JSON.stringify(payloadToStore));
   } catch (e) {
-    console.error('Storage save error:', e);
+    console.error('Storage save error (safely handled):', e);
   }
 }
 
 export { STORAGE_KEYS };
+
