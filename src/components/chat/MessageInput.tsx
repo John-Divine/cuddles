@@ -91,18 +91,19 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   // Close plus menu when clicking outside
   useEffect(() => {
-    const handleClickOutside = (e: Event) => {
+    if (!showPlusMenu) return;
+    const handleOutsideClick = (e: MouseEvent | PointerEvent) => {
       if (plusMenuRef.current && !plusMenuRef.current.contains(e.target as Node)) {
         setShowPlusMenu(false);
       }
     };
-    if (showPlusMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('touchstart', handleClickOutside);
-    }
+    // Use timeout to prevent the current toggle event from immediately dismissing
+    const timer = setTimeout(() => {
+      document.addEventListener('pointerdown', handleOutsideClick);
+    }, 10);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('touchstart', handleClickOutside);
+      clearTimeout(timer);
+      document.removeEventListener('pointerdown', handleOutsideClick);
     };
   }, [showPlusMenu]);
 
@@ -256,7 +257,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   };
 
   return (
-    <div className="relative p-2.5 sm:p-3 bg-slate-900/90 border-t border-rose-950/40 backdrop-blur-md">
+    <div className="relative p-2.5 sm:p-3 bg-slate-900/90 border-t border-rose-950/40 backdrop-blur-md w-full max-w-full overflow-visible">
       {/* Video Note Recorder Modal (portaled to document.body, centered overlay) */}
       {isRecordingVideoNote && (
         <VideoNoteRecorder
@@ -438,16 +439,16 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           />
 
           {/* Main Input Row */}
-          <div className="flex items-end gap-1.5 sm:gap-2 relative">
-            {/* Mobile Plus (+) Button & Expandable Action Menu */}
-            <div className="relative pb-0.5 sm:hidden" ref={plusMenuRef}>
+          <div className="flex items-end gap-1.5 sm:gap-2 relative w-full max-w-full min-w-0">
+            {/* Plus (+) Button & Expandable Action Menu (Always accessible on Mobile & Desktop) */}
+            <div className="relative pb-0.5 shrink-0" ref={plusMenuRef}>
               <button
                 type="button"
-                onClick={() => setShowPlusMenu(!showPlusMenu)}
-                className={`w-10 h-10 rounded-2xl flex items-center justify-center border transition-all active:scale-95 shadow-sm ${
+                onClick={() => setShowPlusMenu((prev) => !prev)}
+                className={`w-10 h-10 rounded-2xl flex items-center justify-center border transition-all active:scale-95 shadow-sm cursor-pointer ${
                   showPlusMenu
-                    ? 'bg-rose-500/20 text-rose-400 border-rose-500/50 rotate-45'
-                    : 'bg-slate-800/90 text-slate-300 hover:text-white border-slate-700/70 hover:bg-slate-700/80'
+                    ? 'bg-rose-500/25 text-rose-300 border-rose-400 rotate-45'
+                    : 'bg-slate-800 text-slate-300 hover:text-white border-slate-700 hover:bg-slate-700'
                 }`}
                 title="Options & Attachments"
                 aria-label="Add attachment"
@@ -455,107 +456,115 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 <Plus className="w-5 h-5 transition-transform duration-200" />
               </button>
 
-              {/* Mobile WhatsApp-Style Attachments Grid Menu - Pure Icons Only */}
+              {/* WhatsApp-Style Attachments Grid Menu */}
               {showPlusMenu && (
-                <>
-                  {/* Backdrop dismissal */}
-                  <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setShowPlusMenu(false)}
-                  />
+                <div
+                  className="absolute bottom-14 left-0 w-72 sm:w-80 rounded-3xl bg-slate-900 border border-slate-700 shadow-2xl p-3.5 z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-bottom-2 select-none"
+                  style={{ filter: 'drop-shadow(0 20px 25px rgba(0, 0, 0, 0.7))' }}
+                >
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2.5 px-1">
+                    Share to Sanctuary
+                  </p>
+                  <div className="grid grid-cols-3 gap-2.5 justify-items-center">
+                    {/* Take Photo Camera */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPlusMenu(false);
+                        setIsTakingPhoto(true);
+                      }}
+                      className="flex flex-col items-center gap-1.5 p-2 rounded-2xl hover:bg-slate-800/80 active:scale-95 transition-all cursor-pointer w-full text-center group"
+                    >
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-500 to-pink-500 text-white flex items-center justify-center shadow-lg shadow-rose-500/30 group-hover:scale-105 transition-transform">
+                        <Camera className="w-6 h-6 text-white" />
+                      </div>
+                      <span className="text-[11px] font-medium text-slate-200 group-hover:text-white">Camera</span>
+                    </button>
 
-                  <div className="absolute bottom-14 left-0 w-auto min-w-[280px] max-w-[calc(100vw-32px)] rounded-3xl bg-slate-900/98 border border-slate-700/80 shadow-2xl p-3 z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-bottom-2">
-                    <div className="grid grid-cols-3 gap-3 justify-items-center">
-                      {/* Take Photo Camera Icon */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowPlusMenu(false);
-                          setIsTakingPhoto(true);
-                        }}
-                        className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-rose-500 to-pink-500 text-white flex items-center justify-center shadow-lg shadow-rose-500/30 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-rose-400/40"
-                        title="Take Photo"
-                        aria-label="Take Photo"
-                      >
-                        <Camera className="w-7 h-7 text-white" />
-                      </button>
+                    {/* Photo Gallery */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPlusMenu(false);
+                        imageInputRef.current?.click();
+                      }}
+                      className="flex flex-col items-center gap-1.5 p-2 rounded-2xl hover:bg-slate-800/80 active:scale-95 transition-all cursor-pointer w-full text-center group"
+                    >
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-500 to-indigo-500 text-white flex items-center justify-center shadow-lg shadow-purple-500/30 group-hover:scale-105 transition-transform">
+                        <ImageIcon className="w-6 h-6 text-white" />
+                      </div>
+                      <span className="text-[11px] font-medium text-slate-200 group-hover:text-white">Photos</span>
+                    </button>
 
-                      {/* Photo Gallery Icon */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowPlusMenu(false);
-                          imageInputRef.current?.click();
-                        }}
-                        className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-purple-500 to-indigo-500 text-white flex items-center justify-center shadow-lg shadow-purple-500/30 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-purple-400/40"
-                        title="Photo Gallery"
-                        aria-label="Photo Gallery"
-                      >
-                        <ImageIcon className="w-7 h-7 text-white" />
-                      </button>
+                    {/* Document / File */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPlusMenu(false);
+                        docInputRef.current?.click();
+                      }}
+                      className="flex flex-col items-center gap-1.5 p-2 rounded-2xl hover:bg-slate-800/80 active:scale-95 transition-all cursor-pointer w-full text-center group"
+                    >
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-500 to-cyan-500 text-white flex items-center justify-center shadow-lg shadow-blue-500/30 group-hover:scale-105 transition-transform">
+                        <Paperclip className="w-6 h-6 text-white" />
+                      </div>
+                      <span className="text-[11px] font-medium text-slate-200 group-hover:text-white">Document</span>
+                    </button>
 
-                      {/* Document / File Icon */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowPlusMenu(false);
-                          docInputRef.current?.click();
-                        }}
-                        className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-500 to-cyan-500 text-white flex items-center justify-center shadow-lg shadow-blue-500/30 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-blue-400/40"
-                        title="Attach Document or Video"
-                        aria-label="Attach Document or Video"
-                      >
-                        <Paperclip className="w-7 h-7 text-white" />
-                      </button>
+                    {/* Camera Video Recorder */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPlusMenu(false);
+                        setIsRecordingVideo(true);
+                      }}
+                      className="flex flex-col items-center gap-1.5 p-2 rounded-2xl hover:bg-slate-800/80 active:scale-95 transition-all cursor-pointer w-full text-center group"
+                    >
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-600 to-red-500 text-white flex items-center justify-center shadow-lg shadow-rose-600/30 group-hover:scale-105 transition-transform">
+                        <Video className="w-6 h-6 text-white" />
+                      </div>
+                      <span className="text-[11px] font-medium text-slate-200 group-hover:text-white">Video</span>
+                    </button>
 
-                      {/* Normal Camera Video Recorder Icon */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowPlusMenu(false);
-                          setIsRecordingVideo(true);
-                        }}
-                        className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-rose-600 to-red-500 text-white flex items-center justify-center shadow-lg shadow-rose-600/30 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-rose-400/40"
-                        title="Record Video with Camera"
-                        aria-label="Record Video with Camera"
-                      >
-                        <Video className="w-7 h-7 text-white" />
-                      </button>
+                    {/* Cuddle GIF */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPlusMenu(false);
+                        setShowGifPicker(true);
+                      }}
+                      className="flex flex-col items-center gap-1.5 p-2 rounded-2xl hover:bg-slate-800/80 active:scale-95 transition-all cursor-pointer w-full text-center group"
+                    >
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-violet-500 to-fuchsia-500 text-white flex items-center justify-center shadow-lg shadow-violet-500/30 group-hover:scale-105 transition-transform">
+                        <Sparkles className="w-6 h-6 text-white" />
+                      </div>
+                      <span className="text-[11px] font-medium text-slate-200 group-hover:text-white">GIF</span>
+                    </button>
 
-                      {/* Cuddle GIF Icon */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowPlusMenu(false);
-                          setShowGifPicker(true);
-                        }}
-                        className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-violet-500 to-fuchsia-500 text-white flex items-center justify-center shadow-lg shadow-violet-500/30 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-violet-400/40"
-                        title="Send GIF"
-                        aria-label="Send GIF"
-                      >
-                        <Sparkles className="w-7 h-7 text-white" />
-                      </button>
-
-                      {/* Urgent Priority Icon */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsUrgent(!isUrgent);
-                          setShowPlusMenu(false);
-                        }}
-                        className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg transition-all hover:scale-105 active:scale-95 cursor-pointer border ${
+                    {/* Urgent Priority Toggle */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsUrgent(!isUrgent);
+                        setShowPlusMenu(false);
+                      }}
+                      className="flex flex-col items-center gap-1.5 p-2 rounded-2xl hover:bg-slate-800/80 active:scale-95 transition-all cursor-pointer w-full text-center group"
+                    >
+                      <div
+                        className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg transition-transform group-hover:scale-105 ${
                           isUrgent
-                            ? 'bg-gradient-to-tr from-rose-600 to-amber-500 text-white ring-2 ring-rose-400 shadow-rose-600/40 border-rose-400/50'
-                            : 'bg-gradient-to-tr from-amber-500 to-yellow-500 text-slate-950 shadow-amber-500/30 border-amber-400/40'
+                            ? 'bg-gradient-to-tr from-rose-600 to-amber-500 text-white ring-2 ring-rose-400 shadow-rose-600/40'
+                            : 'bg-gradient-to-tr from-amber-500 to-yellow-500 text-slate-950 shadow-amber-500/30'
                         }`}
-                        title={isUrgent ? 'Urgent Mode ON' : 'Urgent Priority'}
-                        aria-label="Urgent Priority"
                       >
-                        <Zap className="w-7 h-7 fill-current" />
-                      </button>
-                    </div>
+                        <Zap className="w-6 h-6 fill-current" />
+                      </div>
+                      <span className="text-[11px] font-medium text-slate-200 group-hover:text-white">
+                        {isUrgent ? 'Urgent ON' : 'Priority'}
+                      </span>
+                    </button>
                   </div>
-                </>
+                </div>
               )}
             </div>
 

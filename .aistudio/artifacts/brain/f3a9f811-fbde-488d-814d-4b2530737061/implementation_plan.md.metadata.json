@@ -1,6 +1,6 @@
 {
-  "summary":  "Implementation plan for eliminating mobile horizontal scrolling with strict viewport containment and implementing custom overlay video playback with scrub controls for the camera video recorder.",
-  "updatedAt":  "2026-09-26T13:20:34.782017474Z",
+  "summary":  "Implementation plan for WhatsApp-style chat selection landing, romantic double-tick read receipts, live active/schedule status with quiet delivery, fixing plus/3-dots menu clipping, and restoring full media & message persistence.",
+  "updatedAt":  "2026-09-27T18:14:27.599016920Z",
   "requestFeedback":  true,
   "userFacing":  true
 }
