@@ -227,11 +227,6 @@ export async function getAllMediaFromDeviceVault(): Promise<StoredMediaRecord[]>
       const req = store.getAll();
       req.onsuccess = () => {
         const records = (req.result || []) as StoredMediaRecord[];
-        records.forEach((r) => {
-          if (r.messageId && r.dataUrl) {
-            vaultMemoryCache.set(r.messageId, r.dataUrl);
-          }
-        });
         resolve(records);
       };
       req.onerror = () => resolve([]);
@@ -240,26 +235,6 @@ export async function getAllMediaFromDeviceVault(): Promise<StoredMediaRecord[]>
     return [];
   }
 }
-
-/**
- * Preload all device vault records into memory cache on app startup
- */
-export async function preloadDeviceVault(): Promise<number> {
-  try {
-    const records = await getAllMediaFromDeviceVault();
-    return records.length;
-  } catch {
-    return 0;
-  }
-}
-
-/**
- * Get media synchronously from memory cache if available
- */
-export function getCachedMediaSync(messageId: string): string | null {
-  return vaultMemoryCache.get(messageId) || null;
-}
-
 
 /**
  * Download file directly to local device gallery or file system

@@ -1,142 +1,113 @@
-# Implementation Plan: WhatsApp-Style Landing, Double-Tick Read Receipts, Real-Time Activity Status, Menu Visibility Fix, and Message/Media Persistence
+# Implementation Plan: Strict Mobile Viewport Containment & Camera Video Playback with Scrub Controls
 
 ## 1. User Intent & Product Strategy
 
-### The User Requirements
-1. **No Auto-Opening of Chats on Load**:
-   - When the user opens the web app on desktop/laptop or mobile, do not auto-select or auto-open a conversation.
-   - **Desktop/Laptop**: Display a WhatsApp Web-style sanctuary landing splash screen (brand icon, encryption badge, "Select a chat to begin" prompt).
-   - **Mobile**: Show the conversation list (sidebar). Clicking a chat opens it, and a mobile Back button (`<ArrowLeft />`) allows returning to the list.
-2. **Double-Tick Read Receipts**:
-   - Sent: 1 check (grey `✓`).
-   - Delivered: 2 checks (grey `✓✓`).
-   - Seen / Read: 2 romantic rose-pink checks (`✓✓`) with subtle glow, matching WhatsApp's behavior.
-   - When the recipient opens the conversation, unread messages are marked as `read` in Firestore and synced to the sender in real-time.
-3. **Live Active & Schedule Status (Free vs Busy & Quiet Delivery)**:
-   - Display real-time active/online status in the chat header ("Active now" / "Last seen").
-   - Display schedule state:
-     - If Free/Available: Green badge (`● Available & Free`).
-     - If Busy: Amber badge (`🌙 Busy: [Activity] until [Time]`).
-   - If busy, messages arrive in Quiet Mode (silent delivery) unless marked as Urgent via the lightning toggle.
-4. **Fix Plus (+) and 3-Dots Menu Display**:
-   - Root cause: In the previous turn, `overflow-hidden` was added to `MessageInput` and `ChatWindow` `<header>`, clipping the absolute menus (`bottom-14 left-0` and `top-12 right-0`).
-   - Fix: Remove `overflow-hidden` from the header and input bar while keeping horizontal boundary clipping safe with `overflow-x-clip` and elevated `z-50`.
-5. **Fix Message & Media Disappearance (Full Persistence)**:
-   - Root cause:
-     - `getUserMessages`, `getUserConversations`, and `getUserContacts` fell back to empty sets when `getActiveAccountId()` returned null (guest/default user mode), causing state to initialize as `{}` and wipe or de-sync local history on reload.
-     - `subscribeToConversationMessages` had an async race condition where empty cloud attachments wiped local `attachment.url` before `getMediaFromDeviceVault` resolved.
-   - Fix:
-     - Guarantee initialization fallback to `'user_me'` / `STORAGE_KEYS.MESSAGES`.
-     - In real-time message merge, protect local attachment URLs so purged cloud media never overwrites local offline vault media.
+### The Problem
+1. **Unwanted Mobile Horizontal Scrolling**: When viewing the chat interface on mobile devices, the viewport is prone to horizontal shifts and side-scrolling, breaking the native app-like experience. This is caused by overflowing header action docks, absolute hover action buttons positioned outside message boundaries (`-left-16` / `-right-16`), and lack of strict `overflow-x: hidden` constraints across mobile containers.
+2. **Camera Video Playback Failure**: In the camera video recorder, recorded videos fail to play upon stopping, appearing blank or missing. Mobile browser decoders (specifically Android Chrome and iOS Safari) reject multi-megabyte `data:video/*;base64` strings as video `src` attributes, requiring real `blob:` URLs created via `URL.createObjectURL(blob)` for hardware-accelerated playback, alongside proper video duration metadata and scrub controls.
+
+### Confirmed User Preferences
+- **Video Playback**: Custom overlay video player with intuitive scrub controls, elapsed/total time readout, play/pause toggle, and sound toggle.
+- **Horizontal Scroll Fix**: Strict viewport lock with automatic text wrap, media containment, and responsive mobile flex layout.
 
 ---
 
 ## 2. UX, Layout & Visual Design System
 
-### A. WhatsApp Web-Style Landing Splash Screen (Desktop/Laptop)
-- Displayed in the main window when `!activeConversation`:
-  - Centered brand iconography: Romantic gradient heart/chat icon with pulsing ring.
-  - Heading: "Cuddles Private Sanctuary".
-  - Subheading: "End-to-end encrypted personal sanctuary. Connect deeply with your favorite people."
-  - Encryption Assurance: Green lock badge ("🔒 256-bit AES-GCM Encrypted • Zero Data Lingering").
-  - Clear prompt: "Select a conversation from the sidebar to start chatting."
+### A. Mobile Viewport & Chat Layout Integrity
+- **Zero Horizontal Overflow**:
+  - `html, body, #root`: Hard-locked with `overflow-x: hidden !important; width: 100%; max-width: 100vw;`.
+  - Chat messages feed: Container constrained with `w-full max-w-full overflow-x-hidden overflow-y-auto overscroll-contain`.
+  - Message bubbles: Text wrapping enforced with `break-words [overflow-wrap:anywhere] max-w-[85%] sm:max-w-md`.
+  - Hover Action Docks: Restricted to desktop view (`hidden sm:flex`) so `-left-16` / `-right-16` buttons never bleed beyond mobile screen bounds.
+  - Header & Status Banners: Fluid flex layouts with text truncation and compact responsive hitboxes on narrow screens (<380px).
+
+### B. Custom Video Playback Review Player
+- **Visual Symmetry**: Continues the dark romantic sanctuary design (`bg-slate-950` with rose/amber highlights).
+- **Controls & Ergonomics**:
+  - **Center Play/Pause Toggle**: Floating circular touch trigger (`w-14 h-14 bg-rose-600/90 text-white backdrop-blur-md shadow-xl`) that fades smoothly during active playback and reappears on tap or pause.
+  - **Scrubber Bar**: Custom draggable timeline scrubber with rose progress fill, allowing instantaneous seeking through recorded footage.
+  - **Time Counters**: Clear monospace timestamps showing current elapsed time and total recorded duration (e.g. `00:04 / 00:15`).
+  - **Audio Toggle**: One-tap mute/unmute control for the review video.
+  - **Action Footers**: Clean, accessible "Retake" button and prominent "Send Video" CTA with optional caption input.
 
 ```
-+-------------------------------------------------------------+
-|                                                             |
-|                       [ (💖) Icon ]                         |
-|                 Cuddles Private Sanctuary                   |
-|     End-to-end encrypted personal sanctuary. Select a      |
-|           conversation to start communicating.              |
-|                                                             |
-|          [ 🔒 256-bit AES-GCM Encrypted & Private ]         |
-|                                                             |
-+-------------------------------------------------------------+
++-------------------------------------------------------+
+|  [Video Icon] Preview Video               [Flip]  [X] |
++-------------------------------------------------------+
+|                                                       |
+|                                                       |
+|                     [ ( > ) Play ]                    |
+|                                                       |
+|                                                       |
+|  [Play/Pause]  ===●==================  00:04 / 00:12  |
+|               Scrubber Timeline Bar         [Mute]    |
++-------------------------------------------------------+
+| [ Add a caption... (optional)                       ] |
+| [ RotateCcw Retake ]             [ Send Send Video  ] |
++-------------------------------------------------------+
 ```
-
-### B. Mobile Navigation (WhatsApp App Pattern)
-- When no chat is selected on mobile: The sidebar conversation list fills the viewport (`lg:hidden w-full`).
-- When a chat is selected on mobile: `ChatWindow` fills the screen with an `<ArrowLeft />` back button in the header.
-- Tapping Back returns to the conversation list (`setActiveConversationId('')`).
-
-### C. Romantic Rose-Pink Read Receipts
-- `status === 'sent'`: `<Check className="w-3.5 h-3.5 text-slate-400" />`
-- `status === 'delivered'`: `<CheckCheck className="w-3.5 h-3.5 text-slate-400" />`
-- `status === 'read'`: `<CheckCheck className="w-3.5 h-3.5 text-rose-400 drop-shadow-[0_0_6px_rgba(244,63,94,0.6)]" />`
-
-### D. Active Status & Schedule Header
-- In the chat header subtitle:
-  - If Online & Free: `● Online · Free & Available` (emerald-400)
-  - If Busy: `🌙 Busy · [ActivityTitle] until [Time]` (amber-400)
-  - If Offline: `Offline · Last seen recently`
 
 ---
 
-## 3. Technical Architecture & Data Operations
+## 3. Technical Architecture & Real Integration Strategy
 
-### 1. State Initialization & Persistence
-- Fix `activeConversationId`:
-  - Initialize to `''`. Only set when the user explicitly clicks a conversation row.
-- Fix `messagesMap`, `contacts`, `conversations`:
-  - Use `const accountId = getActiveAccountId() || 'user_me';`
-  - Load stored local messages and contacts so history is never blanked out on page refresh.
+### Architecture Flow
 
-### 2. Real-Time Read Receipt Synchronization
-- In `src/lib/firebase.ts`:
-  - Add `markConversationMessagesAsRead(conversationId: string, currentUserId: string)`:
-    - Queries unread messages sent by the other party in `conversations/{convId}/messages`.
-    - Updates their `status` to `'read'` in Firestore.
-- In `src/App.tsx`:
-  - Whenever `activeConversationId` changes or new messages arrive while the chat is actively open, invoke `markConversationMessagesAsRead`.
-  - Sender receives the updated message with `status: 'read'` via `subscribeToConversationMessages` and the double checkmarks turn rose-pink immediately.
+```
++-----------------------------------------------------------------------------------+
+| MediaRecorder (WebM/MP4)                                                          |
+|   |                                                                               |
+|   v (chunksRef -> Blob)                                                           |
+| 1. URL.createObjectURL(blob)                                                      |
+|   |---> Review Video Player (<video src={blobUrl} playsInline />)                |
+|   |---> Custom Overlay Controls (Play/Pause, Scrubber seeking, Mute toggle)       |
+|                                                                                   |
+| 2. User confirms "Send Video"                                                     |
+|   |---> Read Blob via FileReader into persistent Base64 Data URL                  |
+|   |---> Save to IndexedDB Vault (DeviceMediaStorage)                              |
+|   |---> Sync to Firestore collection 'conversations/{id}/messages'                |
+|   |---> Cleanup ObjectURL via URL.revokeObjectURL(blobUrl)                        |
++-----------------------------------------------------------------------------------+
+```
 
-### 3. Fixing Menu Clipping (Plus & 3-Dots)
-- In `ChatWindow.tsx`: Remove `overflow-hidden` from the `<header>` element. The 3-dots dropdown menu (`absolute right-0 top-12 z-50`) will pop out cleanly without clipping.
-- In `MessageInput.tsx`: Remove `overflow-hidden` from the root container. The plus menu (`absolute bottom-14 left-0 z-50`) will pop up without clipping.
-
-### 4. Message & Media Retention Safeguard
-- In `subscribeToConversationMessages`:
-  - If a message in Firestore has `attachment.url === ''` (purged from cloud), but local state already has the media URL in memory or in device IndexedDB vault, **preserve the local URL**.
-  - Do not overwrite valid media data with an empty string.
+### Key Technical Details
+1. **Blob-First Media Playback**:
+   - `MediaRecorder.onstop` immediately creates a `blobUrl = URL.createObjectURL(blob)` and saves the raw `Blob` reference in state.
+   - The `<video>` element loads `blobUrl`, enabling smooth, hardware-accelerated playback on all mobile devices.
+   - When the user presses "Retake" or unmounts the modal, `URL.revokeObjectURL(blobUrl)` cleanly frees memory.
+2. **Recorded Duration Capture**:
+   - Accurately tracks recorded seconds using a ref counter (`recordingDurationRef.current`) during the recording interval to avoid stale closures.
+3. **Viewport CSS Hardening**:
+   - Eliminate any rogue negative margins (`-ml-1`, `-left-16`, `-right-16`) on mobile touch viewports.
+   - Apply `overflow-x-hidden` on the message scroll container and main chat window.
 
 ---
 
 ## 4. Work Breakdown & Implementation Phases
 
-### Phase 1: Navigation & WhatsApp-Style Landing Screen
-- Create `src/components/chat/EmptyChatSplash.tsx` for the desktop/laptop landing view.
-- Update `src/App.tsx`:
-  - Set initial `activeConversationId` to `''`.
-  - If `!activeConversation`:
-    - On desktop (`lg:flex`): render `<EmptyChatSplash />`.
-    - On mobile: show the sidebar conversations list.
-  - Pass `onBack={() => setActiveConversationId('')}` to `ChatWindow`.
-- Update `src/components/chat/ChatWindow.tsx`:
-  - Add mobile Back button (`<ArrowLeft />`) calling `onBack`.
+### Phase 1: Fix Video Recorder Playback & Custom Scrubber
+- Update `src/components/chat/CameraVideoModal.tsx`:
+  - Store recorded `Blob` and generate `blobUrl` with `URL.createObjectURL(blob)`.
+  - Fix duration calculation via `recordingDurationRef`.
+  - Implement custom overlay scrubber controls:
+    - Scrubber input / timeline with seek handler (`videoRef.current.currentTime = ...`).
+    - Play / Pause overlay and toggle button.
+    - Monospace time indicator (`currentTime` / `duration`).
+    - Audio mute / unmute button.
+  - In `handleSend`, serialize the `blob` to Data URL only upon clicking "Send Video", with a brief encoding loader if needed.
 
-### Phase 2: Fix Menu Clipping (Plus & 3-Dots)
-- Update `src/components/chat/ChatWindow.tsx`: Remove `overflow-hidden` from `<header>`.
-- Update `src/components/chat/MessageInput.tsx`: Remove `overflow-hidden` from the root bar container so the plus menu is fully visible and clickable.
-
-### Phase 3: Read Receipts (WhatsApp Rose-Pink Double Checks)
-- Update `src/lib/firebase.ts`:
-  - Add `markConversationMessagesAsRead` function.
-- Update `src/App.tsx`:
-  - Trigger `markConversationMessagesAsRead` when opening an active chat or receiving messages.
+### Phase 2: Eliminate Mobile Horizontal Scrolling
 - Update `src/components/chat/MessageBubble.tsx`:
-  - Render romantic rose-pink double ticks for `status === 'read'`.
-
-### Phase 4: Active Online & Schedule Presence
+  - Guard the hover action dock with `hidden sm:flex` so absolute positioned buttons do not push mobile canvas width.
+  - Enforce `max-w-[85%] sm:max-w-md break-words [overflow-wrap:anywhere]`.
 - Update `src/components/chat/ChatWindow.tsx`:
-  - In chat header, display presence badge and schedule status (Free vs Busy).
-  - Show quiet mode delivery notice when recipient is busy.
+  - Add `w-full max-w-full overflow-x-hidden` to the messages container and header wrappers.
+  - Adjust the busy status notification banner to wrap or truncate text on small mobile screens.
+- Update `src/App.tsx` and `src/index.css`:
+  - Ensure strict containment on outer viewports (`max-w-[100vw] overflow-x-hidden`).
 
-### Phase 5: Message & Media Persistence Hardening
-- Update `src/App.tsx`:
-  - Guarantee `'user_me'` fallback for default storage keys.
-  - In Firestore message subscription, merge local attachment URLs so cloud purges never erase offline media.
-
-### Phase 6: Build & Verification
-- Compile applet with `compile_applet`.
-- Run `lint_applet`.
-- Verify desktop landing, mobile back navigation, menus, read receipts, and media loading.
+### Phase 3: Verification & Compilation
+- Run `compile_applet` and `lint_applet` to verify clean build and type safety.
+- Test video recording, playback controls, retake flow, and send flow.
+- Verify that mobile chat interface only scrolls vertically with zero horizontal sway.

@@ -16,7 +16,6 @@
     background-color: #020617;
     color: #f8fafc;
     overflow: hidden !important;
-    overflow-x: hidden !important;
     width: 100%;
     max-width: 100vw !important;
     height: 100%;
@@ -28,10 +27,6 @@
   /* Globally restrict all container elements from scrolling horizontally */
   * {
     max-width: 100%;
-  }
-
-  p, span, div, h1, h2, h3, h4, h5, h6 {
-    overflow-wrap: break-word;
   }
 
   input, textarea {
