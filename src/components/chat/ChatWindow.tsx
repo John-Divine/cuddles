@@ -86,6 +86,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onDeleteMessages,
   onStartCall,
   onToggleMobileSidebar,
+  onBackToChatList,
   onViewProfile,
   onUpdateDisappearingTimer,
   onOpenAddContactModal,

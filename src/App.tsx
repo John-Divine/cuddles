@@ -56,7 +56,8 @@ import {
   subscribeToCallStatus,
   getDirectConversationId,
   subscribeToUserConversations,
-  markMessageAsReadInFirestore
+  markMessageAsReadInFirestore,
+  markConversationMessagesAsRead
 } from './lib/firebase';
 import { saveMediaToDeviceVault, getMediaFromDeviceVault, clearDeviceVault } from './lib/deviceMediaStorage';
 import { encryptMessage } from './lib/encryption';
@@ -239,7 +240,8 @@ export default function App() {
       setContacts(userContacts);
       setConversations(userConvs);
       setMessagesMap(userMsgs);
-      setActiveConversationId(userConvs[0]?.id || '');
+      // Never auto-select or auto-open a conversation on initial load (WhatsApp style)
+      setActiveConversationId('');
     }
   }, [activeAccount?.id]);
 
@@ -722,6 +724,7 @@ export default function App() {
     const currentList = messagesMap[activeConversationId] || [];
     const unread = currentList.filter((m) => m.senderId !== currentUser.id && m.status !== 'read');
     if (unread.length > 0) {
+      markConversationMessagesAsRead(activeConversationId, currentUser.id);
       unread.forEach((m) => {
         markMessageAsReadInFirestore(activeConversationId, m.id);
       });
@@ -1505,7 +1508,7 @@ export default function App() {
           setContacts(userContacts);
           setConversations(userConvs);
           setMessagesMap(userMsgs);
-          setActiveConversationId(userConvs[0]?.id || '');
+          setActiveConversationId('');
         }}
       />
     );
@@ -1564,6 +1567,7 @@ export default function App() {
             handleStartCall(type);
           }}
           isMobileOpen={isMobileSidebarOpen}
+          isMobileFullWidth={!activeConversationId}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
         />
 
@@ -1575,40 +1579,52 @@ export default function App() {
           />
         )}
 
-        {/* Chat Main Window */}
-        <ChatWindow
-          conversation={activeConversation}
-          messages={activeMessages}
-          currentUser={currentUser}
-          recipient={activeRecipient}
-          allContacts={contacts}
-          allConversations={conversations}
-          messagesMap={messagesMap}
-          typingUserNames={typingUsers[activeConversationId] || []}
-          pendingRequestsCount={pendingRequestsCount}
-          onSendMessage={handleSendMessage}
-          onSendMedia={handleSendMedia}
-          onAddReaction={handleReaction}
-          onDownloadAttachment={handleDownloadAttachment}
-          onDeleteMessages={handleDeleteMessages}
-          onStartCall={handleStartCall}
-          onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
-          isMobileSidebarOpen={isMobileSidebarOpen}
-          onViewProfile={(user) => setViewingProfile({ user, isOwn: user.id === currentUser.id })}
-          onOpenAddContactModal={() => {
-            setAddContactType('friend');
-            setShowAddContactModal(true);
-          }}
-          onOpenRequestsModal={() => setShowRequestsModal(true)}
-          onOpenMediaGallery={handleOpenCollectionMediaGallery}
-          onUpdateDisappearingTimer={(mins) => {
-            setConversations((prev) =>
-              prev.map((c) =>
-                c.id === activeConversationId ? { ...c, disappearingTimerMinutes: mins } : c
-              )
-            );
-          }}
-        />
+        {/* Chat Main Window or WhatsApp Splash Screen */}
+        {activeConversation ? (
+          <ChatWindow
+            conversation={activeConversation}
+            messages={activeMessages}
+            currentUser={currentUser}
+            recipient={activeRecipient}
+            allContacts={contacts}
+            allConversations={conversations}
+            messagesMap={messagesMap}
+            typingUserNames={typingUsers[activeConversationId] || []}
+            pendingRequestsCount={pendingRequestsCount}
+            onSendMessage={handleSendMessage}
+            onSendMedia={handleSendMedia}
+            onAddReaction={handleReaction}
+            onDownloadAttachment={handleDownloadAttachment}
+            onDeleteMessages={handleDeleteMessages}
+            onStartCall={handleStartCall}
+            onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+            onBackToChatList={() => setActiveConversationId('')}
+            isMobileSidebarOpen={isMobileSidebarOpen}
+            onViewProfile={(user) => setViewingProfile({ user, isOwn: user.id === currentUser.id })}
+            onOpenAddContactModal={() => {
+              setAddContactType('friend');
+              setShowAddContactModal(true);
+            }}
+            onOpenRequestsModal={() => setShowRequestsModal(true)}
+            onOpenMediaGallery={handleOpenCollectionMediaGallery}
+            onUpdateDisappearingTimer={(mins) => {
+              setConversations((prev) =>
+                prev.map((c) =>
+                  c.id === activeConversationId ? { ...c, disappearingTimerMinutes: mins } : c
+                )
+              );
+            }}
+          />
+        ) : (
+          <div className="hidden lg:flex flex-1 h-full min-w-0">
+            <WhatsAppSplashScreen
+              onStartNewChat={() => {
+                setAddContactType('friend');
+                setShowAddContactModal(true);
+              }}
+            />
+          </div>
+        )}
       </div>
 
       {/* Group & 1-on-1 Call Window with Add Participant Expansion */}
