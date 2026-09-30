@@ -499,14 +499,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             <button
               type="button"
               onClick={() => onOpenMediaGallery('conversation', conversation?.id)}
-              className="px-2 sm:px-2.5 py-1.5 rounded-xl bg-slate-800/90 border border-slate-700/70 hover:border-pink-500/40 hover:bg-pink-500/20 text-pink-400 hover:text-pink-300 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+              className="p-2 sm:p-2.5 rounded-xl bg-slate-800/90 border border-slate-700/70 hover:border-pink-500/40 hover:bg-pink-500/20 text-pink-400 hover:text-pink-300 active:scale-95 transition-all flex items-center justify-center cursor-pointer shadow-sm"
               title={`View ${displayHeaderTitle}'s Media`}
               aria-label="Chat Media Gallery"
             >
               <ImageIcon className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
-              <span className="hidden md:inline text-xs font-semibold text-pink-300">
-                Media
-              </span>
             </button>
           )}
 
@@ -539,7 +536,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             <Lock className="w-4 h-4 text-emerald-400" />
           </button>
 
-          {/* More options menu (3 Dots) */}
+          {/* More options menu (3 Dots) - Strictly Icons Only */}
           <div className="relative shrink-0" ref={optionsMenuRef}>
             <button
               type="button"
@@ -552,12 +549,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               title="More options"
               aria-label="More options"
             >
-              <MoreVertical size={18} className="w-4.5 h-4.5 shrink-0" strokeWidth={2.2} />
+              <MoreVertical className="w-5 h-5 shrink-0" strokeWidth={2.2} />
             </button>
 
             {showOptionsMenu && (
               <div
-                className="absolute right-0 top-12 w-64 rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-2 z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-top-2 select-none"
+                className="absolute right-0 top-12 rounded-2xl bg-slate-900/98 border border-slate-700 shadow-2xl p-1.5 z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-top-2 select-none flex items-center gap-1.5"
                 style={{ filter: 'drop-shadow(0 20px 25px rgba(0, 0, 0, 0.75))' }}
               >
                 {/* Chat Media Gallery */}
@@ -568,15 +565,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                       setShowOptionsMenu(false);
                       onOpenMediaGallery('conversation', conversation?.id);
                     }}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-slate-800/80 active:bg-slate-800 text-slate-200 hover:text-white text-xs font-medium transition-colors cursor-pointer"
+                    className="w-10 h-10 min-w-10 min-h-10 rounded-xl bg-pink-500/20 hover:bg-pink-500/35 border border-pink-500/40 text-pink-400 hover:text-pink-300 active:scale-95 transition-all flex items-center justify-center cursor-pointer shrink-0"
+                    aria-label="Media & Documents"
                   >
-                    <div className="w-8 h-8 rounded-lg bg-pink-500/20 text-pink-400 flex items-center justify-center shrink-0 border border-pink-500/30">
-                      <ImageIcon size={18} className="w-4.5 h-4.5 text-pink-400 shrink-0" strokeWidth={2.2} />
-                    </div>
-                    <div className="min-w-0">
-                      <span className="block font-semibold">Media & Documents</span>
-                      <span className="block text-[10px] text-slate-400 truncate">Photos, videos, files in this chat</span>
-                    </div>
+                    <ImageIcon className="w-5 h-5 text-pink-400 shrink-0" strokeWidth={2.2} />
                   </button>
                 )}
 
@@ -588,15 +580,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                       setShowOptionsMenu(false);
                       onViewProfile?.(effectiveRecipient);
                     }}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-slate-800/80 active:bg-slate-800 text-slate-200 hover:text-white text-xs font-medium transition-colors cursor-pointer"
+                    className="w-10 h-10 min-w-10 min-h-10 rounded-xl bg-rose-500/20 hover:bg-rose-500/35 border border-rose-500/40 text-rose-400 hover:text-rose-300 active:scale-95 transition-all flex items-center justify-center cursor-pointer shrink-0"
+                    aria-label="View Contact"
                   >
-                    <div className="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0 border border-rose-500/30">
-                      <User size={18} className="w-4.5 h-4.5 text-rose-400 shrink-0" strokeWidth={2.2} />
-                    </div>
-                    <div className="min-w-0">
-                      <span className="block font-semibold">View Contact</span>
-                      <span className="block text-[10px] text-slate-400 truncate">Profile, schedule & nickname</span>
-                    </div>
+                    <User className="w-5 h-5 text-rose-400 shrink-0" strokeWidth={2.2} />
                   </button>
                 )}
 
@@ -607,15 +594,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     setShowOptionsMenu(false);
                     setShowSafetyModal(true);
                   }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-slate-800/80 active:bg-slate-800 text-slate-200 hover:text-white text-xs font-medium transition-colors cursor-pointer"
+                  className="w-10 h-10 min-w-10 min-h-10 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-500/40 text-emerald-400 hover:text-emerald-300 active:scale-95 transition-all flex items-center justify-center cursor-pointer shrink-0"
+                  aria-label="Encryption & Safety"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30">
-                    <ShieldCheck size={18} className="w-4.5 h-4.5 text-emerald-400 shrink-0" strokeWidth={2.2} />
-                  </div>
-                  <div className="min-w-0">
-                    <span className="block font-semibold">Encryption & Safety</span>
-                    <span className="block text-[10px] text-slate-400 truncate">Verify 256-bit AES-GCM safety number</span>
-                  </div>
+                  <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" strokeWidth={2.2} />
                 </button>
 
                 {/* Disappearing Messages Timer */}
@@ -625,21 +607,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     setShowOptionsMenu(false);
                     onUpdateDisappearingTimer?.(conversation.disappearingTimerMinutes ? 0 : 1440);
                   }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-slate-800/80 active:bg-slate-800 text-slate-200 hover:text-white text-xs font-medium transition-colors cursor-pointer"
-                >
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
+                  className={`w-10 h-10 min-w-10 min-h-10 rounded-xl border flex items-center justify-center active:scale-95 transition-all cursor-pointer shrink-0 ${
                     conversation.disappearingTimerMinutes
-                      ? 'bg-amber-500/25 text-amber-300 ring-1 ring-amber-400/50 border-amber-400/40'
-                      : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
-                  }`}>
-                    <Clock size={18} className="w-4.5 h-4.5 text-amber-400 shrink-0" strokeWidth={2.2} />
-                  </div>
-                  <div className="min-w-0">
-                    <span className="block font-semibold">Disappearing Messages</span>
-                    <span className="block text-[10px] text-slate-400 truncate">
-                      {conversation.disappearingTimerMinutes ? 'Active: 24h timer (tap to off)' : 'Off (tap to enable 24h)'}
-                    </span>
-                  </div>
+                      ? 'bg-amber-500/30 text-amber-300 border-amber-400 ring-2 ring-amber-400/40'
+                      : 'bg-amber-500/20 hover:bg-amber-500/35 border-amber-500/40 text-amber-400 hover:text-amber-300'
+                  }`}
+                  aria-label="Disappearing Messages"
+                >
+                  <Clock className="w-5 h-5 shrink-0" strokeWidth={2.2} />
                 </button>
               </div>
             )}

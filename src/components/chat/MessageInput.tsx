@@ -456,114 +456,93 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 <Plus size={22} className="w-5 h-5 transition-transform duration-200 shrink-0" strokeWidth={2.4} />
               </button>
 
-              {/* WhatsApp-Style Attachments Grid Menu */}
+              {/* Plus (+) Action Palette - Strictly Icons Only */}
               {showPlusMenu && (
                 <div
-                  className="absolute bottom-14 left-0 w-72 sm:w-80 rounded-3xl bg-slate-900 border border-slate-700 shadow-2xl p-3.5 z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-bottom-2 select-none"
-                  style={{ filter: 'drop-shadow(0 20px 25px rgba(0, 0, 0, 0.7))' }}
+                  className="absolute bottom-14 left-0 rounded-2xl bg-slate-900/98 border border-slate-700 shadow-2xl p-2 z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-bottom-2 select-none flex items-center gap-2 max-w-[calc(100vw-32px)] overflow-x-auto"
+                  style={{ filter: 'drop-shadow(0 20px 25px rgba(0, 0, 0, 0.75))' }}
                 >
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2.5 px-1">
-                    Share to Sanctuary
-                  </p>
-                  <div className="grid grid-cols-3 gap-2.5 justify-items-center">
-                    {/* Take Photo Camera */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowPlusMenu(false);
-                        setIsTakingPhoto(true);
-                      }}
-                      className="flex flex-col items-center gap-1.5 p-2 rounded-2xl hover:bg-slate-800/80 active:scale-95 transition-all cursor-pointer w-full text-center group"
-                    >
-                      <div className="w-12 h-12 min-w-12 min-h-12 rounded-2xl bg-gradient-to-tr from-rose-500 to-pink-500 text-white flex items-center justify-center shadow-lg shadow-rose-500/30 group-hover:scale-105 transition-transform shrink-0">
-                        <Camera size={26} className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
-                      </div>
-                      <span className="text-[11px] font-medium text-slate-200 group-hover:text-white">Camera</span>
-                    </button>
+                  {/* Take Photo Camera */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPlusMenu(false);
+                      setIsTakingPhoto(true);
+                    }}
+                    className="w-11 h-11 min-w-11 min-h-11 rounded-xl bg-gradient-to-tr from-rose-500 to-pink-500 text-white flex items-center justify-center shadow-lg shadow-rose-500/30 hover:scale-110 active:scale-95 transition-transform cursor-pointer shrink-0"
+                    aria-label="Camera"
+                  >
+                    <Camera className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
+                  </button>
 
-                    {/* Photo Gallery */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowPlusMenu(false);
-                        imageInputRef.current?.click();
-                      }}
-                      className="flex flex-col items-center gap-1.5 p-2 rounded-2xl hover:bg-slate-800/80 active:scale-95 transition-all cursor-pointer w-full text-center group"
-                    >
-                      <div className="w-12 h-12 min-w-12 min-h-12 rounded-2xl bg-gradient-to-tr from-purple-500 to-indigo-500 text-white flex items-center justify-center shadow-lg shadow-purple-500/30 group-hover:scale-105 transition-transform shrink-0">
-                        <ImageIcon size={26} className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
-                      </div>
-                      <span className="text-[11px] font-medium text-slate-200 group-hover:text-white">Photos</span>
-                    </button>
+                  {/* Photo Gallery */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPlusMenu(false);
+                      imageInputRef.current?.click();
+                    }}
+                    className="w-11 h-11 min-w-11 min-h-11 rounded-xl bg-gradient-to-tr from-purple-500 to-indigo-500 text-white flex items-center justify-center shadow-lg shadow-purple-500/30 hover:scale-110 active:scale-95 transition-transform cursor-pointer shrink-0"
+                    aria-label="Photos"
+                  >
+                    <ImageIcon className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
+                  </button>
 
-                    {/* Document / File */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowPlusMenu(false);
-                        docInputRef.current?.click();
-                      }}
-                      className="flex flex-col items-center gap-1.5 p-2 rounded-2xl hover:bg-slate-800/80 active:scale-95 transition-all cursor-pointer w-full text-center group"
-                    >
-                      <div className="w-12 h-12 min-w-12 min-h-12 rounded-2xl bg-gradient-to-tr from-blue-500 to-cyan-500 text-white flex items-center justify-center shadow-lg shadow-blue-500/30 group-hover:scale-105 transition-transform shrink-0">
-                        <Paperclip size={26} className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
-                      </div>
-                      <span className="text-[11px] font-medium text-slate-200 group-hover:text-white">Document</span>
-                    </button>
+                  {/* Document / File */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPlusMenu(false);
+                      docInputRef.current?.click();
+                    }}
+                    className="w-11 h-11 min-w-11 min-h-11 rounded-xl bg-gradient-to-tr from-blue-500 to-cyan-500 text-white flex items-center justify-center shadow-lg shadow-blue-500/30 hover:scale-110 active:scale-95 transition-transform cursor-pointer shrink-0"
+                    aria-label="Document"
+                  >
+                    <Paperclip className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
+                  </button>
 
-                    {/* Camera Video Recorder */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowPlusMenu(false);
-                        setIsRecordingVideo(true);
-                      }}
-                      className="flex flex-col items-center gap-1.5 p-2 rounded-2xl hover:bg-slate-800/80 active:scale-95 transition-all cursor-pointer w-full text-center group"
-                    >
-                      <div className="w-12 h-12 min-w-12 min-h-12 rounded-2xl bg-gradient-to-tr from-rose-600 to-red-500 text-white flex items-center justify-center shadow-lg shadow-rose-600/30 group-hover:scale-105 transition-transform shrink-0">
-                        <Video size={26} className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
-                      </div>
-                      <span className="text-[11px] font-medium text-slate-200 group-hover:text-white">Video</span>
-                    </button>
+                  {/* Camera Video Recorder */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPlusMenu(false);
+                      setIsRecordingVideo(true);
+                    }}
+                    className="w-11 h-11 min-w-11 min-h-11 rounded-xl bg-gradient-to-tr from-rose-600 to-red-500 text-white flex items-center justify-center shadow-lg shadow-rose-600/30 hover:scale-110 active:scale-95 transition-transform cursor-pointer shrink-0"
+                    aria-label="Video"
+                  >
+                    <Video className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
+                  </button>
 
-                    {/* Cuddle GIF */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowPlusMenu(false);
-                        setShowGifPicker(true);
-                      }}
-                      className="flex flex-col items-center gap-1.5 p-2 rounded-2xl hover:bg-slate-800/80 active:scale-95 transition-all cursor-pointer w-full text-center group"
-                    >
-                      <div className="w-12 h-12 min-w-12 min-h-12 rounded-2xl bg-gradient-to-tr from-violet-500 to-fuchsia-500 text-white flex items-center justify-center shadow-lg shadow-violet-500/30 group-hover:scale-105 transition-transform shrink-0">
-                        <Sparkles size={26} className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
-                      </div>
-                      <span className="text-[11px] font-medium text-slate-200 group-hover:text-white">GIF</span>
-                    </button>
+                  {/* Cuddle GIF */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPlusMenu(false);
+                      setShowGifPicker(true);
+                    }}
+                    className="w-11 h-11 min-w-11 min-h-11 rounded-xl bg-gradient-to-tr from-violet-500 to-fuchsia-500 text-white flex items-center justify-center shadow-lg shadow-violet-500/30 hover:scale-110 active:scale-95 transition-transform cursor-pointer shrink-0"
+                    aria-label="GIF"
+                  >
+                    <Sparkles className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
+                  </button>
 
-                    {/* Urgent Priority Toggle */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsUrgent(!isUrgent);
-                        setShowPlusMenu(false);
-                      }}
-                      className="flex flex-col items-center gap-1.5 p-2 rounded-2xl hover:bg-slate-800/80 active:scale-95 transition-all cursor-pointer w-full text-center group"
-                    >
-                      <div
-                        className={`w-12 h-12 min-w-12 min-h-12 rounded-2xl flex items-center justify-center shadow-lg transition-transform group-hover:scale-105 shrink-0 ${
-                          isUrgent
-                            ? 'bg-gradient-to-tr from-rose-600 to-amber-500 text-white ring-2 ring-rose-400 shadow-rose-600/40'
-                            : 'bg-gradient-to-tr from-amber-500 to-yellow-500 text-slate-950 shadow-amber-500/30'
-                        }`}
-                      >
-                        <Zap size={26} className="w-6 h-6 fill-current shrink-0" strokeWidth={2.2} />
-                      </div>
-                      <span className="text-[11px] font-medium text-slate-200 group-hover:text-white">
-                        {isUrgent ? 'Urgent ON' : 'Priority'}
-                      </span>
-                    </button>
-                  </div>
+                  {/* Urgent Priority Toggle */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsUrgent(!isUrgent);
+                      setShowPlusMenu(false);
+                    }}
+                    className={`w-11 h-11 min-w-11 min-h-11 rounded-xl flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-transform cursor-pointer shrink-0 ${
+                      isUrgent
+                        ? 'bg-gradient-to-tr from-rose-600 to-amber-500 text-white ring-2 ring-rose-400 shadow-rose-600/40'
+                        : 'bg-gradient-to-tr from-amber-500 to-yellow-500 text-slate-950 shadow-amber-500/30'
+                    }`}
+                    aria-label="Priority"
+                  >
+                    <Zap className="w-6 h-6 fill-current shrink-0" strokeWidth={2.2} />
+                  </button>
                 </div>
               )}
             </div>
