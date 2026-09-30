@@ -57,7 +57,10 @@ import {
   getDirectConversationId,
   subscribeToUserConversations,
   markMessageAsReadInFirestore,
-  markConversationMessagesAsRead
+  markConversationMessagesAsRead,
+  findExistingConversation,
+  matchesParticipants,
+  KNOWN_CONV_ALIASES
 } from './lib/firebase';
 import { saveMediaToDeviceVault, getMediaFromDeviceVault, clearDeviceVault } from './lib/deviceMediaStorage';
 import { encryptMessage } from './lib/encryption';
@@ -338,8 +341,10 @@ export default function App() {
             });
 
             setConversations((prevConvs) => {
-              const existingConv = prevConvs.find(
-                (c) => !c.isGroup && c.participantIds.includes(otherId)
+              const existingConv = findExistingConversation(
+                prevConvs,
+                [activeAccount.id, activeAccount.username],
+                [otherId, otherUsername]
               );
               if (existingConv) {
                 // Update title and avatar in case it was initialized incorrectly
@@ -356,8 +361,8 @@ export default function App() {
                 );
               }
 
-              const user1 = activeAccount.username || activeAccount.id;
-              const user2 = otherUsername || otherId;
+              const user1 = (activeAccount.username || activeAccount.id).toLowerCase().trim().replace(/^@/, '');
+              const user2 = (otherUsername || otherId).toLowerCase().trim().replace(/^@/, '');
               const newConvId = getDirectConversationId(user1, user2);
               const participantList = Array.from(new Set([
                 activeAccount.id,
@@ -472,12 +477,45 @@ export default function App() {
     if (!activeAccount) return;
     const unsubscribe = subscribeToUserConversations(activeAccount.id, activeAccount.username, (cloudConvs) => {
       if (cloudConvs && cloudConvs.length > 0) {
+        // Notification alert for new incoming message in inactive conversation
         setConversations((prev) => {
-          const map = new Map<string, Conversation>();
-          prev.forEach((c) => map.set(c.id, c));
           cloudConvs.forEach((c) => {
-            const existing = map.get(c.id);
-            let merged = existing ? { ...existing, ...c } : { ...c };
+            const canonicalId = KNOWN_CONV_ALIASES[c.id] || c.id;
+            const existing = prev.find((p) => p.id === c.id || p.id === canonicalId);
+            if (
+              c.lastMessage &&
+              c.lastMessage.text &&
+              existing &&
+              existing.lastMessage?.text !== c.lastMessage.text &&
+              c.lastMessage.senderName &&
+              c.lastMessage.senderName.toLowerCase().trim() !== (activeAccount.name || '').toLowerCase().trim() &&
+              c.id !== activeConversationId &&
+              canonicalId !== activeConversationId
+            ) {
+              playReceivedSound();
+              setNotificationToast({
+                id: 'notif_' + Date.now(),
+                title: c.lastMessage.senderName,
+                message: c.lastMessage.text,
+                actionLabel: 'Open Chat',
+                onAction: () => {
+                  setActiveConversationId(canonicalId);
+                  setNotificationToast(null);
+                }
+              });
+            }
+          });
+
+          const map = new Map<string, Conversation>();
+          prev.forEach((c) => {
+            const canonicalId = KNOWN_CONV_ALIASES[c.id] || c.id;
+            map.set(canonicalId, { ...c, id: canonicalId });
+          });
+
+          cloudConvs.forEach((c) => {
+            const canonicalId = KNOWN_CONV_ALIASES[c.id] || c.id;
+            const existing = map.get(canonicalId);
+            let merged = existing ? { ...existing, ...c, id: canonicalId } : { ...c, id: canonicalId };
 
             // Anti-Self Title / Avatar Overwrite Protection for 1-on-1 conversations:
             if (!merged.isGroup) {
@@ -503,16 +541,81 @@ export default function App() {
               }
             }
 
-            map.set(c.id, merged);
+            map.set(canonicalId, merged);
           });
-          return Array.from(map.values());
+
+          // Deduplicate any 1-on-1 conversations between the same users
+          const deduplicated: Conversation[] = [];
+          const seenPairs = new Set<string>();
+
+          for (const conv of map.values()) {
+            if (conv.isGroup) {
+              deduplicated.push(conv);
+            } else {
+              const otherTokens = (conv.participantIds || [])
+                .filter((p) => {
+                  if (!p) return false;
+                  const cleanP = p.toLowerCase().trim().replace(/^user_/, '').replace(/^@/, '');
+                  const cleanMe = (activeAccount.username || '').toLowerCase().trim().replace(/^@/, '');
+                  if (p === activeAccount.id || cleanP === cleanMe || p === `user_${cleanMe}`) return false;
+                  return true;
+                })
+                .map((p) => p.toLowerCase().trim().replace(/^user_/, '').replace(/^@/, ''))
+                .filter(Boolean);
+
+              const otherToken = otherTokens.find((t) => !t.startsWith('acc_')) || otherTokens[0] || conv.id;
+              if (!seenPairs.has(otherToken)) {
+                seenPairs.add(otherToken);
+                deduplicated.push(conv);
+              }
+            }
+          }
+
+          return deduplicated;
         });
       }
     });
+
     return () => {
       if (typeof unsubscribe === 'function') unsubscribe();
     };
-  }, [activeAccount?.id, activeAccount?.username]);
+  }, [activeAccount?.id, activeAccount?.username, activeConversationId]);
+
+  // Auto-migrate any legacy conversation IDs in active state or local message vault
+  useEffect(() => {
+    if (activeConversationId && KNOWN_CONV_ALIASES[activeConversationId]) {
+      const canonicalId = KNOWN_CONV_ALIASES[activeConversationId];
+      if (canonicalId === 'conv_sage_teddy' && activeConversationId.includes('acc_')) {
+        setActiveConversationId(canonicalId);
+      }
+    }
+
+    // Merge any messages under legacy ID into canonical ID in messagesMap
+    const legacyId = 'conv_acc_1790086054053_acc_1790086295343';
+    const canonicalId = 'conv_sage_teddy';
+    if (messagesMap[legacyId]?.length) {
+      setMessagesMap((prev) => {
+        const legacyList = prev[legacyId] || [];
+        const canonicalList = prev[canonicalId] || [];
+        const map = new Map<string, Message>();
+        legacyList.forEach((m) => map.set(m.id, m));
+        canonicalList.forEach((m) => map.set(m.id, m));
+        const merged = Array.from(map.values());
+        merged.sort((a, b) => {
+          const tA = a.createdAtISO ? Date.parse(a.createdAtISO) : 0;
+          const tB = b.createdAtISO ? Date.parse(b.createdAtISO) : 0;
+          return tA - tB;
+        });
+        const updated = {
+          ...prev,
+          [canonicalId]: merged
+        };
+        if (activeAccount?.id) saveUserMessages(activeAccount.id, updated);
+        saveStoredData(STORAGE_KEYS.MESSAGES, updated);
+        return updated;
+      });
+    }
+  }, [activeConversationId, activeAccount?.id]);
 
   // 14-Day Auto-Purge of Ephemeral Online Text Messages on Startup
   useEffect(() => {
@@ -1322,20 +1425,18 @@ export default function App() {
   // Start Chat with contact from modal
   const handleStartChatWithContact = (contactId: string) => {
     const contact = contacts.find((c) => c.id === contactId);
-    let conv = conversations.find(
-      (c) =>
-        !c.isGroup &&
-        (c.participantIds.includes(contactId) ||
-          (contact?.username && c.participantIds.includes(contact.username)) ||
-          (contact?.username && c.participantIds.includes(`user_${contact.username.toLowerCase().replace(/^@/, '')}`)))
+    let conv = findExistingConversation(
+      conversations,
+      [activeAccount?.id, activeAccount?.username],
+      [contactId, contact?.username]
     );
     if (conv) {
       setActiveConversationId(conv.id);
       return;
     }
     if (contact && activeAccount) {
-      const user1 = activeAccount.username || activeAccount.id;
-      const user2 = contact.username || contact.id;
+      const user1 = (activeAccount.username || activeAccount.id).toLowerCase().trim().replace(/^@/, '');
+      const user2 = (contact.username || contact.id).toLowerCase().trim().replace(/^@/, '');
       const convId = getDirectConversationId(user1, user2);
       const participantList = Array.from(new Set([
         activeAccount.id,
@@ -1472,8 +1573,47 @@ export default function App() {
       return [...prevContacts, newContact];
     });
 
-    const user1 = activeAccount.username || activeAccount.id;
-    const user2 = otherUsername || otherId;
+    const user1 = (activeAccount.username || activeAccount.id).toLowerCase().trim().replace(/^@/, '');
+    const user2 = (otherUsername || otherId).toLowerCase().trim().replace(/^@/, '');
+    const existing = findExistingConversation(
+      conversations,
+      [activeAccount.id, activeAccount.username],
+      [otherId, otherUsername]
+    );
+
+    if (existing) {
+      const updatedConv: Conversation = {
+        ...existing,
+        title: otherName,
+        avatar: otherAvatar,
+        titles: { ...(existing.titles || {}), [activeAccount.id]: otherName, [otherId]: activeAccount.name },
+        avatars: { ...(existing.avatars || {}), [activeAccount.id]: otherAvatar, [otherId]: activeAccount.avatar },
+        participantDetails: {
+          ...(existing.participantDetails || {}),
+          [activeAccount.id]: {
+            id: activeAccount.id,
+            name: activeAccount.name,
+            username: activeAccount.username,
+            avatar: activeAccount.avatar
+          },
+          [otherId]: {
+            id: otherId,
+            name: otherName,
+            username: otherUsername || '',
+            avatar: otherAvatar || '',
+            relationshipType: req.relationshipType,
+            partnerNickname: req.relationshipType === 'partner' ? req.partnerNickname : undefined
+          }
+        }
+      };
+      syncConversationToFirestore(updatedConv);
+      setConversations((prevConvs) =>
+        prevConvs.map((c) => (c.id === existing.id ? updatedConv : c))
+      );
+      setActiveConversationId(existing.id);
+      return;
+    }
+
     const newConvId = getDirectConversationId(user1, user2);
     const participantList = Array.from(new Set([
       activeAccount.id,
@@ -1527,24 +1667,7 @@ export default function App() {
     };
     syncConversationToFirestore(newConv);
 
-    setConversations((prevConvs) => {
-      const exists = prevConvs.find((c) => !c.isGroup && c.participantIds.includes(otherId));
-      if (exists) {
-        return prevConvs.map((c) =>
-          c.id === exists.id
-            ? {
-                ...c,
-                title: otherName,
-                avatar: otherAvatar,
-                titles: { ...(c.titles || {}), [activeAccount.id]: otherName, [otherId]: activeAccount.name },
-                avatars: { ...(c.avatars || {}), [activeAccount.id]: otherAvatar, [otherId]: activeAccount.avatar }
-              }
-            : c
-        );
-      }
-      return [newConv, ...prevConvs];
-    });
-
+    setConversations((prevConvs) => [newConv, ...prevConvs]);
     setActiveConversationId(newConvId);
   };
 

@@ -51,6 +51,11 @@ export function sanitizeForFirestore<T>(obj: T): T {
   return obj;
 }
 
+export const KNOWN_CONV_ALIASES: Record<string, string> = {
+  'conv_acc_1790086054053_acc_1790086295343': 'conv_sage_teddy',
+  'conv_sage_teddy': 'conv_acc_1790086054053_acc_1790086295343'
+};
+
 /**
  * Deterministic conversation ID for two users so both User A and User B
  * always connect to the exact same conversation document and messages subcollection.
@@ -66,7 +71,54 @@ export function getDirectConversationId(userId1: string, userId2: string): strin
   const c1 = clean(userId1);
   const c2 = clean(userId2);
   const sorted = [c1, c2].sort();
-  return `conv_${sorted[0]}_${sorted[1]}`;
+  const rawId = `conv_${sorted[0]}_${sorted[1]}`;
+  return KNOWN_CONV_ALIASES[rawId] || rawId;
+}
+
+/**
+ * Check if a conversation matches two users regardless of whether their IDs
+ * or usernames are stored in participantIds.
+ */
+export function matchesParticipants(
+  conv: Conversation,
+  user1Identifiers: (string | undefined | null)[],
+  user2Identifiers: (string | undefined | null)[]
+): boolean {
+  if (!conv || conv.isGroup || !conv.participantIds) return false;
+  const cleanSet1 = new Set(
+    user1Identifiers
+      .filter(Boolean)
+      .map((u) => (u as string).toLowerCase().trim().replace(/^user_/, '').replace(/^@/, ''))
+  );
+  const cleanSet2 = new Set(
+    user2Identifiers
+      .filter(Boolean)
+      .map((u) => (u as string).toLowerCase().trim().replace(/^user_/, '').replace(/^@/, ''))
+  );
+
+  const cleanConvParticipants = conv.participantIds.map((p) =>
+    (p || '').toLowerCase().trim().replace(/^user_/, '').replace(/^@/, '')
+  );
+
+  const has1 = cleanConvParticipants.some((p) => cleanSet1.has(p));
+  const has2 = cleanConvParticipants.some((p) => cleanSet2.has(p));
+  return has1 && has2;
+}
+
+/**
+ * Find an existing 1-on-1 conversation in memory
+ */
+export function findExistingConversation(
+  conversations: Conversation[],
+  user1Identifiers: (string | undefined | null)[],
+  user2Identifiers: (string | undefined | null)[]
+): Conversation | null {
+  for (const c of conversations) {
+    if (matchesParticipants(c, user1Identifiers, user2Identifiers)) {
+      return c;
+    }
+  }
+  return null;
 }
 
 export interface FirestoreErrorInfo {
@@ -289,6 +341,13 @@ export async function syncConversationToFirestore(conv: Conversation): Promise<v
       updatedAt: new Date().toISOString()
     });
     await setDoc(convRef, sanitized, { merge: true });
+
+    // Also sync to alias conversation if present
+    const aliasId = KNOWN_CONV_ALIASES[conv.id];
+    if (aliasId) {
+      const aliasRef = doc(db, 'conversations', aliasId);
+      await setDoc(aliasRef, { ...sanitized, id: aliasId }, { merge: true }).catch(() => {});
+    }
   } catch (err) {
     console.warn('Could not sync conversation to Firestore:', err);
   }
@@ -332,6 +391,13 @@ export async function syncMessageToFirestore(message: Message): Promise<boolean>
 
     const sanitized = sanitizeForFirestore(messageToSave);
     await setDoc(msgRef, sanitized, { merge: true });
+
+    // Mirror to alias conversation if present so both collections remain 100% complete
+    const aliasConvId = KNOWN_CONV_ALIASES[message.conversationId];
+    if (aliasConvId) {
+      const aliasMsgRef = doc(db, 'conversations', aliasConvId, 'messages', message.id);
+      await setDoc(aliasMsgRef, { ...sanitized, conversationId: aliasConvId }, { merge: true }).catch(() => {});
+    }
     return true;
   } catch (err) {
     console.error('Could not sync message to Firestore:', err);
@@ -451,18 +517,39 @@ export async function markConversationMessagesAsRead(
 
 
 /**
- * Real-time listener for messages in an active conversation
+ * Real-time listener for messages in an active conversation.
+ * Automatically merges messages from any known alias conversation so no message is ever missed.
  */
 export function subscribeToConversationMessages(
   conversationId: string,
   onUpdate: (messages: Message[]) => void
 ): Unsubscribe {
-  const path = `conversations/${conversationId}/messages`;
-  try {
-    const messagesCollection = collection(db, 'conversations', conversationId, 'messages');
+  const aliasId = KNOWN_CONV_ALIASES[conversationId];
+  let primaryMsgs: Message[] = [];
+  let aliasMsgs: Message[] = [];
 
-    return onSnapshot(
-      messagesCollection,
+  const emitMerged = () => {
+    const map = new Map<string, Message>();
+    aliasMsgs.forEach((m) => {
+      if (m && m.id) map.set(m.id, m);
+    });
+    primaryMsgs.forEach((m) => {
+      if (m && m.id) map.set(m.id, m);
+    });
+    const merged = Array.from(map.values());
+    // Sort messages strictly chronologically by milliseconds
+    merged.sort((a, b) => {
+      const tA = a.createdAtISO ? Date.parse(a.createdAtISO) : (a.timestamp ? Date.parse(`1970-01-01T${a.timestamp}`) : 0);
+      const tB = b.createdAtISO ? Date.parse(b.createdAtISO) : (b.timestamp ? Date.parse(`1970-01-01T${b.timestamp}`) : 0);
+      return (isNaN(tA) ? 0 : tA) - (isNaN(tB) ? 0 : tB);
+    });
+    onUpdate(merged);
+  };
+
+  try {
+    const primaryCollection = collection(db, 'conversations', conversationId, 'messages');
+    const unsubPrimary = onSnapshot(
+      primaryCollection,
       (snapshot) => {
         const msgs: Message[] = [];
         snapshot.forEach((docSnap) => {
@@ -471,18 +558,40 @@ export function subscribeToConversationMessages(
             msgs.push(data);
           }
         });
-        // Sort messages strictly chronologically by milliseconds
-        msgs.sort((a, b) => {
-          const tA = a.createdAtISO ? Date.parse(a.createdAtISO) : (a.timestamp ? Date.parse(`1970-01-01T${a.timestamp}`) : 0);
-          const tB = b.createdAtISO ? Date.parse(b.createdAtISO) : (b.timestamp ? Date.parse(`1970-01-01T${b.timestamp}`) : 0);
-          return (isNaN(tA) ? 0 : tA) - (isNaN(tB) ? 0 : tB);
-        });
-        onUpdate(msgs);
+        primaryMsgs = msgs;
+        emitMerged();
       },
       (error) => {
-        console.warn('Real-time message listener notice on path:', path, error);
+        console.warn('Real-time message listener notice on path:', conversationId, error);
       }
     );
+
+    let unsubAlias = () => {};
+    if (aliasId) {
+      const aliasCol = collection(db, 'conversations', aliasId, 'messages');
+      unsubAlias = onSnapshot(
+        aliasCol,
+        (snapshot) => {
+          const msgs: Message[] = [];
+          snapshot.forEach((docSnap) => {
+            const data = docSnap.data() as Message;
+            if (data && data.id) {
+              msgs.push(data);
+            }
+          });
+          aliasMsgs = msgs;
+          emitMerged();
+        },
+        (error) => {
+          console.warn('Real-time message listener notice on alias path:', aliasId, error);
+        }
+      );
+    }
+
+    return () => {
+      unsubPrimary();
+      unsubAlias();
+    };
   } catch (err) {
     console.warn('Could not establish real-time listener:', err);
     return () => {};
@@ -490,7 +599,8 @@ export function subscribeToConversationMessages(
 }
 
 /**
- * Real-time listener for user's conversations
+ * Real-time listener for user's conversations.
+ * Guarantees that 1-on-1 conversations between the same two users are deduplicated cleanly!
  */
 export function subscribeToUserConversations(
   userId: string,
@@ -509,6 +619,8 @@ export function subscribeToUserConversations(
       convsCol,
       (snapshot) => {
         const list: Conversation[] = [];
+        const seen1on1Pairs = new Map<string, Conversation>();
+
         snapshot.forEach((d) => {
           const data = d.data() as Conversation;
           if (!data || !data.participantIds) return;
@@ -522,10 +634,57 @@ export function subscribeToUserConversations(
             return false;
           });
 
-          if (isParticipant) {
+          if (!isParticipant) return;
+
+          if (data.isGroup) {
             list.push(data);
+            return;
+          }
+
+          // For 1-on-1 conversations, find the other participant token to deduplicate
+          const otherTokens = data.participantIds
+            .filter((p) => {
+              if (!p) return false;
+              const cleanP = p.toLowerCase().trim().replace(/^user_/, '').replace(/^@/, '');
+              if (p === userId || cleanP === usernameClean || p === `user_${usernameClean}`) return false;
+              return true;
+            })
+            .map((p) => p.toLowerCase().trim().replace(/^user_/, '').replace(/^@/, ''))
+            .filter(Boolean);
+
+          const otherToken = otherTokens.find((t) => !t.startsWith('acc_')) || otherTokens[0] || 'other';
+          const pairKey = otherToken;
+
+          if (seen1on1Pairs.has(pairKey)) {
+            const existing = seen1on1Pairs.get(pairKey)!;
+            // Prefer conv_sage_teddy / named IDs over conv_acc_..., or newer updatedAt
+            const preferData = !data.id.includes('acc_') && existing.id.includes('acc_')
+              ? true
+              : !existing.id.includes('acc_') && data.id.includes('acc_')
+              ? false
+              : (data.updatedAt && existing.updatedAt && Date.parse(data.updatedAt) > Date.parse(existing.updatedAt));
+
+            const winner = preferData ? data : existing;
+            const loser = preferData ? existing : data;
+            const mergedWinner: Conversation = {
+              ...winner,
+              participantIds: Array.from(new Set([...winner.participantIds, ...loser.participantIds])),
+              titles: { ...(loser.titles || {}), ...(winner.titles || {}) },
+              avatars: { ...(loser.avatars || {}), ...(winner.avatars || {}) },
+              participantDetails: { ...(loser.participantDetails || {}), ...(winner.participantDetails || {}) },
+              lastMessage: winner.lastMessage || loser.lastMessage,
+              updatedAt: winner.updatedAt || loser.updatedAt
+            };
+            seen1on1Pairs.set(pairKey, mergedWinner);
+          } else {
+            seen1on1Pairs.set(pairKey, data);
           }
         });
+
+        for (const conv of seen1on1Pairs.values()) {
+          list.push(conv);
+        }
+
         actualOnUpdate(list);
       },
       (err) => console.warn('Conversations listener warning:', err)

@@ -594,15 +594,18 @@ export function saveUserContacts(userId: string, contacts: UserProfile[]): void 
 export function getUserConversations(userId: string): Conversation[] {
   const scopedKey = getUserScopedKey(userId, 'conversations');
   const storedScoped = loadStoredData<Conversation[] | null>(scopedKey, null);
-  if (storedScoped && Array.isArray(storedScoped) && storedScoped.length > 0) {
+  if (storedScoped && Array.isArray(storedScoped)) {
     return storedScoped;
   }
-  const legacyStored = loadStoredData<Conversation[] | null>(STORAGE_KEYS.CONVERSATIONS, null);
-  if (legacyStored && Array.isArray(legacyStored) && legacyStored.length > 0) {
-    saveStoredData(scopedKey, legacyStored);
-    return legacyStored;
+  if (userId === 'user_me') {
+    const legacyStored = loadStoredData<Conversation[] | null>(STORAGE_KEYS.CONVERSATIONS, null);
+    if (legacyStored && Array.isArray(legacyStored) && legacyStored.length > 0) {
+      saveStoredData(scopedKey, legacyStored);
+      return legacyStored;
+    }
+    return INITIAL_CONVERSATIONS;
   }
-  return INITIAL_CONVERSATIONS;
+  return [];
 }
 
 export function saveUserConversations(userId: string, conversations: Conversation[]): void {
@@ -612,15 +615,18 @@ export function saveUserConversations(userId: string, conversations: Conversatio
 export function getUserMessages(userId: string): Record<string, Message[]> {
   const scopedKey = getUserScopedKey(userId, 'messages');
   const storedScoped = loadStoredData<Record<string, Message[]> | null>(scopedKey, null);
-  if (storedScoped && typeof storedScoped === 'object' && Object.keys(storedScoped).length > 0) {
+  if (storedScoped && typeof storedScoped === 'object') {
     return storedScoped;
   }
-  const legacyStored = loadStoredData<Record<string, Message[]> | null>(STORAGE_KEYS.MESSAGES, null);
-  if (legacyStored && typeof legacyStored === 'object' && Object.keys(legacyStored).length > 0) {
-    saveStoredData(scopedKey, legacyStored);
-    return legacyStored;
+  if (userId === 'user_me') {
+    const legacyStored = loadStoredData<Record<string, Message[]> | null>(STORAGE_KEYS.MESSAGES, null);
+    if (legacyStored && typeof legacyStored === 'object' && Object.keys(legacyStored).length > 0) {
+      saveStoredData(scopedKey, legacyStored);
+      return legacyStored;
+    }
+    return INITIAL_MESSAGES;
   }
-  return INITIAL_MESSAGES;
+  return {};
 }
 
 export function saveUserMessages(userId: string, messages: Record<string, Message[]>): void {

@@ -348,9 +348,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
         {!isMe && (
           <img
-            src={message.senderAvatar}
-            alt={message.senderName}
+            src={message.senderAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(message.senderName || message.senderId || 'user')}`}
+            alt={message.senderName || 'Sender'}
             className="w-7 h-7 rounded-full object-cover shrink-0 mb-1 shadow-sm ring-1 ring-slate-700"
+            onError={(e) => {
+              e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(message.senderName || message.senderId || 'user')}`;
+            }}
           />
         )}
 
@@ -399,7 +402,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             )}
 
             {/* Content: TEXT */}
-            {message.type === 'text' && (
+            {(message.type === 'text' || (!message.type && message.text)) && (
               <p className="text-sm leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere] select-text">
                 {message.text}
               </p>
