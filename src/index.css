@@ -25,9 +25,18 @@
     inset: 0;
   }
 
-  /* Globally restrict all container elements from scrolling horizontally */
-  * {
+  /* Globally restrict container elements from scrolling horizontally while protecting SVG rendering */
+  *:not(svg):not(path):not(circle):not(rect):not(polygon):not(line):not(polyline):not(g) {
     max-width: 100%;
+  }
+
+  /* Ensure all SVG icons retain proper dimensions and never collapse in flex/grid layouts */
+  svg {
+    display: inline-block;
+    vertical-align: middle;
+    flex-shrink: 0;
+    max-width: none !important;
+    overflow: visible;
   }
 
   p, span, div, h1, h2, h3, h4, h5, h6 {

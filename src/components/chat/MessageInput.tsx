@@ -453,7 +453,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 title="Options & Attachments"
                 aria-label="Add attachment"
               >
-                <Plus className="w-5 h-5 transition-transform duration-200" />
+                <Plus size={22} className="w-5 h-5 transition-transform duration-200 shrink-0" strokeWidth={2.4} />
               </button>
 
               {/* WhatsApp-Style Attachments Grid Menu */}
@@ -475,8 +475,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                       }}
                       className="flex flex-col items-center gap-1.5 p-2 rounded-2xl hover:bg-slate-800/80 active:scale-95 transition-all cursor-pointer w-full text-center group"
                     >
-                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-500 to-pink-500 text-white flex items-center justify-center shadow-lg shadow-rose-500/30 group-hover:scale-105 transition-transform">
-                        <Camera className="w-6 h-6 text-white" />
+                      <div className="w-12 h-12 min-w-12 min-h-12 rounded-2xl bg-gradient-to-tr from-rose-500 to-pink-500 text-white flex items-center justify-center shadow-lg shadow-rose-500/30 group-hover:scale-105 transition-transform shrink-0">
+                        <Camera size={26} className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
                       </div>
                       <span className="text-[11px] font-medium text-slate-200 group-hover:text-white">Camera</span>
                     </button>
@@ -490,8 +490,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                       }}
                       className="flex flex-col items-center gap-1.5 p-2 rounded-2xl hover:bg-slate-800/80 active:scale-95 transition-all cursor-pointer w-full text-center group"
                     >
-                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-500 to-indigo-500 text-white flex items-center justify-center shadow-lg shadow-purple-500/30 group-hover:scale-105 transition-transform">
-                        <ImageIcon className="w-6 h-6 text-white" />
+                      <div className="w-12 h-12 min-w-12 min-h-12 rounded-2xl bg-gradient-to-tr from-purple-500 to-indigo-500 text-white flex items-center justify-center shadow-lg shadow-purple-500/30 group-hover:scale-105 transition-transform shrink-0">
+                        <ImageIcon size={26} className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
                       </div>
                       <span className="text-[11px] font-medium text-slate-200 group-hover:text-white">Photos</span>
                     </button>
@@ -505,8 +505,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                       }}
                       className="flex flex-col items-center gap-1.5 p-2 rounded-2xl hover:bg-slate-800/80 active:scale-95 transition-all cursor-pointer w-full text-center group"
                     >
-                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-500 to-cyan-500 text-white flex items-center justify-center shadow-lg shadow-blue-500/30 group-hover:scale-105 transition-transform">
-                        <Paperclip className="w-6 h-6 text-white" />
+                      <div className="w-12 h-12 min-w-12 min-h-12 rounded-2xl bg-gradient-to-tr from-blue-500 to-cyan-500 text-white flex items-center justify-center shadow-lg shadow-blue-500/30 group-hover:scale-105 transition-transform shrink-0">
+                        <Paperclip size={26} className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
                       </div>
                       <span className="text-[11px] font-medium text-slate-200 group-hover:text-white">Document</span>
                     </button>
@@ -520,8 +520,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                       }}
                       className="flex flex-col items-center gap-1.5 p-2 rounded-2xl hover:bg-slate-800/80 active:scale-95 transition-all cursor-pointer w-full text-center group"
                     >
-                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-600 to-red-500 text-white flex items-center justify-center shadow-lg shadow-rose-600/30 group-hover:scale-105 transition-transform">
-                        <Video className="w-6 h-6 text-white" />
+                      <div className="w-12 h-12 min-w-12 min-h-12 rounded-2xl bg-gradient-to-tr from-rose-600 to-red-500 text-white flex items-center justify-center shadow-lg shadow-rose-600/30 group-hover:scale-105 transition-transform shrink-0">
+                        <Video size={26} className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
                       </div>
                       <span className="text-[11px] font-medium text-slate-200 group-hover:text-white">Video</span>
                     </button>
@@ -535,8 +535,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                       }}
                       className="flex flex-col items-center gap-1.5 p-2 rounded-2xl hover:bg-slate-800/80 active:scale-95 transition-all cursor-pointer w-full text-center group"
                     >
-                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-violet-500 to-fuchsia-500 text-white flex items-center justify-center shadow-lg shadow-violet-500/30 group-hover:scale-105 transition-transform">
-                        <Sparkles className="w-6 h-6 text-white" />
+                      <div className="w-12 h-12 min-w-12 min-h-12 rounded-2xl bg-gradient-to-tr from-violet-500 to-fuchsia-500 text-white flex items-center justify-center shadow-lg shadow-violet-500/30 group-hover:scale-105 transition-transform shrink-0">
+                        <Sparkles size={26} className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
                       </div>
                       <span className="text-[11px] font-medium text-slate-200 group-hover:text-white">GIF</span>
                     </button>
@@ -551,13 +551,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                       className="flex flex-col items-center gap-1.5 p-2 rounded-2xl hover:bg-slate-800/80 active:scale-95 transition-all cursor-pointer w-full text-center group"
                     >
                       <div
-                        className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg transition-transform group-hover:scale-105 ${
+                        className={`w-12 h-12 min-w-12 min-h-12 rounded-2xl flex items-center justify-center shadow-lg transition-transform group-hover:scale-105 shrink-0 ${
                           isUrgent
                             ? 'bg-gradient-to-tr from-rose-600 to-amber-500 text-white ring-2 ring-rose-400 shadow-rose-600/40'
                             : 'bg-gradient-to-tr from-amber-500 to-yellow-500 text-slate-950 shadow-amber-500/30'
                         }`}
                       >
-                        <Zap className="w-6 h-6 fill-current" />
+                        <Zap size={26} className="w-6 h-6 fill-current shrink-0" strokeWidth={2.2} />
                       </div>
                       <span className="text-[11px] font-medium text-slate-200 group-hover:text-white">
                         {isUrgent ? 'Urgent ON' : 'Priority'}

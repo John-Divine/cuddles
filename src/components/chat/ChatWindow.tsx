@@ -544,7 +544,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             <button
               type="button"
               onClick={() => setShowOptionsMenu((prev) => !prev)}
-              className={`p-2 sm:p-2.5 rounded-xl border active:scale-95 transition-all cursor-pointer ${
+              className={`p-2 sm:p-2.5 rounded-xl border active:scale-95 transition-all cursor-pointer flex items-center justify-center ${
                 showOptionsMenu
                   ? 'bg-rose-500/20 text-rose-300 border-rose-500/50'
                   : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700/60'
@@ -552,7 +552,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               title="More options"
               aria-label="More options"
             >
-              <MoreVertical className="w-4 h-4" />
+              <MoreVertical size={18} className="w-4.5 h-4.5 shrink-0" strokeWidth={2.2} />
             </button>
 
             {showOptionsMenu && (
@@ -570,8 +570,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     }}
                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-slate-800/80 active:bg-slate-800 text-slate-200 hover:text-white text-xs font-medium transition-colors cursor-pointer"
                   >
-                    <div className="w-8 h-8 rounded-lg bg-pink-500/20 text-pink-400 flex items-center justify-center shrink-0">
-                      <ImageIcon className="w-4 h-4" />
+                    <div className="w-8 h-8 rounded-lg bg-pink-500/20 text-pink-400 flex items-center justify-center shrink-0 border border-pink-500/30">
+                      <ImageIcon size={18} className="w-4.5 h-4.5 text-pink-400 shrink-0" strokeWidth={2.2} />
                     </div>
                     <div className="min-w-0">
                       <span className="block font-semibold">Media & Documents</span>
@@ -590,8 +590,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     }}
                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-slate-800/80 active:bg-slate-800 text-slate-200 hover:text-white text-xs font-medium transition-colors cursor-pointer"
                   >
-                    <div className="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
-                      <User className="w-4 h-4" />
+                    <div className="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0 border border-rose-500/30">
+                      <User size={18} className="w-4.5 h-4.5 text-rose-400 shrink-0" strokeWidth={2.2} />
                     </div>
                     <div className="min-w-0">
                       <span className="block font-semibold">View Contact</span>
@@ -609,8 +609,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   }}
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-slate-800/80 active:bg-slate-800 text-slate-200 hover:text-white text-xs font-medium transition-colors cursor-pointer"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-                    <ShieldCheck className="w-4 h-4" />
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30">
+                    <ShieldCheck size={18} className="w-4.5 h-4.5 text-emerald-400 shrink-0" strokeWidth={2.2} />
                   </div>
                   <div className="min-w-0">
                     <span className="block font-semibold">Encryption & Safety</span>
@@ -627,12 +627,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   }}
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-slate-800/80 active:bg-slate-800 text-slate-200 hover:text-white text-xs font-medium transition-colors cursor-pointer"
                 >
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
                     conversation.disappearingTimerMinutes
-                      ? 'bg-amber-500/25 text-amber-300 ring-1 ring-amber-400/50'
-                      : 'bg-amber-500/20 text-amber-400'
+                      ? 'bg-amber-500/25 text-amber-300 ring-1 ring-amber-400/50 border-amber-400/40'
+                      : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
                   }`}>
-                    <Clock className="w-4 h-4" />
+                    <Clock size={18} className="w-4.5 h-4.5 text-amber-400 shrink-0" strokeWidth={2.2} />
                   </div>
                   <div className="min-w-0">
                     <span className="block font-semibold">Disappearing Messages</span>
