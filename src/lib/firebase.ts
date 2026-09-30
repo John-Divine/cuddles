@@ -51,10 +51,31 @@ export function sanitizeForFirestore<T>(obj: T): T {
   return obj;
 }
 
-export const KNOWN_CONV_ALIASES: Record<string, string> = {
-  'conv_acc_1790086054053_acc_1790086295343': 'conv_sage_teddy',
-  'conv_sage_teddy': 'conv_acc_1790086054053_acc_1790086295343'
+export const LEGACY_TO_CANONICAL_CONV_MAP: Record<string, string> = {
+  'conv_acc_1790086054053_acc_1790086295343': 'conv_sage_teddy'
 };
+
+/**
+ * Returns the single, authoritative canonical conversation ID.
+ * Strictly idempotent: getCanonicalConversationId(canonicalId) === canonicalId.
+ */
+export function getCanonicalConversationId(convId: string | null | undefined): string {
+  if (!convId) return '';
+  return LEGACY_TO_CANONICAL_CONV_MAP[convId] || convId;
+}
+
+/**
+ * Returns the paired legacy mirror ID if one exists, for dual-syncing Firestore documents.
+ */
+export function getLinkedLegacyAliasId(convId: string | null | undefined): string | null {
+  if (!convId) return null;
+  if (convId === 'conv_sage_teddy') return 'conv_acc_1790086054053_acc_1790086295343';
+  if (convId === 'conv_acc_1790086054053_acc_1790086295343') return 'conv_sage_teddy';
+  return null;
+}
+
+// Backward compatibility alias for any existing imports
+export const KNOWN_CONV_ALIASES = LEGACY_TO_CANONICAL_CONV_MAP;
 
 /**
  * Deterministic conversation ID for two users so both User A and User B
@@ -72,7 +93,7 @@ export function getDirectConversationId(userId1: string, userId2: string): strin
   const c2 = clean(userId2);
   const sorted = [c1, c2].sort();
   const rawId = `conv_${sorted[0]}_${sorted[1]}`;
-  return KNOWN_CONV_ALIASES[rawId] || rawId;
+  return getCanonicalConversationId(rawId);
 }
 
 /**
@@ -307,9 +328,10 @@ export async function findExistingConversationInFirestore(
  * Save / update conversation in Firestore
  */
 export async function syncConversationToFirestore(conv: Conversation): Promise<void> {
-  const path = `conversations/${conv.id}`;
+  const canonicalId = getCanonicalConversationId(conv.id);
+  const path = `conversations/${canonicalId}`;
   try {
-    const convRef = doc(db, 'conversations', conv.id);
+    const convRef = doc(db, 'conversations', canonicalId);
 
     // Ensure all variants of participant identifiers are present
     const rawParticipants = conv.participantIds || [];
@@ -325,7 +347,7 @@ export async function syncConversationToFirestore(conv: Conversation): Promise<v
     });
 
     const sanitized = sanitizeForFirestore({
-      id: conv.id,
+      id: canonicalId,
       title: conv.title || '',
       avatar: conv.avatar || '',
       participantIds: Array.from(normalizedSet),
@@ -342,11 +364,11 @@ export async function syncConversationToFirestore(conv: Conversation): Promise<v
     });
     await setDoc(convRef, sanitized, { merge: true });
 
-    // Also sync to alias conversation if present
-    const aliasId = KNOWN_CONV_ALIASES[conv.id];
-    if (aliasId) {
-      const aliasRef = doc(db, 'conversations', aliasId);
-      await setDoc(aliasRef, { ...sanitized, id: aliasId }, { merge: true }).catch(() => {});
+    // Also mirror to legacy alias conversation if present so older client sessions don't lose updates
+    const legacyAliasId = getLinkedLegacyAliasId(canonicalId);
+    if (legacyAliasId && legacyAliasId !== canonicalId) {
+      const aliasRef = doc(db, 'conversations', legacyAliasId);
+      await setDoc(aliasRef, { ...sanitized, id: legacyAliasId }, { merge: true }).catch(() => {});
     }
   } catch (err) {
     console.warn('Could not sync conversation to Firestore:', err);
@@ -357,11 +379,13 @@ export async function syncConversationToFirestore(conv: Conversation): Promise<v
  * Sync message to Firestore under /conversations/{conversationId}/messages/{messageId}
  */
 export async function syncMessageToFirestore(message: Message): Promise<boolean> {
-  const path = `conversations/${message.conversationId}/messages/${message.id}`;
+  const canonicalConvId = getCanonicalConversationId(message.conversationId);
+  const path = `conversations/${canonicalConvId}/messages/${message.id}`;
   try {
-    const msgRef = doc(db, 'conversations', message.conversationId, 'messages', message.id);
+    const msgRef = doc(db, 'conversations', canonicalConvId, 'messages', message.id);
     let messageToSave = {
       ...message,
+      conversationId: canonicalConvId,
       createdAtISO: message.createdAtISO || new Date().toISOString()
     };
 
@@ -392,11 +416,11 @@ export async function syncMessageToFirestore(message: Message): Promise<boolean>
     const sanitized = sanitizeForFirestore(messageToSave);
     await setDoc(msgRef, sanitized, { merge: true });
 
-    // Mirror to alias conversation if present so both collections remain 100% complete
-    const aliasConvId = KNOWN_CONV_ALIASES[message.conversationId];
-    if (aliasConvId) {
-      const aliasMsgRef = doc(db, 'conversations', aliasConvId, 'messages', message.id);
-      await setDoc(aliasMsgRef, { ...sanitized, conversationId: aliasConvId }, { merge: true }).catch(() => {});
+    // Mirror to legacy alias conversation if present so both collections remain 100% complete
+    const legacyAliasId = getLinkedLegacyAliasId(canonicalConvId);
+    if (legacyAliasId && legacyAliasId !== canonicalConvId) {
+      const aliasMsgRef = doc(db, 'conversations', legacyAliasId, 'messages', message.id);
+      await setDoc(aliasMsgRef, { ...sanitized, conversationId: legacyAliasId }, { merge: true }).catch(() => {});
     }
     return true;
   } catch (err) {
@@ -524,7 +548,8 @@ export function subscribeToConversationMessages(
   conversationId: string,
   onUpdate: (messages: Message[]) => void
 ): Unsubscribe {
-  const aliasId = KNOWN_CONV_ALIASES[conversationId];
+  const canonicalId = getCanonicalConversationId(conversationId);
+  const aliasId = getLinkedLegacyAliasId(canonicalId);
   let primaryMsgs: Message[] = [];
   let aliasMsgs: Message[] = [];
 
@@ -547,7 +572,7 @@ export function subscribeToConversationMessages(
   };
 
   try {
-    const primaryCollection = collection(db, 'conversations', conversationId, 'messages');
+    const primaryCollection = collection(db, 'conversations', canonicalId, 'messages');
     const unsubPrimary = onSnapshot(
       primaryCollection,
       (snapshot) => {
@@ -562,12 +587,12 @@ export function subscribeToConversationMessages(
         emitMerged();
       },
       (error) => {
-        console.warn('Real-time message listener notice on path:', conversationId, error);
+        console.warn('Real-time message listener notice on path:', canonicalId, error);
       }
     );
 
     let unsubAlias = () => {};
-    if (aliasId) {
+    if (aliasId && aliasId !== canonicalId) {
       const aliasCol = collection(db, 'conversations', aliasId, 'messages');
       unsubAlias = onSnapshot(
         aliasCol,
@@ -631,6 +656,7 @@ export function subscribeToUserConversations(
             if (p === userId) return true;
             if (usernameClean && cleanP === usernameClean) return true;
             if (usernameClean && p === `user_${usernameClean}`) return true;
+            if (p === 'user_me' || cleanP === 'me') return true;
             return false;
           });
 
@@ -646,13 +672,19 @@ export function subscribeToUserConversations(
             .filter((p) => {
               if (!p) return false;
               const cleanP = p.toLowerCase().trim().replace(/^user_/, '').replace(/^@/, '');
-              if (p === userId || cleanP === usernameClean || p === `user_${usernameClean}`) return false;
+              if (
+                p === userId ||
+                cleanP === usernameClean ||
+                p === `user_${usernameClean}` ||
+                p === 'user_me' ||
+                cleanP === 'me'
+              ) return false;
               return true;
             })
             .map((p) => p.toLowerCase().trim().replace(/^user_/, '').replace(/^@/, ''))
             .filter(Boolean);
 
-          const otherToken = otherTokens.find((t) => !t.startsWith('acc_')) || otherTokens[0] || 'other';
+          const otherToken = otherTokens.find((t) => !t.startsWith('acc_')) || otherTokens[0] || data.id;
           const pairKey = otherToken;
 
           if (seen1on1Pairs.has(pairKey)) {
@@ -682,7 +714,8 @@ export function subscribeToUserConversations(
         });
 
         for (const conv of seen1on1Pairs.values()) {
-          list.push(conv);
+          const canonicalId = getCanonicalConversationId(conv.id);
+          list.push({ ...conv, id: canonicalId });
         }
 
         actualOnUpdate(list);

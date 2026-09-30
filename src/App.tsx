@@ -60,6 +60,8 @@ import {
   markConversationMessagesAsRead,
   findExistingConversation,
   matchesParticipants,
+  getCanonicalConversationId,
+  getLinkedLegacyAliasId,
   KNOWN_CONV_ALIASES
 } from './lib/firebase';
 import { saveMediaToDeviceVault, getMediaFromDeviceVault, clearDeviceVault } from './lib/deviceMediaStorage';
@@ -144,6 +146,8 @@ export default function App() {
 
   // Never auto-select or auto-open a chat on initial load (WhatsApp style)
   const [activeConversationId, setActiveConversationId] = useState<string>('');
+  const activeConversationIdRef = useRef(activeConversationId);
+  activeConversationIdRef.current = activeConversationId;
 
   // Messages state - isolated strictly per account with reliable fallback
   const [messagesMap, setMessagesMap] = useState<Record<string, Message[]>>(() => {
@@ -479,9 +483,11 @@ export default function App() {
       if (cloudConvs && cloudConvs.length > 0) {
         // Notification alert for new incoming message in inactive conversation
         setConversations((prev) => {
+          const currentActiveCanonical = getCanonicalConversationId(activeConversationIdRef.current);
+
           cloudConvs.forEach((c) => {
-            const canonicalId = KNOWN_CONV_ALIASES[c.id] || c.id;
-            const existing = prev.find((p) => p.id === c.id || p.id === canonicalId);
+            const canonicalId = getCanonicalConversationId(c.id);
+            const existing = prev.find((p) => p.id === c.id || getCanonicalConversationId(p.id) === canonicalId);
             if (
               c.lastMessage &&
               c.lastMessage.text &&
@@ -489,8 +495,7 @@ export default function App() {
               existing.lastMessage?.text !== c.lastMessage.text &&
               c.lastMessage.senderName &&
               c.lastMessage.senderName.toLowerCase().trim() !== (activeAccount.name || '').toLowerCase().trim() &&
-              c.id !== activeConversationId &&
-              canonicalId !== activeConversationId
+              canonicalId !== currentActiveCanonical
             ) {
               playReceivedSound();
               setNotificationToast({
@@ -508,12 +513,12 @@ export default function App() {
 
           const map = new Map<string, Conversation>();
           prev.forEach((c) => {
-            const canonicalId = KNOWN_CONV_ALIASES[c.id] || c.id;
+            const canonicalId = getCanonicalConversationId(c.id);
             map.set(canonicalId, { ...c, id: canonicalId });
           });
 
           cloudConvs.forEach((c) => {
-            const canonicalId = KNOWN_CONV_ALIASES[c.id] || c.id;
+            const canonicalId = getCanonicalConversationId(c.id);
             const existing = map.get(canonicalId);
             let merged = existing ? { ...existing, ...c, id: canonicalId } : { ...c, id: canonicalId };
 
@@ -571,6 +576,14 @@ export default function App() {
             }
           }
 
+          // Safety guarantee: ensure currently active conversation is never omitted from conversation list
+          if (currentActiveCanonical && !deduplicated.some((c) => c.id === currentActiveCanonical)) {
+            const activeObj = map.get(currentActiveCanonical) || prev.find((p) => getCanonicalConversationId(p.id) === currentActiveCanonical);
+            if (activeObj) {
+              deduplicated.unshift({ ...activeObj, id: currentActiveCanonical });
+            }
+          }
+
           return deduplicated;
         });
       }
@@ -579,13 +592,13 @@ export default function App() {
     return () => {
       if (typeof unsubscribe === 'function') unsubscribe();
     };
-  }, [activeAccount?.id, activeAccount?.username, activeConversationId]);
+  }, [activeAccount?.id, activeAccount?.username]);
 
   // Auto-migrate any legacy conversation IDs in active state or local message vault
   useEffect(() => {
-    if (activeConversationId && KNOWN_CONV_ALIASES[activeConversationId]) {
-      const canonicalId = KNOWN_CONV_ALIASES[activeConversationId];
-      if (canonicalId === 'conv_sage_teddy' && activeConversationId.includes('acc_')) {
+    if (activeConversationId) {
+      const canonicalId = getCanonicalConversationId(activeConversationId);
+      if (canonicalId !== activeConversationId) {
         setActiveConversationId(canonicalId);
       }
     }
@@ -817,10 +830,40 @@ export default function App() {
   );
 
   // Active conversation object (null when no chat is open)
-  const activeConversation = activeConversationId
-    ? (conversations.find((c) => c.id === activeConversationId) || null)
-    : null;
-  const activeMessages = activeConversation ? (messagesMap[activeConversation.id] || []) : [];
+  const activeConversation = React.useMemo(() => {
+    if (!activeConversationId) return null;
+    const targetCanonical = getCanonicalConversationId(activeConversationId);
+    return (
+      conversations.find((c) => 
+        c.id === activeConversationId || 
+        c.id === targetCanonical || 
+        getCanonicalConversationId(c.id) === targetCanonical
+      ) || null
+    );
+  }, [conversations, activeConversationId]);
+
+  // Robust messages resolution with alias fallback so messages under either ID are immediately visible
+  const activeMessages = React.useMemo(() => {
+    if (!activeConversation) return [];
+    const directMsgs = messagesMap[activeConversation.id] || [];
+    const canonicalId = getCanonicalConversationId(activeConversation.id);
+    const aliasId = getLinkedLegacyAliasId(canonicalId);
+    if (!aliasId || canonicalId === aliasId) return directMsgs;
+
+    const aliasMsgs = messagesMap[aliasId] || [];
+    if (aliasMsgs.length === 0) return directMsgs;
+
+    const map = new Map<string, Message>();
+    aliasMsgs.forEach((m) => map.set(m.id, m));
+    directMsgs.forEach((m) => map.set(m.id, m));
+    const merged = Array.from(map.values());
+    merged.sort((a, b) => {
+      const tA = a.createdAtISO ? Date.parse(a.createdAtISO) : (a.timestamp ? Date.parse(`1970-01-01T${a.timestamp}`) : 0);
+      const tB = b.createdAtISO ? Date.parse(b.createdAtISO) : (b.timestamp ? Date.parse(`1970-01-01T${b.timestamp}`) : 0);
+      return (isNaN(tA) ? 0 : tA) - (isNaN(tB) ? 0 : tB);
+    });
+    return merged;
+  }, [activeConversation, messagesMap]);
 
   // Robust recipient resolution for 1-on-1 chats (guarantees anti-self identity display)
   const activeConversationDisplay = React.useMemo(() => {
@@ -840,19 +883,20 @@ export default function App() {
   // Mark incoming messages as read when user is actively viewing this conversation
   useEffect(() => {
     if (!activeConversationId) return;
-    const currentList = messagesMap[activeConversationId] || [];
+    const canonicalId = getCanonicalConversationId(activeConversationId);
+    const currentList = messagesMap[canonicalId] || messagesMap[activeConversationId] || [];
     const unread = currentList.filter((m) => m.senderId !== currentUser.id && m.status !== 'read');
     if (unread.length > 0) {
-      markConversationMessagesAsRead(activeConversationId, currentUser.id);
+      markConversationMessagesAsRead(canonicalId, currentUser.id);
       unread.forEach((m) => {
-        markMessageAsReadInFirestore(activeConversationId, m.id);
+        markMessageAsReadInFirestore(canonicalId, m.id);
       });
       setMessagesMap((prev) => {
-        const list = prev[activeConversationId] || [];
+        const list = prev[canonicalId] || prev[activeConversationId] || [];
         const updated = list.map((m) =>
           m.senderId !== currentUser.id && m.status !== 'read' ? { ...m, status: 'read' as const } : m
         );
-        const nextMap = { ...prev, [activeConversationId]: updated };
+        const nextMap = { ...prev, [canonicalId]: updated, [activeConversationId]: updated };
         if (activeAccount?.id) {
           saveUserMessages(activeAccount.id, nextMap);
         }
@@ -865,6 +909,7 @@ export default function App() {
   // Send Text Message with Schedule & Urgent Gating Logic
   const handleSendMessage = async (text: string, priority: MessagePriority = 'normal') => {
     if (!text.trim() || !activeConversation) return;
+    const convId = getCanonicalConversationId(activeConversation.id);
 
     // Check if recipient is busy according to their day schedule
     const recipientIsBusy = activeRecipient?.currentSchedule?.isBusy ?? false;
@@ -872,16 +917,13 @@ export default function App() {
 
     if (recipientIsBusy) {
       if (priority === 'urgent' || priority === 'emergency') {
-        // Urgent alert pierces focus mode!
         playUrgentSound();
         deliveredSilently = false;
       } else {
-        // Recipient is busy, text is delivered quietly
         playSentSound();
         deliveredSilently = true;
       }
     } else {
-      // Recipient is available
       if (priority === 'urgent') {
         playUrgentSound();
       } else {
@@ -894,7 +936,7 @@ export default function App() {
 
     const newMessage: Message = {
       id: 'msg_' + Date.now(),
-      conversationId: activeConversation.id,
+      conversationId: convId,
       senderId: currentUser.id,
       senderName: currentUser.name,
       senderAvatar: currentUser.avatar,
@@ -910,9 +952,12 @@ export default function App() {
 
     // Append to messages list and SAVE IMMEDIATELY to localStorage & account storage
     setMessagesMap((prev) => {
+      const existingList = prev[convId] || prev[activeConversation.id] || [];
+      const updatedList = [...existingList, newMessage];
       const nextMap = {
         ...prev,
-        [activeConversation.id]: [...(prev[activeConversation.id] || []), newMessage]
+        [convId]: updatedList,
+        [activeConversation.id]: updatedList
       };
       if (activeAccount?.id) {
         saveUserMessages(activeAccount.id, nextMap);
@@ -925,11 +970,11 @@ export default function App() {
     syncMessageToFirestore(newMessage).then((synced) => {
       if (synced) {
         setMessagesMap((prev) => {
-          const list = prev[activeConversation.id] || [];
+          const list = prev[convId] || [];
           const updated = list.map((m) =>
             m.id === newMessage.id ? { ...m, status: 'delivered' as const } : m
           );
-          const nextMap = { ...prev, [activeConversation.id]: updated };
+          const nextMap = { ...prev, [convId]: updated, [activeConversation.id]: updated };
           if (activeAccount?.id) saveUserMessages(activeAccount.id, nextMap);
           saveStoredData(STORAGE_KEYS.MESSAGES, nextMap);
           return nextMap;
@@ -940,18 +985,19 @@ export default function App() {
     // Update conversation last message preview and sync conversation to Firestore
     const updatedConv: Conversation = {
       ...activeConversation,
+      id: convId,
       lastMessage: {
         text: priority === 'urgent' ? `⚡ [Urgent] ${text}` : text,
         timestamp: 'Just now',
         senderName: currentUser.name,
-        unreadCount: 1
+        unreadCount: 0
       },
       updatedAt: new Date().toISOString()
     };
     syncConversationToFirestore(updatedConv);
 
     setConversations((prev) =>
-      prev.map((c) => (c.id === activeConversation.id ? updatedConv : c))
+      prev.map((c) => (getCanonicalConversationId(c.id) === convId ? updatedConv : c))
     );
   };
 
