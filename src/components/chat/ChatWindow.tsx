@@ -443,7 +443,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-slate-900 ${
                 isBusy ? 'bg-amber-400' : 'bg-emerald-400'
               }`}
-              title={isBusy ? 'Currently busy / quiet mode' : 'Active and available to chat'}
+              title={isBusy ? 'Busy' : 'Free'}
             />
           </button>
 
@@ -481,18 +481,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
                 <span className="text-slate-500 shrink-0">•</span>
 
-                {/* Free vs Busy Schedule Status */}
+                {/* Free vs Busy Schedule Status - Exactly one word */}
                 {isBusy ? (
                   <span className="text-amber-300 font-medium truncate flex items-center gap-1">
                     <Moon className="w-3 h-3 text-amber-400 shrink-0" />
-                    <span className="truncate">
-                      Busy ({effectiveRecipient.currentSchedule?.activityTitle || 'Focus'} until {effectiveRecipient.currentSchedule?.untilTime || 'later'})
-                    </span>
+                    <span>Busy</span>
                   </span>
                 ) : (
                   <span className="text-emerald-300 font-medium truncate flex items-center gap-1">
                     <span className="text-emerald-400">●</span>
-                    <span>Free & Available to chat</span>
+                    <span>Free</span>
                   </span>
                 )}
               </div>
@@ -564,7 +562,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             <Lock className="w-4 h-4 text-emerald-400" />
           </button>
 
-          {/* More options menu (3 Dots) - Strictly Icons Only */}
+          {/* More options menu (3 Dots) - Matching Plus Menu Expression */}
           <div className="relative shrink-0" ref={optionsMenuRef}>
             <button
               type="button"
@@ -582,53 +580,32 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
             {showOptionsMenu && (
               <div
-                className="absolute right-0 top-12 rounded-2xl bg-slate-900/98 border border-slate-700 shadow-2xl p-1.5 z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-top-2 select-none flex items-center gap-1.5"
-                style={{ filter: 'drop-shadow(0 20px 25px rgba(0, 0, 0, 0.75))' }}
+                className="absolute right-0 top-12 rounded-3xl bg-slate-900/98 border border-slate-700/80 shadow-2xl p-3 sm:p-3.5 z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-top-2 select-none"
+                style={{ filter: 'drop-shadow(0 25px 35px rgba(0, 0, 0, 0.9))' }}
               >
-
-                {/* View Contact Profile */}
-                {effectiveRecipient && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowOptionsMenu(false);
-                      onViewProfile?.(effectiveRecipient);
-                    }}
-                    className="w-10 h-10 min-w-10 min-h-10 rounded-xl bg-rose-500/20 hover:bg-rose-500/35 border border-rose-500/40 text-rose-400 hover:text-rose-300 active:scale-95 transition-all flex items-center justify-center cursor-pointer shrink-0"
-                    aria-label="View Contact"
-                  >
-                    <User className="w-5 h-5 text-rose-400 shrink-0" strokeWidth={2.2} />
-                  </button>
-                )}
-
-                {/* Verify Safety Number / E2EE */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowOptionsMenu(false);
-                    setShowSafetyModal(true);
-                  }}
-                  className="w-10 h-10 min-w-10 min-h-10 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-500/40 text-emerald-400 hover:text-emerald-300 active:scale-95 transition-all flex items-center justify-center cursor-pointer shrink-0"
-                  aria-label="Encryption & Safety"
-                >
-                  <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" strokeWidth={2.2} />
-                </button>
-
-                {/* Disappearing Messages Timer */}
+                {/* Disappearing Messages Timer - Single Necessary Icon with vibrant Plus Menu appearance */}
                 <button
                   type="button"
                   onClick={() => {
                     setShowOptionsMenu(false);
                     onUpdateDisappearingTimer?.(conversation.disappearingTimerMinutes ? 0 : 1440);
                   }}
-                  className={`w-10 h-10 min-w-10 min-h-10 rounded-xl border flex items-center justify-center active:scale-95 transition-all cursor-pointer shrink-0 ${
+                  className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex flex-col items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95 cursor-pointer relative ${
                     conversation.disappearingTimerMinutes
-                      ? 'bg-amber-500/30 text-amber-300 border-amber-400 ring-2 ring-amber-400/40'
-                      : 'bg-amber-500/20 hover:bg-amber-500/35 border-amber-500/40 text-amber-400 hover:text-amber-300'
+                      ? 'bg-gradient-to-tr from-amber-500 to-orange-500 text-white shadow-amber-500/35 ring-2 ring-amber-400'
+                      : 'bg-gradient-to-tr from-amber-500 to-orange-500 text-white shadow-amber-500/25'
                   }`}
                   aria-label="Disappearing Messages"
+                  title={
+                    conversation.disappearingTimerMinutes
+                      ? `Disappearing Messages ON (${conversation.disappearingTimerMinutes >= 60 ? `${conversation.disappearingTimerMinutes / 60}h` : `${conversation.disappearingTimerMinutes}m`}) - Click to turn off`
+                      : 'Turn on 24h Disappearing Messages'
+                  }
                 >
-                  <Clock className="w-5 h-5 shrink-0" strokeWidth={2.2} />
+                  <Clock className="w-6 h-6 sm:w-7 sm:h-7 text-white shrink-0" strokeWidth={2.2} />
+                  {conversation.disappearingTimerMinutes ? (
+                    <span className="text-[10px] font-bold text-white leading-none mt-1">24h</span>
+                  ) : null}
                 </button>
               </div>
             )}

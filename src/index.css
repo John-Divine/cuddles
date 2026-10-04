@@ -25,8 +25,8 @@
     inset: 0;
   }
 
-  /* Globally restrict container elements from scrolling horizontally while protecting SVG rendering */
-  *:not(svg):not(path):not(circle):not(rect):not(polygon):not(line):not(polyline):not(g) {
+  /* Responsive media elements */
+  img, video, canvas, audio, iframe, embed, object {
     max-width: 100%;
   }
 

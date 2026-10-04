@@ -443,8 +443,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
           {/* Main Input Row */}
           <div className="flex items-end gap-1.5 sm:gap-2 relative w-full max-w-full min-w-0">
-            {/* Plus (+) Button & Expandable Action Menu (Mobile/Tablet View Only - Hidden on Laptop) */}
-            <div className="relative pb-0.5 shrink-0 lg:hidden" ref={plusMenuRef}>
+            {/* Plus (+) Button & Expandable Action Menu */}
+            <div className="relative pb-0.5 shrink-0 flex items-center gap-1.5" ref={plusMenuRef}>
               <button
                 type="button"
                 onClick={() => setShowPlusMenu((prev) => !prev)}
@@ -459,114 +459,109 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 <Plus size={22} className="w-5 h-5 transition-transform duration-200 shrink-0" strokeWidth={2.4} />
               </button>
 
-              {/* Plus (+) Action Palette - Clean Square/Rectangle Grid */}
+              {/* Mobile Quick Urgent Priority Toggle */}
+              <button
+                type="button"
+                onClick={() => setIsUrgent(!isUrgent)}
+                className={`w-10 h-10 rounded-2xl flex items-center justify-center border transition-all active:scale-95 shadow-sm cursor-pointer ${
+                  isUrgent
+                    ? 'bg-gradient-to-tr from-rose-600 to-amber-500 text-white ring-2 ring-rose-400 shadow-rose-600/40 border-rose-400'
+                    : 'bg-slate-800 text-slate-400 hover:text-amber-400 border-slate-700 hover:bg-slate-700'
+                }`}
+                title={isUrgent ? 'Urgent Mode Active (Bypasses Quiet Mode)' : 'Mark as Urgent'}
+                aria-label="Urgent Priority"
+              >
+                <Zap className={`w-4.5 h-4.5 ${isUrgent ? 'fill-white text-white' : ''}`} />
+              </button>
+
+              {/* Plus (+) Action Palette - Spacious 3x2 Rectangular Grid */}
               {showPlusMenu && (
                 <div
-                  className="absolute bottom-14 left-0 rounded-3xl bg-slate-900/98 border border-slate-700/80 shadow-2xl p-3 z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-bottom-2 select-none grid grid-cols-3 gap-2.5 w-52 sm:w-56"
-                  style={{ filter: 'drop-shadow(0 20px 25px rgba(0, 0, 0, 0.85))' }}
+                  className="absolute bottom-full mb-3 left-0 rounded-3xl bg-slate-900/98 border border-slate-700/80 shadow-2xl p-4 sm:p-5 z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-bottom-2 select-none grid grid-cols-3 gap-3.5 sm:gap-4 w-[288px] sm:w-[320px] max-w-[calc(100vw-2rem)]"
+                  style={{ filter: 'drop-shadow(0 25px 35px rgba(0, 0, 0, 0.9))' }}
                 >
-                  {/* Connection & Intimacy Hub */}
-                  {onOpenIntimacyHub && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowPlusMenu(false);
-                        onOpenIntimacyHub();
-                      }}
-                      className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-500 to-pink-500 text-white flex items-center justify-center shadow-lg shadow-rose-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
-                      aria-label="Intimacy Hub"
-                      title="Intimacy Hub"
-                    >
-                      <Heart className="w-6 h-6 text-white shrink-0 fill-white" strokeWidth={2} />
-                    </button>
-                  )}
-
-                  {/* Take Photo Camera */}
+                  {/* 1. Take Photo Camera */}
                   <button
                     type="button"
                     onClick={() => {
                       setShowPlusMenu(false);
                       setIsTakingPhoto(true);
                     }}
-                    className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center shadow-lg shadow-amber-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+                    className="w-full aspect-square min-w-[64px] min-h-[64px] rounded-2xl bg-gradient-to-tr from-rose-500 to-pink-500 text-white flex items-center justify-center shadow-lg shadow-rose-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
                     aria-label="Camera"
-                    title="Camera Photo"
+                    title="Take Photo"
                   >
-                    <Camera className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
+                    <Camera className="w-7 h-7 sm:w-8 sm:h-8 text-white shrink-0" strokeWidth={2.2} />
                   </button>
 
-                  {/* Photo Gallery */}
+                  {/* 2. Photo Gallery */}
                   <button
                     type="button"
                     onClick={() => {
                       setShowPlusMenu(false);
                       imageInputRef.current?.click();
                     }}
-                    className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-500 to-indigo-500 text-white flex items-center justify-center shadow-lg shadow-purple-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+                    className="w-full aspect-square min-w-[64px] min-h-[64px] rounded-2xl bg-gradient-to-tr from-purple-500 to-indigo-500 text-white flex items-center justify-center shadow-lg shadow-purple-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
                     aria-label="Photos"
-                    title="Attach Photos"
+                    title="Photo Gallery"
                   >
-                    <ImageIcon className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
+                    <ImageIcon className="w-7 h-7 sm:w-8 sm:h-8 text-white shrink-0" strokeWidth={2.2} />
                   </button>
 
-                  {/* Document / File */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowPlusMenu(false);
-                      docInputRef.current?.click();
-                    }}
-                    className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-500 to-cyan-500 text-white flex items-center justify-center shadow-lg shadow-blue-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
-                    aria-label="Document"
-                    title="Attach File"
-                  >
-                    <Paperclip className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
-                  </button>
-
-                  {/* Camera Video Recorder */}
+                  {/* 3. Camera Video Recorder */}
                   <button
                     type="button"
                     onClick={() => {
                       setShowPlusMenu(false);
                       setIsRecordingVideo(true);
                     }}
-                    className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-600 to-red-500 text-white flex items-center justify-center shadow-lg shadow-rose-600/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+                    className="w-full aspect-square min-w-[64px] min-h-[64px] rounded-2xl bg-gradient-to-tr from-rose-600 to-red-500 text-white flex items-center justify-center shadow-lg shadow-rose-600/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
                     aria-label="Video"
                     title="Record Video"
                   >
-                    <Video className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
+                    <Video className="w-7 h-7 sm:w-8 sm:h-8 text-white shrink-0" strokeWidth={2.2} />
                   </button>
 
-                  {/* Cuddle GIF */}
+                  {/* 4. Document / File */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPlusMenu(false);
+                      docInputRef.current?.click();
+                    }}
+                    className="w-full aspect-square min-w-[64px] min-h-[64px] rounded-2xl bg-gradient-to-tr from-blue-500 to-cyan-500 text-white flex items-center justify-center shadow-lg shadow-blue-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+                    aria-label="Document"
+                    title="Attach File"
+                  >
+                    <Paperclip className="w-7 h-7 sm:w-8 sm:h-8 text-white shrink-0" strokeWidth={2.2} />
+                  </button>
+
+                  {/* 5. Connection & Intimacy Hub */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPlusMenu(false);
+                      onOpenIntimacyHub?.();
+                    }}
+                    className="w-full aspect-square min-w-[64px] min-h-[64px] rounded-2xl bg-gradient-to-tr from-fuchsia-500 to-rose-500 text-white flex items-center justify-center shadow-lg shadow-fuchsia-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+                    aria-label="Intimacy Hub"
+                    title="Connection & Intimacy Hub"
+                  >
+                    <Heart className="w-7 h-7 sm:w-8 sm:h-8 text-white shrink-0 fill-white" strokeWidth={2} />
+                  </button>
+
+                  {/* 6. Cuddle GIF */}
                   <button
                     type="button"
                     onClick={() => {
                       setShowPlusMenu(false);
                       setShowGifPicker(true);
                     }}
-                    className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-violet-500 to-fuchsia-500 text-white flex items-center justify-center shadow-lg shadow-violet-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+                    className="w-full aspect-square min-w-[64px] min-h-[64px] rounded-2xl bg-gradient-to-tr from-violet-500 to-pink-500 text-white flex items-center justify-center shadow-lg shadow-violet-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
                     aria-label="GIF"
-                    title="Cuddle GIF"
+                    title="Send Cuddle GIF"
                   >
-                    <Sparkles className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
-                  </button>
-
-                  {/* Urgent Priority Toggle */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsUrgent(!isUrgent);
-                      setShowPlusMenu(false);
-                    }}
-                    className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-transform cursor-pointer ${
-                      isUrgent
-                        ? 'bg-gradient-to-tr from-rose-600 to-amber-500 text-white ring-2 ring-rose-400 shadow-rose-600/40'
-                        : 'bg-gradient-to-tr from-amber-500 to-yellow-500 text-slate-950 shadow-amber-500/30'
-                    }`}
-                    aria-label="Priority"
-                    title={isUrgent ? 'Urgent Priority Active' : 'Set Urgent Priority'}
-                  >
-                    <Zap className="w-6 h-6 fill-current shrink-0" strokeWidth={2.2} />
+                    <Sparkles className="w-7 h-7 sm:w-8 sm:h-8 text-white shrink-0" strokeWidth={2.2} />
                   </button>
                 </div>
               )}
