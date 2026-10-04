@@ -562,7 +562,14 @@ export default function App() {
                   if (!p) return false;
                   const cleanP = p.toLowerCase().trim().replace(/^user_/, '').replace(/^@/, '');
                   const cleanMe = (activeAccount.username || '').toLowerCase().trim().replace(/^@/, '');
-                  if (p === activeAccount.id || cleanP === cleanMe || p === `user_${cleanMe}`) return false;
+                  if (
+                    p === activeAccount.id ||
+                    p === currentUser.id ||
+                    cleanP === cleanMe ||
+                    p === `user_${cleanMe}` ||
+                    p === 'user_me' ||
+                    cleanP === 'me'
+                  ) return false;
                   return true;
                 })
                 .map((p) => p.toLowerCase().trim().replace(/^user_/, '').replace(/^@/, ''))
@@ -577,12 +584,17 @@ export default function App() {
           }
 
           // Safety guarantee: ensure currently active conversation is never omitted from conversation list
-          if (currentActiveCanonical && !deduplicated.some((c) => c.id === currentActiveCanonical)) {
-            const activeObj = map.get(currentActiveCanonical) || prev.find((p) => getCanonicalConversationId(p.id) === currentActiveCanonical);
+          if (currentActiveCanonical && !deduplicated.some((c) => c.id === currentActiveCanonical || getCanonicalConversationId(c.id) === currentActiveCanonical)) {
+            const activeObj = map.get(currentActiveCanonical) || prev.find((p) => getCanonicalConversationId(p.id) === currentActiveCanonical || p.id === currentActiveCanonical);
             if (activeObj) {
               deduplicated.unshift({ ...activeObj, id: currentActiveCanonical });
             }
           }
+
+          if (activeAccount?.id) {
+            saveUserConversations(activeAccount.id, deduplicated);
+          }
+          saveStoredData(STORAGE_KEYS.CONVERSATIONS, deduplicated);
 
           return deduplicated;
         });
@@ -829,24 +841,41 @@ export default function App() {
     (!currentUser.username || c.username?.trim().toLowerCase().replace(/^@/, '') !== currentUser.username.trim().toLowerCase().replace(/^@/, ''))
   );
 
+  // Active conversation backup ref to prevent abrupt unmounting/flickering
+  const activeConversationBackupRef = useRef<Conversation | null>(null);
+
   // Active conversation object (null when no chat is open)
   const activeConversation = React.useMemo(() => {
-    if (!activeConversationId) return null;
+    if (!activeConversationId) {
+      activeConversationBackupRef.current = null;
+      return null;
+    }
     const targetCanonical = getCanonicalConversationId(activeConversationId);
-    return (
-      conversations.find((c) => 
-        c.id === activeConversationId || 
-        c.id === targetCanonical || 
-        getCanonicalConversationId(c.id) === targetCanonical
-      ) || null
+    const found = conversations.find((c) => 
+      c.id === activeConversationId || 
+      c.id === targetCanonical || 
+      getCanonicalConversationId(c.id) === targetCanonical
     );
+    if (found) {
+      activeConversationBackupRef.current = found;
+      return found;
+    }
+    // WhatsApp resilience: preserve active conversation instance during brief state reconciliation
+    if (
+      activeConversationBackupRef.current &&
+      (activeConversationBackupRef.current.id === activeConversationId ||
+       getCanonicalConversationId(activeConversationBackupRef.current.id) === targetCanonical)
+    ) {
+      return activeConversationBackupRef.current;
+    }
+    return null;
   }, [conversations, activeConversationId]);
 
   // Robust messages resolution with alias fallback so messages under either ID are immediately visible
   const activeMessages = React.useMemo(() => {
     if (!activeConversation) return [];
-    const directMsgs = messagesMap[activeConversation.id] || [];
     const canonicalId = getCanonicalConversationId(activeConversation.id);
+    const directMsgs = messagesMap[activeConversation.id] || messagesMap[canonicalId] || [];
     const aliasId = getLinkedLegacyAliasId(canonicalId);
     if (!aliasId || canonicalId === aliasId) return directMsgs;
 
@@ -986,6 +1015,13 @@ export default function App() {
     const updatedConv: Conversation = {
       ...activeConversation,
       id: convId,
+      participantIds: Array.from(new Set([
+        ...(activeConversation.participantIds || []),
+        activeAccount?.id || currentUser.id,
+        currentUser.id,
+        (currentUser.username || '').toLowerCase().trim().replace(/^@/, ''),
+        `user_${(currentUser.username || '').toLowerCase().trim().replace(/^@/, '')}`
+      ].filter(Boolean) as string[])),
       lastMessage: {
         text: priority === 'urgent' ? `⚡ [Urgent] ${text}` : text,
         timestamp: 'Just now',
@@ -994,11 +1030,20 @@ export default function App() {
       },
       updatedAt: new Date().toISOString()
     };
+    activeConversationBackupRef.current = updatedConv;
     syncConversationToFirestore(updatedConv);
 
-    setConversations((prev) =>
-      prev.map((c) => (getCanonicalConversationId(c.id) === convId ? updatedConv : c))
-    );
+    setConversations((prev) => {
+      const exists = prev.some((c) => getCanonicalConversationId(c.id) === convId || c.id === activeConversation.id);
+      const nextConvs = exists
+        ? prev.map((c) => (getCanonicalConversationId(c.id) === convId || c.id === activeConversation.id ? updatedConv : c))
+        : [updatedConv, ...prev];
+      if (activeAccount?.id) {
+        saveUserConversations(activeAccount.id, nextConvs);
+      }
+      saveStoredData(STORAGE_KEYS.CONVERSATIONS, nextConvs);
+      return nextConvs;
+    });
   };
 
   // Download Attachment Handler (Auto-Purge from online database upon download to device)
@@ -1183,8 +1228,17 @@ export default function App() {
       }
     });
 
+    const canonicalId = getCanonicalConversationId(activeConversation.id);
     const updatedMediaConv: Conversation = {
       ...activeConversation,
+      id: canonicalId,
+      participantIds: Array.from(new Set([
+        ...(activeConversation.participantIds || []),
+        activeAccount?.id || currentUser.id,
+        currentUser.id,
+        (currentUser.username || '').toLowerCase().trim().replace(/^@/, ''),
+        `user_${(currentUser.username || '').toLowerCase().trim().replace(/^@/, '')}`
+      ].filter(Boolean) as string[])),
       lastMessage: {
         text: previewText,
         timestamp: 'Just now',
@@ -1193,11 +1247,20 @@ export default function App() {
       },
       updatedAt: new Date().toISOString()
     };
+    activeConversationBackupRef.current = updatedMediaConv;
     syncConversationToFirestore(updatedMediaConv);
 
-    setConversations((prev) =>
-      prev.map((c) => (c.id === activeConversation.id ? updatedMediaConv : c))
-    );
+    setConversations((prev) => {
+      const exists = prev.some((c) => getCanonicalConversationId(c.id) === canonicalId || c.id === activeConversation.id);
+      const nextConvs = exists
+        ? prev.map((c) => (getCanonicalConversationId(c.id) === canonicalId || c.id === activeConversation.id ? updatedMediaConv : c))
+        : [updatedMediaConv, ...prev];
+      if (activeAccount?.id) {
+        saveUserConversations(activeAccount.id, nextConvs);
+      }
+      saveStoredData(STORAGE_KEYS.CONVERSATIONS, nextConvs);
+      return nextConvs;
+    });
 
     // Media message dispatched cleanly to cloud and recipient without simulated responses
   };
@@ -1806,7 +1869,8 @@ export default function App() {
           currentUser={currentUser}
           pendingRequestsCount={pendingRequestsCount}
           onSelectConversation={(id) => {
-            setActiveConversationId(id);
+            const canonical = getCanonicalConversationId(id);
+            setActiveConversationId(canonical);
             setIsMobileSidebarOpen(false);
           }}
           onOpenPartnersModal={() => setShowPartnersModal(true)}
