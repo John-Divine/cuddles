@@ -202,7 +202,7 @@ export const VideoNotePlayerModal: React.FC<VideoNotePlayerModalProps> = ({
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-[99999] w-screen h-screen bg-black/95 backdrop-blur-2xl flex flex-col items-center justify-between p-4 sm:p-6 select-none animate-in fade-in duration-200"
+      className="fixed inset-y-0 right-0 left-0 lg:left-[22rem] z-[99999] h-screen bg-black/95 backdrop-blur-2xl flex flex-col items-center justify-between p-4 sm:p-6 select-none animate-in fade-in duration-200"
       onClick={onClose}
     >
       {/* Top Bar */}

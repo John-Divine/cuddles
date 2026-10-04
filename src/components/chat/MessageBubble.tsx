@@ -1018,7 +1018,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       {/* Image Zoom Modal with explicit Save to Gallery button */}
       {showImageZoom && message.attachment && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-[99999] flex flex-col items-center justify-between bg-black/95 p-4 sm:p-6 backdrop-blur-xl animate-in fade-in duration-200"
+          className="fixed inset-y-0 right-0 left-0 lg:left-[22rem] z-[99999] flex flex-col items-center justify-between bg-black/95 p-4 sm:p-6 backdrop-blur-xl animate-in fade-in duration-200"
           onClick={() => setShowImageZoom(false)}
         >
           <div

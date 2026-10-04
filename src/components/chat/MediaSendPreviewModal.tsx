@@ -36,7 +36,7 @@ export const MediaSendPreviewModal: React.FC<MediaSendPreviewModalProps> = ({
   };
 
   const modalContent = (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-3 sm:p-6 backdrop-blur-xl animate-in fade-in duration-200">
+    <div className="fixed inset-y-0 right-0 left-0 lg:left-[22rem] z-50 flex items-center justify-center bg-black/90 p-3 sm:p-6 backdrop-blur-xl animate-in fade-in duration-200">
       <div className="w-full max-w-xl max-h-[92vh] flex flex-col rounded-3xl bg-slate-900 border border-slate-700/80 shadow-2xl overflow-hidden text-slate-100">
         {/* Header */}
         <div className="shrink-0 px-4 sm:px-6 py-3.5 bg-slate-900/98 border-b border-slate-800 flex items-center justify-between">

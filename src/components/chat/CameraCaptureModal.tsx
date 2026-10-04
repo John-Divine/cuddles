@@ -140,7 +140,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
   };
 
   const content = (
-    <div className="fixed inset-0 z-[999999] w-screen h-screen bg-black/95 backdrop-blur-2xl flex flex-col items-center justify-between p-3 sm:p-6 select-none animate-in fade-in duration-200">
+    <div className="fixed inset-y-0 right-0 left-0 lg:left-[22rem] z-[999999] h-screen bg-black/95 backdrop-blur-2xl flex flex-col items-center justify-between p-3 sm:p-6 select-none animate-in fade-in duration-200">
       {/* Hidden fallback canvas and input */}
       <canvas ref={canvasRef} className="hidden" />
       <input

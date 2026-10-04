@@ -276,7 +276,7 @@ export const CameraVideoModal: React.FC<CameraVideoModalProps> = ({
   };
 
   const modalContent = (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-0 sm:p-4 backdrop-blur-2xl animate-in fade-in duration-200">
+    <div className="fixed inset-y-0 right-0 left-0 lg:left-[22rem] z-50 flex items-center justify-center bg-black/95 p-0 sm:p-4 backdrop-blur-2xl animate-in fade-in duration-200">
       <div className="relative w-full max-w-lg h-full sm:h-[92vh] sm:max-h-[820px] bg-slate-950 rounded-none sm:rounded-3xl overflow-hidden border-0 sm:border border-slate-800 shadow-2xl flex flex-col justify-between">
         {/* Top Control Bar */}
         <div className="absolute top-0 inset-x-0 p-3.5 sm:p-4 z-30 flex items-center justify-between bg-gradient-to-b from-black/85 via-black/50 to-transparent">

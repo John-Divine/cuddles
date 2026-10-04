@@ -71,7 +71,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-3 sm:p-4 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-y-0 right-0 left-0 lg:left-[22rem] z-50 flex items-center justify-center bg-black/75 p-3 sm:p-4 backdrop-blur-md animate-in fade-in duration-200">
       <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-rose-950/50 p-5 sm:p-6 shadow-2xl text-slate-100 flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-800">

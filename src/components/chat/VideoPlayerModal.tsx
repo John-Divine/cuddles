@@ -204,7 +204,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-[999999] w-screen h-screen bg-black/95 backdrop-blur-2xl flex flex-col justify-between select-none animate-in fade-in duration-200"
+      className="fixed inset-y-0 right-0 left-0 lg:left-[22rem] z-[999999] h-screen bg-black/95 backdrop-blur-2xl flex flex-col justify-between select-none animate-in fade-in duration-200"
       onMouseMove={handleMouseMove}
       onClick={togglePlay}
     >

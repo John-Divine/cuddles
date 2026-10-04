@@ -440,8 +440,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
           {/* Main Input Row */}
           <div className="flex items-end gap-1.5 sm:gap-2 relative w-full max-w-full min-w-0">
-            {/* Plus (+) Button & Expandable Action Menu (Always accessible on Mobile & Desktop) */}
-            <div className="relative pb-0.5 shrink-0" ref={plusMenuRef}>
+            {/* Plus (+) Button & Expandable Action Menu (Mobile/Tablet View Only - Hidden on Laptop) */}
+            <div className="relative pb-0.5 shrink-0 lg:hidden" ref={plusMenuRef}>
               <button
                 type="button"
                 onClick={() => setShowPlusMenu((prev) => !prev)}
@@ -456,11 +456,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 <Plus size={22} className="w-5 h-5 transition-transform duration-200 shrink-0" strokeWidth={2.4} />
               </button>
 
-              {/* Plus (+) Action Palette - Strictly Icons Only */}
+              {/* Plus (+) Action Palette - Clean Square/Rectangle Grid */}
               {showPlusMenu && (
                 <div
-                  className="absolute bottom-14 left-0 rounded-2xl bg-slate-900/98 border border-slate-700 shadow-2xl p-2 z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-bottom-2 select-none flex items-center gap-2 max-w-[calc(100vw-32px)] overflow-x-auto"
-                  style={{ filter: 'drop-shadow(0 20px 25px rgba(0, 0, 0, 0.75))' }}
+                  className="absolute bottom-14 left-0 rounded-3xl bg-slate-900/98 border border-slate-700/80 shadow-2xl p-3 z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-bottom-2 select-none grid grid-cols-3 gap-2.5 w-48 sm:w-52"
+                  style={{ filter: 'drop-shadow(0 20px 25px rgba(0, 0, 0, 0.85))' }}
                 >
                   {/* Take Photo Camera */}
                   <button
@@ -469,7 +469,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                       setShowPlusMenu(false);
                       setIsTakingPhoto(true);
                     }}
-                    className="w-11 h-11 min-w-11 min-h-11 rounded-xl bg-gradient-to-tr from-rose-500 to-pink-500 text-white flex items-center justify-center shadow-lg shadow-rose-500/30 hover:scale-110 active:scale-95 transition-transform cursor-pointer shrink-0"
+                    className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-500 to-pink-500 text-white flex items-center justify-center shadow-lg shadow-rose-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
                     aria-label="Camera"
                   >
                     <Camera className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
@@ -482,7 +482,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                       setShowPlusMenu(false);
                       imageInputRef.current?.click();
                     }}
-                    className="w-11 h-11 min-w-11 min-h-11 rounded-xl bg-gradient-to-tr from-purple-500 to-indigo-500 text-white flex items-center justify-center shadow-lg shadow-purple-500/30 hover:scale-110 active:scale-95 transition-transform cursor-pointer shrink-0"
+                    className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-500 to-indigo-500 text-white flex items-center justify-center shadow-lg shadow-purple-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
                     aria-label="Photos"
                   >
                     <ImageIcon className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
@@ -495,7 +495,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                       setShowPlusMenu(false);
                       docInputRef.current?.click();
                     }}
-                    className="w-11 h-11 min-w-11 min-h-11 rounded-xl bg-gradient-to-tr from-blue-500 to-cyan-500 text-white flex items-center justify-center shadow-lg shadow-blue-500/30 hover:scale-110 active:scale-95 transition-transform cursor-pointer shrink-0"
+                    className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-500 to-cyan-500 text-white flex items-center justify-center shadow-lg shadow-blue-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
                     aria-label="Document"
                   >
                     <Paperclip className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
@@ -508,7 +508,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                       setShowPlusMenu(false);
                       setIsRecordingVideo(true);
                     }}
-                    className="w-11 h-11 min-w-11 min-h-11 rounded-xl bg-gradient-to-tr from-rose-600 to-red-500 text-white flex items-center justify-center shadow-lg shadow-rose-600/30 hover:scale-110 active:scale-95 transition-transform cursor-pointer shrink-0"
+                    className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-600 to-red-500 text-white flex items-center justify-center shadow-lg shadow-rose-600/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
                     aria-label="Video"
                   >
                     <Video className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
@@ -521,7 +521,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                       setShowPlusMenu(false);
                       setShowGifPicker(true);
                     }}
-                    className="w-11 h-11 min-w-11 min-h-11 rounded-xl bg-gradient-to-tr from-violet-500 to-fuchsia-500 text-white flex items-center justify-center shadow-lg shadow-violet-500/30 hover:scale-110 active:scale-95 transition-transform cursor-pointer shrink-0"
+                    className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-violet-500 to-fuchsia-500 text-white flex items-center justify-center shadow-lg shadow-violet-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
                     aria-label="GIF"
                   >
                     <Sparkles className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
@@ -534,7 +534,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                       setIsUrgent(!isUrgent);
                       setShowPlusMenu(false);
                     }}
-                    className={`w-11 h-11 min-w-11 min-h-11 rounded-xl flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-transform cursor-pointer shrink-0 ${
+                    className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-transform cursor-pointer ${
                       isUrgent
                         ? 'bg-gradient-to-tr from-rose-600 to-amber-500 text-white ring-2 ring-rose-400 shadow-rose-600/40'
                         : 'bg-gradient-to-tr from-amber-500 to-yellow-500 text-slate-950 shadow-amber-500/30'
@@ -547,8 +547,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               )}
             </div>
 
-            {/* Desktop Direct Action Icons */}
-            <div className="hidden sm:flex items-center gap-0.5 pb-1">
+            {/* Laptop / Desktop Direct Action Icons */}
+            <div className="hidden lg:flex items-center gap-0.5 pb-1">
               <button
                 type="button"
                 onClick={() => setIsTakingPhoto(true)}

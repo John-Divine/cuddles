@@ -525,7 +525,7 @@ export const CallModal: React.FC<CallModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col justify-between text-slate-100 select-none animate-in fade-in duration-300">
+    <div className="fixed inset-y-0 right-0 left-0 lg:left-[22rem] z-50 bg-slate-950 flex flex-col justify-between text-slate-100 select-none animate-in fade-in duration-300">
       {/* Dedicated Hidden Audio Element so both sides can hear remote audio seamlessly */}
       <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
 

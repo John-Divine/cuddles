@@ -27,7 +27,7 @@ export const IncomingCallDialog: React.FC<IncomingCallDialogProps> = ({
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-y-0 right-0 left-0 lg:left-[22rem] z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in zoom-in-95 duration-200">
       <div className="w-full max-w-sm rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-indigo-500/40 p-6 text-center shadow-2xl">
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-semibold mb-4 border border-emerald-500/20">
           <ShieldCheck className="w-3.5 h-3.5" />

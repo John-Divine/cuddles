@@ -161,7 +161,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onComplete, onCanc
   const content = (
     <div
       id="voice-note-overlay"
-      className="fixed inset-0 z-[999999] w-screen h-[100dvh] bg-slate-950/95 backdrop-blur-2xl flex flex-col justify-between p-4 sm:p-6 select-none animate-in fade-in duration-200"
+      className="fixed inset-y-0 right-0 left-0 lg:left-[22rem] z-[999999] h-[100dvh] bg-slate-950/95 backdrop-blur-2xl flex flex-col justify-between p-4 sm:p-6 select-none animate-in fade-in duration-200"
     >
       {/* Top Bar */}
       <div className="w-full max-w-lg mx-auto flex items-center justify-between z-30 pt-2 sm:pt-4">

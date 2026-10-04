@@ -557,20 +557,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 className="absolute right-0 top-12 rounded-2xl bg-slate-900/98 border border-slate-700 shadow-2xl p-1.5 z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-top-2 select-none flex items-center gap-1.5"
                 style={{ filter: 'drop-shadow(0 20px 25px rgba(0, 0, 0, 0.75))' }}
               >
-                {/* Chat Media Gallery */}
-                {onOpenMediaGallery && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowOptionsMenu(false);
-                      onOpenMediaGallery('conversation', conversation?.id);
-                    }}
-                    className="w-10 h-10 min-w-10 min-h-10 rounded-xl bg-pink-500/20 hover:bg-pink-500/35 border border-pink-500/40 text-pink-400 hover:text-pink-300 active:scale-95 transition-all flex items-center justify-center cursor-pointer shrink-0"
-                    aria-label="Media & Documents"
-                  >
-                    <ImageIcon className="w-5 h-5 text-pink-400 shrink-0" strokeWidth={2.2} />
-                  </button>
-                )}
 
                 {/* View Contact Profile */}
                 {effectiveRecipient && (
@@ -732,7 +718,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
       {/* Delete Confirmation Modal */}
       {showDeleteDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-md animate-in fade-in duration-150">
+        <div className="fixed inset-y-0 right-0 left-0 lg:left-[22rem] z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-md animate-in fade-in duration-150">
           <div className="w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-700/80 p-5 sm:p-6 shadow-2xl space-y-4 text-slate-100">
             <div className="flex items-center gap-3">
               <div className="p-3 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30 shrink-0">
