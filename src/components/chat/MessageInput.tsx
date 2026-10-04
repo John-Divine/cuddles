@@ -12,7 +12,8 @@ import {
   Zap,
   BellRing,
   Moon,
-  Plus
+  Plus,
+  Heart
 } from 'lucide-react';
 import { GifPicker } from './GifPicker';
 import { VoiceRecorder } from './VoiceRecorder';
@@ -41,6 +42,7 @@ interface MessageInputProps {
   recipientIsBusy?: boolean;
   recipientName?: string;
   recipientActivity?: string;
+  onOpenIntimacyHub?: () => void;
 }
 
 interface PendingDocument {
@@ -66,7 +68,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   onTyping,
   recipientIsBusy = false,
   recipientName = 'Contact',
-  recipientActivity = 'Busy'
+  recipientActivity = 'Busy',
+  onOpenIntimacyHub
 }) => {
   const [text, setText] = useState('');
   const [showGifPicker, setShowGifPicker] = useState(false);
@@ -459,9 +462,25 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               {/* Plus (+) Action Palette - Clean Square/Rectangle Grid */}
               {showPlusMenu && (
                 <div
-                  className="absolute bottom-14 left-0 rounded-3xl bg-slate-900/98 border border-slate-700/80 shadow-2xl p-3 z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-bottom-2 select-none grid grid-cols-3 gap-2.5 w-48 sm:w-52"
+                  className="absolute bottom-14 left-0 rounded-3xl bg-slate-900/98 border border-slate-700/80 shadow-2xl p-3 z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-bottom-2 select-none grid grid-cols-3 gap-2.5 w-52 sm:w-56"
                   style={{ filter: 'drop-shadow(0 20px 25px rgba(0, 0, 0, 0.85))' }}
                 >
+                  {/* Connection & Intimacy Hub */}
+                  {onOpenIntimacyHub && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPlusMenu(false);
+                        onOpenIntimacyHub();
+                      }}
+                      className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-500 to-pink-500 text-white flex items-center justify-center shadow-lg shadow-rose-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+                      aria-label="Intimacy Hub"
+                      title="Intimacy Hub"
+                    >
+                      <Heart className="w-6 h-6 text-white shrink-0 fill-white" strokeWidth={2} />
+                    </button>
+                  )}
+
                   {/* Take Photo Camera */}
                   <button
                     type="button"
@@ -469,8 +488,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                       setShowPlusMenu(false);
                       setIsTakingPhoto(true);
                     }}
-                    className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-500 to-pink-500 text-white flex items-center justify-center shadow-lg shadow-rose-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+                    className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center shadow-lg shadow-amber-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
                     aria-label="Camera"
+                    title="Camera Photo"
                   >
                     <Camera className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
                   </button>
@@ -484,6 +504,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                     }}
                     className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-500 to-indigo-500 text-white flex items-center justify-center shadow-lg shadow-purple-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
                     aria-label="Photos"
+                    title="Attach Photos"
                   >
                     <ImageIcon className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
                   </button>
@@ -497,6 +518,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                     }}
                     className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-500 to-cyan-500 text-white flex items-center justify-center shadow-lg shadow-blue-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
                     aria-label="Document"
+                    title="Attach File"
                   >
                     <Paperclip className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
                   </button>
@@ -510,6 +532,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                     }}
                     className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-600 to-red-500 text-white flex items-center justify-center shadow-lg shadow-rose-600/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
                     aria-label="Video"
+                    title="Record Video"
                   >
                     <Video className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
                   </button>
@@ -523,6 +546,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                     }}
                     className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-violet-500 to-fuchsia-500 text-white flex items-center justify-center shadow-lg shadow-violet-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
                     aria-label="GIF"
+                    title="Cuddle GIF"
                   >
                     <Sparkles className="w-6 h-6 text-white shrink-0" strokeWidth={2.2} />
                   </button>
@@ -540,6 +564,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                         : 'bg-gradient-to-tr from-amber-500 to-yellow-500 text-slate-950 shadow-amber-500/30'
                     }`}
                     aria-label="Priority"
+                    title={isUrgent ? 'Urgent Priority Active' : 'Set Urgent Priority'}
                   >
                     <Zap className="w-6 h-6 fill-current shrink-0" strokeWidth={2.2} />
                   </button>
@@ -549,6 +574,18 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
             {/* Laptop / Desktop Direct Action Icons */}
             <div className="hidden lg:flex items-center gap-0.5 pb-1">
+              {/* Intimacy Hub button on Desktop */}
+              {onOpenIntimacyHub && (
+                <button
+                  type="button"
+                  onClick={onOpenIntimacyHub}
+                  className="p-2 rounded-xl text-rose-400 hover:text-rose-300 hover:bg-rose-500/20 active:scale-95 transition-all"
+                  title="Connection & Intimacy Hub (Daily Prompts, Bucket List, Mood Radar, Vouchers)"
+                >
+                  <Heart className="w-5 h-5 fill-rose-500/20" />
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => setIsTakingPhoto(true)}

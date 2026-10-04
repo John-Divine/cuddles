@@ -32,6 +32,10 @@ import { VideoPlayerModal } from './VideoPlayerModal';
 import { SafetyNumberModal } from '../security/SafetyNumberModal';
 import { AUTO_PURGE_DAYS } from '../../lib/storage';
 import { getConversationDisplayDetails } from '../../lib/conversationResolver';
+import { IntimacyHubModal } from '../intimacy/IntimacyHubModal';
+import { HeartbeatPulseOverlay } from '../intimacy/HeartbeatPulseOverlay';
+import { subscribeToHeartbeatPulse } from '../../lib/intimacyStorage';
+import { HeartbeatPulseEvent } from '../../types/intimacy';
 
 interface ChatWindowProps {
   conversation?: Conversation | null;
@@ -100,6 +104,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [selectedVideoNote, setSelectedVideoNote] = useState<Message | null>(null);
   const [selectedVideoFile, setSelectedVideoFile] = useState<Message | null>(null);
   const [copiedUsername, setCopiedUsername] = useState(false);
+  const [showIntimacyHub, setShowIntimacyHub] = useState(false);
+  const [incomingHeartbeat, setIncomingHeartbeat] = useState<HeartbeatPulseEvent | null>(null);
+
+  // Subscribe to live heartbeat pulses
+  useEffect(() => {
+    if (!conversation?.id) return;
+    const unsub = subscribeToHeartbeatPulse(conversation.id, (event) => {
+      if (event.senderId !== currentUser.id) {
+        setIncomingHeartbeat(event);
+      }
+    });
+    return () => unsub();
+  }, [conversation?.id, currentUser?.id]);
 
   // Close options menu when clicking outside
   useEffect(() => {
@@ -492,8 +509,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </div>
         </div>
 
-        {/* Action Controls: Chat Media Gallery, Audio Call & Video Call */}
+        {/* Action Controls: Intimacy Hub, Chat Media Gallery, Audio Call & Video Call */}
         <div className="flex items-center gap-1 sm:gap-2">
+          {/* Connection & Intimacy Hub */}
+          <button
+            type="button"
+            onClick={() => setShowIntimacyHub(true)}
+            className="p-2 sm:p-2.5 rounded-xl bg-gradient-to-tr from-rose-500/20 to-pink-500/20 border border-rose-500/40 hover:border-rose-400 hover:bg-rose-500/30 text-rose-400 hover:text-rose-300 active:scale-95 transition-all flex items-center justify-center cursor-pointer shadow-sm"
+            title="Connection & Intimacy Hub (Daily Prompts, Bucket List, Mood Radar, Vouchers)"
+            aria-label="Intimacy Hub"
+          >
+            <Heart className="w-4 h-4 sm:w-4.5 sm:h-4.5 fill-rose-500/25 text-rose-400" />
+          </button>
+
           {/* Dedicated Chat Media Gallery Icon (Strictly for this chat, no dropdown) */}
           {onOpenMediaGallery && (
             <button
@@ -687,8 +715,33 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           recipientIsBusy={isBusy}
           recipientName={recipient?.name}
           recipientActivity={recipient?.currentSchedule?.activityTitle}
+          onOpenIntimacyHub={() => setShowIntimacyHub(true)}
         />
       </footer>
+
+      {/* Live Incoming Heartbeat Pulse Animation Overlay */}
+      <HeartbeatPulseOverlay
+        pulse={incomingHeartbeat}
+        onClear={() => setIncomingHeartbeat(null)}
+      />
+
+      {/* Connection & Intimacy Hub Modal (Anchored inside Chat Area on Laptop View) */}
+      {showIntimacyHub && (
+        <IntimacyHubModal
+          isOpen={showIntimacyHub}
+          onClose={() => setShowIntimacyHub(false)}
+          conversationId={conversation.id}
+          conversationTitle={displayHeaderTitle}
+          isPartner={isPartnerChat}
+          currentUserId={currentUser.id}
+          currentUserName={currentUser.name}
+          currentUserAvatar={currentUser.avatar}
+          partnerId={effectiveRecipient?.id}
+          partnerName={displayHeaderTitle}
+          partnerAvatar={displayHeaderAvatar}
+          onSendMessage={(text) => onSendMessage(text)}
+        />
+      )}
 
       {/* Video Note Fullscreen Player Modal */}
       {selectedVideoNote && (
@@ -716,9 +769,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         />
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Confirmation Modal - Anchored within Chat Section View Area */}
       {showDeleteDialog && (
-        <div className="fixed inset-y-0 right-0 left-0 lg:left-[22rem] z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-md animate-in fade-in duration-150">
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-md animate-in fade-in duration-150">
           <div className="w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-700/80 p-5 sm:p-6 shadow-2xl space-y-4 text-slate-100">
             <div className="flex items-center gap-3">
               <div className="p-3 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30 shrink-0">

@@ -1900,52 +1900,181 @@ export default function App() {
           />
         )}
 
-        {/* Chat Main Window or WhatsApp Splash Screen */}
-        {activeConversation ? (
-          <ChatWindow
-            conversation={activeConversation}
-            messages={activeMessages}
-            currentUser={currentUser}
-            recipient={activeRecipient}
-            allContacts={contacts}
-            allConversations={conversations}
-            messagesMap={messagesMap}
-            typingUserNames={typingUsers[activeConversationId] || []}
-            pendingRequestsCount={pendingRequestsCount}
-            onSendMessage={handleSendMessage}
-            onSendMedia={handleSendMedia}
-            onAddReaction={handleReaction}
-            onDownloadAttachment={handleDownloadAttachment}
-            onDeleteMessages={handleDeleteMessages}
-            onStartCall={handleStartCall}
-            onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
-            onBackToChatList={() => setActiveConversationId('')}
-            isMobileSidebarOpen={isMobileSidebarOpen}
-            onViewProfile={(user) => setViewingProfile({ user, isOwn: user.id === currentUser.id })}
-            onOpenAddContactModal={() => {
-              setAddContactType('friend');
-              setShowAddContactModal(true);
-            }}
-            onOpenRequestsModal={() => setShowRequestsModal(true)}
-            onOpenMediaGallery={handleOpenCollectionMediaGallery}
-            onUpdateDisappearingTimer={(mins) => {
-              setConversations((prev) =>
-                prev.map((c) =>
-                  c.id === activeConversationId ? { ...c, disappearingTimerMinutes: mins } : c
-                )
-              );
-            }}
-          />
-        ) : (
-          <div className="hidden lg:flex flex-1 h-full min-w-0">
-            <WhatsAppSplashScreen
-              onStartNewChat={() => {
+        {/* Chat Section View Area (Laptop View Area Container) */}
+        <section className="flex-1 h-full min-w-0 relative flex flex-col overflow-hidden">
+          {activeConversation ? (
+            <ChatWindow
+              conversation={activeConversation}
+              messages={activeMessages}
+              currentUser={currentUser}
+              recipient={activeRecipient}
+              allContacts={contacts}
+              allConversations={conversations}
+              messagesMap={messagesMap}
+              typingUserNames={typingUsers[activeConversationId] || []}
+              pendingRequestsCount={pendingRequestsCount}
+              onSendMessage={handleSendMessage}
+              onSendMedia={handleSendMedia}
+              onAddReaction={handleReaction}
+              onDownloadAttachment={handleDownloadAttachment}
+              onDeleteMessages={handleDeleteMessages}
+              onStartCall={handleStartCall}
+              onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+              onBackToChatList={() => setActiveConversationId('')}
+              isMobileSidebarOpen={isMobileSidebarOpen}
+              onViewProfile={(user) => setViewingProfile({ user, isOwn: user.id === currentUser.id })}
+              onOpenAddContactModal={() => {
                 setAddContactType('friend');
                 setShowAddContactModal(true);
               }}
+              onOpenRequestsModal={() => setShowRequestsModal(true)}
+              onOpenMediaGallery={handleOpenCollectionMediaGallery}
+              onUpdateDisappearingTimer={(mins) => {
+                setConversations((prev) =>
+                  prev.map((c) =>
+                    c.id === activeConversationId ? { ...c, disappearingTimerMinutes: mins } : c
+                  )
+                );
+              }}
             />
-          </div>
-        )}
+          ) : (
+            <div className="hidden lg:flex flex-1 h-full min-w-0">
+              <WhatsAppSplashScreen
+                onStartNewChat={() => {
+                  setAddContactType('friend');
+                  setShowAddContactModal(true);
+                }}
+              />
+            </div>
+          )}
+
+          {/* All Pop-ups & Modals Anchored Inside Chat Section View Area on Laptop */}
+          {showPartnersModal && (
+            <PartnerModal
+              partners={partners}
+              onAddPartner={handleAddPartner}
+              onUpdatePartner={handleUpdatePartner}
+              onRemovePartner={handleRemovePartner}
+              onStartChat={handleStartChatWithContact}
+              onStartCall={(id, type) => {
+                handleStartChatWithContact(id);
+                handleStartCall(type);
+              }}
+              onOpenAddPartnerModal={() => {
+                setShowPartnersModal(false);
+                setAddContactType('partner');
+                setShowAddContactModal(true);
+              }}
+              onClose={() => setShowPartnersModal(false)}
+            />
+          )}
+
+          {showFriendsModal && (
+            <FriendsModal
+              friends={friends}
+              onAddFriend={handleAddFriend}
+              onRemoveFriend={handleRemoveFriend}
+              onStartChat={handleStartChatWithContact}
+              onStartCall={(id, type) => {
+                handleStartChatWithContact(id);
+                handleStartCall(type);
+              }}
+              onOpenAddFriendModal={() => {
+                setShowFriendsModal(false);
+                setAddContactType('friend');
+                setShowAddContactModal(true);
+              }}
+              onClose={() => setShowFriendsModal(false)}
+            />
+          )}
+
+          {showAddContactModal && activeAccount && (
+            <AddContactModal
+              isOpen={showAddContactModal}
+              onClose={() => setShowAddContactModal(false)}
+              currentUser={activeAccount}
+              currentPartnersCount={partners.length}
+              initialType={addContactType}
+              existingContacts={contacts}
+              onContactRequestSent={(req) => {
+                setContactRequests((prev) => [...prev.filter((r) => r.id !== req.id), req]);
+              }}
+            />
+          )}
+
+          {showRequestsModal && activeAccount && (
+            <RequestsModal
+              isOpen={showRequestsModal}
+              onClose={() => setShowRequestsModal(false)}
+              currentUser={activeAccount}
+              requests={contactRequests}
+              onAcceptRequest={handleAcceptContactRequest}
+              onDeclineRequest={(req) => {
+                setContactRequests((prev) =>
+                  prev.map((r) => (r.id === req.id ? { ...r, status: 'declined' } : r))
+                );
+              }}
+            />
+          )}
+
+          {showScheduleModal && (
+            <SchedulePanel
+              events={schedules}
+              partners={partners}
+              friends={friends}
+              currentUser={currentUser}
+              onUpdateUserSchedule={(schedule: DayScheduleStatus) => {
+                setCurrentUser((prev) => ({ ...prev, currentSchedule: schedule }));
+              }}
+              onAddEvent={(newEvent) => {
+                setSchedules((prev) => [
+                  ...prev,
+                  { ...newEvent, id: 'sch_' + Date.now() }
+                ]);
+              }}
+              onDeleteEvent={(id) => {
+                setSchedules((prev) => prev.filter((e) => e.id !== id));
+              }}
+              onClose={() => setShowScheduleModal(false)}
+            />
+          )}
+
+          {viewingProfile && (
+            <ProfileModal
+              user={viewingProfile.user}
+              isOwnProfile={viewingProfile.isOwn}
+              onSignOut={handleSignOut}
+              onDeleteAccount={handleDeleteAccount}
+              onUpdateUser={(updates) => {
+                if (viewingProfile.isOwn) {
+                  setCurrentUser((prev) => ({ ...prev, ...updates }));
+                }
+              }}
+              onClose={() => setViewingProfile(null)}
+            />
+          )}
+
+          <PWAInstallModal
+            isOpen={showInstallModal}
+            onClose={() => setShowInstallModal(false)}
+          />
+
+          {showMediaGalleryModal && (
+            <MediaGalleryModal
+              isOpen={showMediaGalleryModal}
+              onClose={() => setShowMediaGalleryModal(false)}
+              activeConversation={
+                mediaGalleryTargetConvId
+                  ? conversations.find((c) => c.id === mediaGalleryTargetConvId) || activeConversation
+                  : activeConversation
+              }
+              allConversations={conversations}
+              messagesMap={messagesMap}
+              initialScope={mediaGalleryScope}
+              targetConversationId={mediaGalleryTargetConvId}
+            />
+          )}
+        </section>
       </div>
 
       {/* Group & 1-on-1 Call Window with Add Participant Expansion */}
@@ -2078,140 +2207,6 @@ export default function App() {
             ✕
           </button>
         </div>
-      )}
-
-      {/* Partners Sanctuary Modal (Max 2 rule strictly enforced) */}
-      {showPartnersModal && (
-        <PartnerModal
-          partners={partners}
-          onAddPartner={handleAddPartner}
-          onUpdatePartner={handleUpdatePartner}
-          onRemovePartner={handleRemovePartner}
-          onStartChat={handleStartChatWithContact}
-          onStartCall={(id, type) => {
-            handleStartChatWithContact(id);
-            handleStartCall(type);
-          }}
-          onOpenAddPartnerModal={() => {
-            setShowPartnersModal(false);
-            setAddContactType('partner');
-            setShowAddContactModal(true);
-          }}
-          onClose={() => setShowPartnersModal(false)}
-        />
-      )}
-
-      {/* Friends Network Modal */}
-      {showFriendsModal && (
-        <FriendsModal
-          friends={friends}
-          onAddFriend={handleAddFriend}
-          onRemoveFriend={handleRemoveFriend}
-          onStartChat={handleStartChatWithContact}
-          onStartCall={(id, type) => {
-            handleStartChatWithContact(id);
-            handleStartCall(type);
-          }}
-          onOpenAddFriendModal={() => {
-            setShowFriendsModal(false);
-            setAddContactType('friend');
-            setShowAddContactModal(true);
-          }}
-          onClose={() => setShowFriendsModal(false)}
-        />
-      )}
-
-      {/* Add Contact Modal */}
-      {showAddContactModal && activeAccount && (
-        <AddContactModal
-          isOpen={showAddContactModal}
-          onClose={() => setShowAddContactModal(false)}
-          currentUser={activeAccount}
-          currentPartnersCount={partners.length}
-          initialType={addContactType}
-          existingContacts={contacts}
-          onContactRequestSent={(req) => {
-            setContactRequests((prev) => [...prev.filter((r) => r.id !== req.id), req]);
-          }}
-        />
-      )}
-
-      {/* Contact Requests Modal */}
-      {showRequestsModal && activeAccount && (
-        <RequestsModal
-          isOpen={showRequestsModal}
-          onClose={() => setShowRequestsModal(false)}
-          currentUser={activeAccount}
-          requests={contactRequests}
-          onAcceptRequest={handleAcceptContactRequest}
-          onDeclineRequest={(req) => {
-            setContactRequests((prev) =>
-              prev.map((r) => (r.id === req.id ? { ...r, status: 'declined' } : r))
-            );
-          }}
-        />
-      )}
-
-      {/* Shared Schedule & Calendar Panel */}
-      {showScheduleModal && (
-        <SchedulePanel
-          events={schedules}
-          partners={partners}
-          friends={friends}
-          currentUser={currentUser}
-          onUpdateUserSchedule={(schedule: DayScheduleStatus) => {
-            setCurrentUser((prev) => ({ ...prev, currentSchedule: schedule }));
-          }}
-          onAddEvent={(newEvent) => {
-            setSchedules((prev) => [
-              ...prev,
-              { ...newEvent, id: 'sch_' + Date.now() }
-            ]);
-          }}
-          onDeleteEvent={(id) => {
-            setSchedules((prev) => prev.filter((e) => e.id !== id));
-          }}
-          onClose={() => setShowScheduleModal(false)}
-        />
-      )}
-
-      {/* View/Edit Profile Modal */}
-      {viewingProfile && (
-        <ProfileModal
-          user={viewingProfile.user}
-          isOwnProfile={viewingProfile.isOwn}
-          onSignOut={handleSignOut}
-          onDeleteAccount={handleDeleteAccount}
-          onUpdateUser={(updates) => {
-            if (viewingProfile.isOwn) {
-              setCurrentUser((prev) => ({ ...prev, ...updates }));
-            }
-          }}
-          onClose={() => setViewingProfile(null)}
-        />
-      )}
-
-      {/* PWA Install Modal */}
-      <PWAInstallModal
-        isOpen={showInstallModal}
-        onClose={() => setShowInstallModal(false)}
-      />
-
-      {/* Sanctuary Media Gallery Modal */}
-      {showMediaGalleryModal && (
-        <MediaGalleryModal
-          isOpen={showMediaGalleryModal}
-          onClose={() => setShowMediaGalleryModal(false)}
-          activeConversation={
-            mediaGalleryTargetConvId
-              ? conversations.find((c) => c.id === mediaGalleryTargetConvId) || activeConversation
-              : activeConversation
-          }
-          allConversations={conversations}
-          messagesMap={messagesMap}
-          initialScope={mediaGalleryScope}
-          targetConversationId={mediaGalleryTargetConvId}
-        />
       )}
     </div>
   );

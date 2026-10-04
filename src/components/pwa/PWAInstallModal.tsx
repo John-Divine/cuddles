@@ -65,7 +65,7 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({ isOpen, onClos
   };
 
   return (
-    <div className="fixed inset-y-0 right-0 left-0 lg:left-[22rem] z-[150] flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="absolute inset-0 z-[150] flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200">
       <div className="w-full max-w-lg rounded-3xl bg-slate-900 border border-rose-500/40 p-5 sm:p-6 shadow-2xl text-slate-100 relative overflow-hidden max-h-[92vh] flex flex-col">
         {/* Ambient Top Glow */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-24 bg-gradient-to-b from-rose-500/20 to-transparent blur-2xl pointer-events-none" />
