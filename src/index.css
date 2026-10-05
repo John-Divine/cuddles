@@ -13,8 +13,8 @@
     -webkit-tap-highlight-color: transparent;
     user-select: none;
     overscroll-behavior: none;
-    background-color: #020617;
-    color: #f8fafc;
+    background-color: #02140e;
+    color: #f1f5f9;
     overflow: hidden !important;
     overflow-x: hidden !important;
     width: 100%;
@@ -48,7 +48,7 @@
   }
 }
 
-/* Custom romantic scrollbar */
+/* Custom Royal Emerald & Gold Scrollbar */
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;
@@ -57,11 +57,11 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(244, 63, 94, 0.25);
+  background: rgba(245, 158, 11, 0.3);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(244, 63, 94, 0.5);
+  background: rgba(251, 191, 36, 0.6);
 }
 
 @keyframes pulse-ring {

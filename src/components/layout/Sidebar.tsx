@@ -25,6 +25,7 @@ import { Conversation, UserProfile } from '../../types';
 import { AUTO_PURGE_DAYS } from '../../lib/storage';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
 import { getConversationDisplayDetails } from '../../lib/conversationResolver';
+import { AkomaIcon } from '../common/AdinkraIcons';
 
 interface SidebarProps {
   conversations: Conversation[];
@@ -42,6 +43,7 @@ interface SidebarProps {
   onOpenAddContactModal?: () => void;
   onOpenInstallModal?: () => void;
   onOpenMediaGallery?: () => void;
+  onOpenMemoriesVault?: () => void;
   onStartCall: (conversationId: string, type: 'audio' | 'video') => void;
   isMobileOpen?: boolean;
   isMobileFullWidth?: boolean;
@@ -64,6 +66,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenAddContactModal,
   onOpenInstallModal,
   onOpenMediaGallery,
+  onOpenMemoriesVault,
   onStartCall,
   isMobileOpen = false,
   isMobileFullWidth = false,
@@ -94,23 +97,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <aside
       className={
         isMobileFullWidth
-          ? 'w-full max-w-full lg:max-w-sm lg:w-88 bg-slate-900 border-r border-rose-950/40 flex flex-col shadow-2xl h-full static translate-x-0 backdrop-blur-2xl z-30'
-          : `fixed inset-y-0 left-0 z-[100] w-full max-w-[340px] sm:max-w-sm sm:w-88 bg-slate-900 border-r border-rose-950/40 flex flex-col shadow-2xl transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 backdrop-blur-2xl ${
+          ? 'w-full max-w-full lg:max-w-sm lg:w-88 bg-[#021810] border-r border-amber-500/20 flex flex-col shadow-2xl h-full static translate-x-0 backdrop-blur-2xl z-30'
+          : `fixed inset-y-0 left-0 z-[100] w-full max-w-[340px] sm:max-w-sm sm:w-88 bg-[#021810] border-r border-amber-500/20 flex flex-col shadow-2xl transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 backdrop-blur-2xl ${
               isMobileOpen ? 'translate-x-0' : '-translate-x-full'
             }`
       }
     >
-      {/* Header Action Bar: Spacious, Prominent Icons (No title, maximum room for large icons) */}
-      <div className="p-3 pt-3 sm:pt-3.5 border-b border-rose-950/40 bg-slate-900/98 flex items-center justify-between gap-1.5 sm:gap-2">
+      {/* Header Action Bar: Spacious, Prominent Icons in Royal Emerald & Gold */}
+      <div className="p-3 pt-3 sm:pt-3.5 border-b border-amber-500/20 bg-[#021e14]/98 flex items-center justify-between gap-1.5 sm:gap-2">
         {/* Gallery Icon - Large & Prominent: All Media Gallery */}
         {onOpenMediaGallery && (
           <button
             onClick={onOpenMediaGallery}
-            className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-pink-600/25 to-rose-600/15 hover:from-pink-600/35 hover:to-rose-600/25 border border-pink-500/40 text-pink-400 flex items-center justify-center active:scale-95 transition-all shadow-md cursor-pointer shrink-0"
+            className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-600/25 to-yellow-600/15 hover:from-amber-600/35 hover:to-yellow-600/25 border border-amber-500/40 text-amber-400 flex items-center justify-center active:scale-95 transition-all shadow-md cursor-pointer shrink-0"
             title="All Media Gallery (All Chats & Collections)"
             aria-label="All Media Gallery"
           >
-            <ImageIcon className="w-6.5 h-6.5 text-pink-400" />
+            <ImageIcon className="w-6.5 h-6.5 text-amber-400" />
           </button>
         )}
 
@@ -118,7 +121,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {onOpenAddContactModal && (
           <button
             onClick={onOpenAddContactModal}
-            className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-600/25 to-pink-600/15 hover:from-rose-600/35 hover:to-pink-600/25 border border-rose-500/40 text-rose-400 flex items-center justify-center active:scale-95 transition-all shadow-md cursor-pointer shrink-0"
+            className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-600/25 to-teal-600/15 hover:from-emerald-600/35 hover:to-teal-600/25 border border-emerald-500/40 text-emerald-300 flex items-center justify-center active:scale-95 transition-all shadow-md cursor-pointer shrink-0"
             title="Add Partner or Friend by @Username"
             aria-label="Add Contact"
           >
@@ -136,7 +139,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           >
             <Bell className="w-6.5 h-6.5" />
             {pendingRequestsCount > 0 && (
-              <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-extrabold flex items-center justify-center ring-2 ring-slate-900 animate-pulse">
+              <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-amber-500 text-slate-950 text-[9px] font-extrabold flex items-center justify-center ring-2 ring-slate-900 animate-pulse">
                 {pendingRequestsCount}
               </span>
             )}
@@ -146,7 +149,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Day Schedules & Quiet Mode Icon */}
         <button
           onClick={onOpenScheduleModal}
-          className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600/25 to-purple-600/15 hover:from-indigo-600/35 hover:to-purple-600/25 border border-indigo-500/40 text-indigo-400 flex items-center justify-center active:scale-95 transition-all shadow-md cursor-pointer shrink-0"
+          className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-700/25 to-emerald-600/15 hover:from-emerald-700/35 hover:to-emerald-600/25 border border-emerald-600/40 text-emerald-300 flex items-center justify-center active:scale-95 transition-all shadow-md cursor-pointer shrink-0"
           title="Day Schedules & Quiet Mode"
           aria-label="Day Schedules"
         >
@@ -156,14 +159,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Current User Profile Avatar */}
         <button
           onClick={onOpenProfileModal}
-          className="relative w-12 h-12 rounded-2xl hover:ring-2 hover:ring-rose-500/60 transition-all active:scale-95 flex items-center justify-center cursor-pointer shrink-0"
+          className="relative w-12 h-12 rounded-2xl hover:ring-2 hover:ring-amber-400/60 transition-all active:scale-95 flex items-center justify-center cursor-pointer shrink-0"
           title={`Your Profile & Account Settings (@${currentUser.username || 'user'})`}
           aria-label="Your Profile"
         >
           <img
             src={currentUser.avatar}
             alt={currentUser.name}
-            className="w-11 h-11 rounded-full object-cover ring-2 ring-rose-400/80 shadow-md"
+            className="w-11 h-11 rounded-full object-cover ring-2 ring-amber-400/80 shadow-md"
           />
           <span className="absolute -bottom-0.5 -right-0.5 text-xs">
             {currentUser.moodEmoji}
@@ -183,19 +186,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
 
-      {/* Partners Sanctuary Priority Bar (Max 2 Allowed) */}
-      <div className="px-3.5 py-2.5 bg-gradient-to-r from-rose-950/50 via-pink-950/30 to-slate-900 border-b border-rose-900/30">
+      {/* Partners Sanctuary Priority Bar (Max 2 Allowed) - Royal Emerald & Gold */}
+      <div className="px-3.5 py-2.5 bg-gradient-to-r from-emerald-950/90 via-emerald-900/40 to-[#021810] border-b border-amber-500/25">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1.5">
-            <Heart className="w-3.5 h-3.5 text-rose-400 fill-rose-400/50" />
-            <span className="text-xs font-bold text-rose-200">Partners ({partners.length}/2)</span>
+            <AkomaIcon className="w-3.5 h-3.5 text-amber-400" strokeWidth={2.4} />
+            <span className="text-xs font-bold text-amber-200">Partners Sanctuary ({partners.length}/2)</span>
           </div>
-          <button
-            onClick={onOpenPartnersModal}
-            className="text-[11px] text-rose-400 hover:text-rose-300 font-semibold underline underline-offset-2"
-          >
-            Manage
-          </button>
+          <div className="flex items-center gap-2">
+            {onOpenMemoriesVault && (
+              <button
+                type="button"
+                onClick={onOpenMemoriesVault}
+                className="text-[11px] text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1 hover:underline cursor-pointer"
+                title="Open Shared Memories & Milestones (Odo Nnyew Fie Kwan)"
+              >
+                <Sparkles className="w-3 h-3 text-amber-400" />
+                <span>Memories</span>
+              </button>
+            )}
+            <button
+              onClick={onOpenPartnersModal}
+              className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold underline underline-offset-2 cursor-pointer"
+            >
+              Manage
+            </button>
+          </div>
         </div>
 
         {/* Partners Quick Row with Schedule Badges */}
@@ -286,8 +302,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onClick={() => setActiveTab(tab.id as any)}
             className={`flex-1 py-1 text-[11px] font-semibold rounded-xl transition-colors whitespace-nowrap text-center ${
               activeTab === tab.id
-                ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white shadow-sm shadow-rose-600/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-bold shadow-sm shadow-amber-500/20'
+                : 'text-emerald-300/70 hover:text-emerald-100 hover:bg-emerald-950/60'
             }`}
           >
             {tab.label}
@@ -298,16 +314,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Conversation List */}
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
         {filteredConversations.length === 0 ? (
-          <div className="py-12 px-4 text-center text-xs text-slate-400 space-y-3">
-            <p className="font-semibold text-slate-300">No conversations yet</p>
-            <p className="text-[11px] text-slate-500 leading-relaxed">
+          <div className="py-12 px-4 text-center text-xs text-emerald-300/70 space-y-3">
+            <p className="font-semibold text-emerald-200">No conversations yet</p>
+            <p className="text-[11px] text-emerald-400/50 leading-relaxed">
               Connect with people by sending a partner or friend request to their @username!
             </p>
             {onOpenAddContactModal && (
               <button
                 type="button"
                 onClick={onOpenAddContactModal}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white text-xs font-bold shadow-md shadow-rose-600/20 transition-all cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 text-xs font-bold shadow-md shadow-amber-500/20 transition-all cursor-pointer"
               >
                 <UserPlus className="w-3.5 h-3.5" />
                 <span>Add by @Username</span>
@@ -332,8 +348,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 }}
                 className={`flex items-center gap-3 p-2.5 rounded-2xl cursor-pointer transition-all ${
                   isActive
-                    ? 'bg-rose-600/20 border border-rose-500/50 shadow-sm'
-                    : 'hover:bg-slate-800/60 border border-transparent'
+                    ? 'bg-gradient-to-r from-[#032a1e] to-[#021f16] border-l-4 border-l-amber-400 border border-amber-500/35 shadow-md'
+                    : 'hover:bg-emerald-950/60 border border-transparent text-emerald-100/90'
                 }`}
               >
                 {/* Avatar */}
@@ -343,12 +359,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       src={displayAvatar}
                       alt={displayTitle}
                       className={`w-11 h-11 rounded-full object-cover ring-2 ${
-                        isPartnerChat ? 'ring-rose-400' : 'ring-pink-500/40'
+                        isPartnerChat ? 'ring-amber-400' : 'ring-emerald-500/40'
                       }`}
                     />
                   ) : (
-                    <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-rose-700 to-pink-600 flex items-center justify-center font-bold text-white text-sm shadow">
-                      <Users className="w-5 h-5 text-rose-100" />
+                    <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-amber-600 to-yellow-500 flex items-center justify-center font-bold text-slate-950 text-sm shadow">
+                      <Users className="w-5 h-5 text-slate-950" />
                     </div>
                   )}
                   {conv.isE2EESecure && (

@@ -36,6 +36,8 @@ import { IntimacyHubModal } from '../intimacy/IntimacyHubModal';
 import { HeartbeatPulseOverlay } from '../intimacy/HeartbeatPulseOverlay';
 import { subscribeToHeartbeatPulse } from '../../lib/intimacyStorage';
 import { HeartbeatPulseEvent } from '../../types/intimacy';
+import { MemoriesTimelineModal } from '../memories/MemoriesTimelineModal';
+import { AkomaIcon } from '../common/AdinkraIcons';
 
 interface ChatWindowProps {
   conversation?: Conversation | null;
@@ -105,6 +107,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [selectedVideoFile, setSelectedVideoFile] = useState<Message | null>(null);
   const [copiedUsername, setCopiedUsername] = useState(false);
   const [showIntimacyHub, setShowIntimacyHub] = useState(false);
+  const [showMemoriesVault, setShowMemoriesVault] = useState(false);
   const [incomingHeartbeat, setIncomingHeartbeat] = useState<HeartbeatPulseEvent | null>(null);
 
   // Subscribe to live heartbeat pulses
@@ -353,21 +356,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const displayHeaderAvatar = displayDetails.avatar;
 
   return (
-    <main className="flex-1 w-full max-w-full flex flex-col h-full min-h-0 bg-slate-950 text-slate-100 relative overflow-hidden">
+    <main className="flex-1 w-full max-w-full flex flex-col h-full min-h-0 bg-[#02140e] text-emerald-50 relative overflow-hidden">
       {/* Header / Multi-Select Action Bar */}
       {isSelectionMode ? (
-        <header className="shrink-0 w-full max-w-full p-2.5 sm:p-3 sm:px-6 bg-slate-900 border-b border-rose-950/60 flex items-center justify-between gap-3 z-30 shadow-xl animate-in slide-in-from-top-1 text-white relative overflow-visible">
+        <header className="shrink-0 w-full max-w-full p-2.5 sm:p-3 sm:px-6 bg-[#021e14] border-b border-amber-500/30 flex items-center justify-between gap-3 z-30 shadow-xl animate-in slide-in-from-top-1 text-white relative overflow-visible">
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={handleCancelSelection}
-              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-emerald-900/40 transition-colors cursor-pointer"
               title="Cancel Selection"
             >
               <X className="w-5 h-5" />
             </button>
             <div>
-              <span className="font-bold text-sm sm:text-base text-rose-300">
+              <span className="font-bold text-sm sm:text-base text-amber-300">
                 {selectedMessageIds.size} Selected
               </span>
               <p className="text-[10px] text-slate-400 hidden sm:block">
@@ -380,7 +383,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             <button
               type="button"
               onClick={handleSelectAll}
-              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 hover:text-white transition-colors cursor-pointer"
+              className="px-3 py-1.5 rounded-xl bg-emerald-950 hover:bg-emerald-900 text-xs font-semibold text-emerald-200 hover:text-white transition-colors cursor-pointer border border-emerald-800"
             >
               {selectedMessageIds.size === messages.length ? 'Deselect All' : 'Select All'}
             </button>
@@ -398,25 +401,25 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </div>
         </header>
       ) : (
-        <header className="shrink-0 w-full max-w-full p-2.5 sm:p-3 sm:px-4 bg-slate-900/98 border-b border-rose-950/50 flex items-center justify-between gap-1.5 sm:gap-2 z-20 backdrop-blur-xl shadow-md relative overflow-visible">
+        <header className="shrink-0 w-full max-w-full p-2.5 sm:p-3 sm:px-4 bg-[#021e14]/98 border-b border-amber-500/25 flex items-center justify-between gap-1.5 sm:gap-2 z-20 backdrop-blur-xl shadow-md relative overflow-visible">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           {/* Mobile Back button or hamburger menu */}
           {onBackToChatList ? (
             <button
               type="button"
               onClick={onBackToChatList}
-              className="lg:hidden p-2 text-slate-300 hover:text-white rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/50 flex items-center justify-center cursor-pointer shrink-0"
+              className="lg:hidden p-2 text-slate-300 hover:text-white rounded-xl bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-800/50 flex items-center justify-center cursor-pointer shrink-0"
               title="Back to all chats"
             >
-              <ArrowLeft className="w-5 h-5 text-rose-400" />
+              <ArrowLeft className="w-5 h-5 text-amber-400" />
             </button>
           ) : (
             <button
               onClick={onToggleMobileSidebar}
-              className="lg:hidden p-2 text-slate-300 hover:text-white rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/50 flex items-center justify-center cursor-pointer shrink-0"
+              className="lg:hidden p-2 text-slate-300 hover:text-white rounded-xl bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-800/50 flex items-center justify-center cursor-pointer shrink-0"
               title="Open chats"
             >
-              <Menu className="w-5 h-5 text-rose-400" />
+              <Menu className="w-5 h-5 text-amber-400" />
             </button>
           )}
 
@@ -431,11 +434,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 src={displayHeaderAvatar}
                 alt={displayHeaderTitle}
                 className={`w-10 h-10 rounded-full object-cover ring-2 transition-transform group-hover:scale-105 ${
-                  isPartnerChat ? 'ring-rose-400' : 'ring-pink-500/60'
+                  isPartnerChat ? 'ring-amber-400 shadow-md shadow-amber-500/20' : 'ring-emerald-500/60'
                 }`}
               />
             ) : (
-              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-rose-600 to-pink-600 flex items-center justify-center font-bold text-white text-sm group-hover:scale-105 transition-transform">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-amber-600 via-yellow-500 to-amber-700 flex items-center justify-center font-bold text-slate-950 text-sm group-hover:scale-105 transition-transform shadow-md">
                 {displayHeaderTitle.slice(0, 2).toUpperCase()}
               </div>
             )}
@@ -507,17 +510,28 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </div>
         </div>
 
-        {/* Action Controls: Intimacy Hub, Chat Media Gallery, Audio Call & Video Call */}
+        {/* Action Controls: Memories Vault, Intimacy Hub, Chat Media Gallery, Audio Call & Video Call */}
         <div className="flex items-center gap-1 sm:gap-2">
+          {/* Shared Memories Timeline & Milestone Vault */}
+          <button
+            type="button"
+            onClick={() => setShowMemoriesVault(true)}
+            className="p-2 sm:p-2.5 rounded-xl bg-gradient-to-tr from-amber-500/25 via-yellow-500/20 to-amber-500/10 border border-amber-400/50 hover:border-amber-300 hover:bg-amber-500/35 text-amber-300 hover:text-amber-200 active:scale-95 transition-all flex items-center justify-center cursor-pointer shadow-md shadow-amber-500/15"
+            title="Shared Memories & Milestones Vault (Odo Nnyew Fie Kwan)"
+            aria-label="Memories Vault"
+          >
+            <AkomaIcon className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-amber-300" strokeWidth={2.4} />
+          </button>
+
           {/* Connection & Intimacy Hub */}
           <button
             type="button"
             onClick={() => setShowIntimacyHub(true)}
-            className="p-2 sm:p-2.5 rounded-xl bg-gradient-to-tr from-rose-500/20 to-pink-500/20 border border-rose-500/40 hover:border-rose-400 hover:bg-rose-500/30 text-rose-400 hover:text-rose-300 active:scale-95 transition-all flex items-center justify-center cursor-pointer shadow-sm"
+            className="p-2 sm:p-2.5 rounded-xl bg-gradient-to-tr from-emerald-500/20 to-teal-500/20 border border-emerald-500/40 hover:border-emerald-400 hover:bg-emerald-500/30 text-emerald-300 hover:text-emerald-200 active:scale-95 transition-all flex items-center justify-center cursor-pointer shadow-sm"
             title="Connection & Intimacy Hub (Daily Prompts, Bucket List, Mood Radar, Vouchers)"
             aria-label="Intimacy Hub"
           >
-            <Heart className="w-4 h-4 sm:w-4.5 sm:h-4.5 fill-rose-500/25 text-rose-400" />
+            <Heart className="w-4 h-4 sm:w-4.5 sm:h-4.5 fill-emerald-500/25 text-emerald-300" />
           </button>
 
           {/* Dedicated Chat Media Gallery Icon (Strictly for this chat, no dropdown) */}
@@ -525,7 +539,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             <button
               type="button"
               onClick={() => onOpenMediaGallery('conversation', conversation?.id)}
-              className="p-2 sm:p-2.5 rounded-xl bg-slate-800/90 border border-slate-700/70 hover:border-pink-500/40 hover:bg-pink-500/20 text-pink-400 hover:text-pink-300 active:scale-95 transition-all flex items-center justify-center cursor-pointer shadow-sm"
+              className="p-2 sm:p-2.5 rounded-xl bg-emerald-950/80 border border-emerald-800/80 hover:border-amber-500/40 hover:bg-emerald-900 text-amber-300/90 hover:text-amber-200 active:scale-95 transition-all flex items-center justify-center cursor-pointer shadow-sm"
               title={`View ${displayHeaderTitle}'s Media`}
               aria-label="Chat Media Gallery"
             >
@@ -569,8 +583,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               onClick={() => setShowOptionsMenu((prev) => !prev)}
               className={`p-2 sm:p-2.5 rounded-xl border active:scale-95 transition-all cursor-pointer flex items-center justify-center ${
                 showOptionsMenu
-                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/50'
-                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700/60'
+                  ? 'bg-amber-500/25 text-amber-300 border-amber-400'
+                  : 'bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 hover:text-white border-emerald-800/80'
               }`}
               title="More options"
               aria-label="More options"
@@ -580,7 +594,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
             {showOptionsMenu && (
               <div
-                className="absolute right-0 top-12 rounded-3xl bg-slate-900/98 border border-slate-700/80 shadow-2xl p-3 sm:p-3.5 z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-top-2 select-none"
+                className="absolute right-0 top-12 rounded-3xl bg-[#021e14]/98 border border-amber-500/35 shadow-2xl p-3 sm:p-3.5 z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-top-2 select-none"
                 style={{ filter: 'drop-shadow(0 25px 35px rgba(0, 0, 0, 0.9))' }}
               >
                 {/* Disappearing Messages Timer - Single Necessary Icon with vibrant Plus Menu appearance */}
@@ -693,6 +707,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           recipientName={recipient?.name}
           recipientActivity={recipient?.currentSchedule?.activityTitle}
           onOpenIntimacyHub={() => setShowIntimacyHub(true)}
+          onOpenMemoriesVault={() => setShowMemoriesVault(true)}
         />
       </footer>
 
@@ -717,6 +732,20 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           partnerName={displayHeaderTitle}
           partnerAvatar={displayHeaderAvatar}
           onSendMessage={(text) => onSendMessage(text)}
+        />
+      )}
+
+      {/* Shared Memories & Milestones Vault Modal (Anchored inside Chat Area) */}
+      {showMemoriesVault && (
+        <MemoriesTimelineModal
+          isOpen={showMemoriesVault}
+          onClose={() => setShowMemoriesVault(false)}
+          conversationId={conversation.id}
+          conversationTitle={displayHeaderTitle}
+          currentUserId={currentUser.id}
+          currentUserName={currentUser.name}
+          partnerName={displayHeaderTitle}
+          onShareToChat={(text) => onSendMessage(text)}
         />
       )}
 

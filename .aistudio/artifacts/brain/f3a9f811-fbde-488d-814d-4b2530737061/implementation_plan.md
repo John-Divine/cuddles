@@ -1,30 +1,27 @@
-# Couple & Friend Intimacy Tools Suite & Responsive Chat Layout Enhancements
+# Royal Emerald & Gold Sanctuary: African-Inspired Couple Memories & Performance Suite
 
-Transform the Cuddles sanctuary into a deeply engaging connection space by introducing four interactive intimacy tools (Daily Deep Connection Prompt, Shared Bucket List & Date Planner, Mood & Heartbeat Radar, and Redeemable Love Vouchers), while refining responsive navigation so plus menus appear strictly on small screens, pop-ups anchor within the chat viewport without covering the sidebar on laptop view, and header gallery actions are streamlined.
+Transform Cuddles into an authentic, luxurious African-inspired couple sanctuary featuring a deep emerald and radiant gold visual palette, sacred Adinkra love motifs, a Shared Memories Timeline and Anniversary Milestone Vault, and comprehensive UI and performance optimizations.
 
 ## User Review & Critical Decisions
 
 > [!IMPORTANT]
-> The user confirmed the prioritized category and selected tools: **"Couple and friend intimacy tools"** and **"All 1 to 4 is good"**. In addition, the layout rules for mobile/laptop view and pop-ups from the preceding brief have been synthesized directly into this blueprint.
+> The design direction, couple utility features, and aesthetic preferences have been confirmed through Phase 1 clarification:
+> - **African Heritage Touch**: Handcrafted Adinkra symbols of love and devotion (*Odo Nnyew Fie Kwan* – "Love never loses its way home", *Akoma* – "The Heart / Patience", *Osram Ne Nsoromma* – "Love, Harmony & Faithfulness") complemented by refined African geometric gold borders.
+> - **Primary Couple Utility**: Shared Memories Timeline & Anniversary Milestone Vault, allowing partners to record special dates, track days together, count down to upcoming milestones, and preserve photographic memories.
+> - **Color Theme**: Deep emerald obsidian canvas (`#021a12`, `#04261a`) with structural forest surfaces (`#064e3b`, `#065f46`) and radiant gold accents (`#f59e0b`, `#fbbf24`, `#d97706`).
 
-- **Confirmed Intimacy Suite (Tools 1 to 4)**:
-  1. *Daily Deep Connection Prompt*: Shared daily question with double-blind frosted answers revealed once both respond.
-  2. *Shared Bucket List & Date Planner*: Interactive shared experiences with vibe filters, completion tracking, and spontaneous date spinner.
-  3. *Mood & Heartbeat Radar*: Emotional battery check-in, current relationship need, and a live tactile pulsing heartbeat transmission.
-  4. *Redeemable Love Vouchers & Scratch Coupons*: Romantic and thoughtful coupons with instant redemption cards sent into chat.
-- **Confirmed Layout & Pop-up Refinements**:
-  - *Plus (+) Menu Scope*: Appears exclusively on mobile/tablet viewports where screen width cannot fit inline action icons. On laptop/desktop views with ample space, action icons display directly in the input bar and the plus menu is hidden.
-  - *Plus Menu Grid Geometry*: Replaces any horizontal row with a clean 3x2 rectangular grid palette.
-  - *Top Nav Gallery De-Duplication*: Only one gallery affordance in the chat header, removing duplicate entries between nav bar and menus.
-  - *Chat-Contained Pop-ups (Laptop View)*: Pop-ups (gallery, intimacy suite, settings, modals) anchor directly within the chat viewport area (`absolute inset-0`), keeping the sidebar fully visible, interactive, and unblocked.
+- **Confirmed Decision 1 (Visual Theme)**: Full palette migration from dark pink/slate to Royal Emerald & Radiant Gold, maintaining WCAG AA contrast with warm champagne typography and glowing amber status indicators.
+- **Confirmed Decision 2 (Adinkra Motifs)**: SVG-crafted sacred Adinkra symbols integrated respectfully into intimate UI touchpoints (connection badge, milestone crests, live heartbeat pulse, memory pins).
+- **Confirmed Decision 3 (Shared Memories Vault)**: Persistent Firestore-backed couple timeline with photo attachments, days-in-love counter, anniversary countdown, and custom milestones.
+- **Confirmed Decision 4 (Performance & Ergonomics)**: Virtualized message rendering checks, zero DOM layout shifts, CSS hardware-accelerated transforms, and 44px+ thumb hitboxes.
 
 ---
 
 ## 1. Overview & Core Concept
 
-- **What It Does**: Enhances the 1-on-1 private messaging experience with a dedicated **Intimacy & Connection Hub** accessible from the chat header and input bar. Partners and close friends can synchronously bond through meaningful daily questions, plan shared bucket list adventures, communicate emotional energy and tactile heartbeats, and exchange sweet, redeemable vouchers.
-- **Target Audience / Persona**: Couples, best friends, and intimate confidants seeking deeper emotional closeness, fun rituals, and spontaneous affection beyond plain text chat.
-- **Key Value**: Bridges distance and daily routine by turning passive messaging into active emotional bonding, while providing a flawless responsive desktop and mobile layout.
+- **What It Does**: Upgrades the private couple messaging sanctuary into a culturally rich, royal emerald and gold haven. Partners can celebrate their journey with a dedicated **Shared Memories Timeline & Anniversary Vault**, view automated relationship counters, bookmark memories, send tactile Adinkra-blessed heartbeats, and enjoy ultra-smooth chat performance.
+- **Target Audience / Persona**: Intimate couples and close partners who cherish their relationship history, value cultural identity and warmth, and desire a distraction-free sanctuary that feels regal and deeply meaningful.
+- **Key Value**: Deepens long-term romantic attachment through shared reflection and milestone awareness, while elevating the aesthetic to a bespoke Afro-luxe standard with rock-solid responsiveness.
 
 ---
 
@@ -32,135 +29,136 @@ Transform the Cuddles sanctuary into a deeply engaging connection space by intro
 
 ### Key User Flows
 
-1. **Opening Intimacy Tools in Chat**:
-   - In any active chat header, a gentle rose-pink sparkle heart icon labeled **"Connection & Intimacy Hub"** is available.
-   - On laptop view, clicking it seamlessly opens the Intimacy Hub panel directly within the chat viewport container (sidebar remains completely visible and unaffected).
-   - On mobile, it slides up as a smooth touch-friendly bottom drawer with $44\text{px}+$ tap hitboxes.
+1. **Exploring the Shared Memories & Milestone Vault**:
+   - Tapping the new **Memories & Milestones** button (golden Adinkra *Akoma* crest) in the chat header or intimacy menu opens the Vault.
+   - At the top, the couple sees their live **Days in Love Counter** (e.g., *"Together for 514 radiant days"* with *Odo Nnyew Fie Kwan* – "Love never loses its way home").
+   - Below, an **Anniversary & Milestone Countdown** highlights the next upcoming celebration (e.g., *"24 days until 2-Year Anniversary"*).
+   - The interactive **Chronological Memory Stream** lets partners view romantic moments, milestones, photos, and heartfelt notes.
+   - Partners can tap **"Record New Memory"** to log a date, upload a photo, write a story, and choose a milestone category (*First Date, Travel, Milestone, Spontaneous, Intimate*).
 
-2. **Flow 1: Daily Deep Connection Prompt**:
-   - Users view today's curated romantic/deep question (e.g., *"What was the exact moment you felt closest to me this week?"*).
-   - The partner's response is locked behind a romantic frosted glass blur with a padlock: *"Unlocks when you both answer"*.
-   - Once the user types and submits their answer, both answers smoothly dissolve into view side-by-side with heart reactions and celebration particles.
+2. **Royal Emerald & Gold Chat Experience**:
+   - Chat background features deep obsidian-emerald canvas (`#021a12`) with subtle geometric gold lattice watermark.
+   - Incoming partner messages are cocooned in rich dark-emerald velvet cards with hairline gold accents; outgoing messages glow in radiant warm gold with dark forest text.
+   - The status indicator displays single-word availability ("Free" / "Busy") styled with glowing emerald and warm amber badges.
+   - Plus menu expands into a spacious 3x2 grid of emerald and gold gradient tiles with Adinkra emblems.
 
-3. **Flow 2: Shared Bucket List & Date Planner**:
-   - Browse categorized cards (Cozy, Romantic, Adventure, Foodie, Spontaneous).
-   - Filter by status: *Upcoming*, *Completed*, or *All*.
-   - Quick "Surprise Us" date spinner picks an idea at random.
-   - Check off an adventure to record date completed and attach a memory note.
-
-4. **Flow 3: Mood & Heartbeat Radar**:
-   - Set current emotional battery percentage ($20\%$ to $100\%$) and express current intimacy need (*"Need quiet cuddles"*, *"Ready to talk"*, *"Feeling extra loving"*).
-   - **Tactile Live Heartbeat**: Hold down the glowing central heart button for 2–5 seconds; it sends a synchronized pulsing haptic heart animation straight to the partner's chat.
-
-5. **Flow 4: Redeemable Love Vouchers**:
-   - Flip through romantic voucher cards (*"20-Min Backrub"*, *"Breakfast in Bed"*, *"Movie Night Choice"*, *"Wildcard Favor"*).
-   - Tap "Redeem Voucher": An animated stamp locks the coupon as redeemed and sends an celebratory message into the chat.
-   - Partners can create custom vouchers with customized love tokens.
+3. **Adinkra Love & Harmony Touchpoints**:
+   - *Odo Nnyew Fie Kwan* emblem featured on the Memories Vault header and relationship counter.
+   - *Akoma* (Sacred Heart) used for love reactions, heartbeat transmitter, and intimate gestures.
+   - *Osram Ne Nsoromma* (Moon & Star) used on quiet hours, sleep schedules, and night intimacy prompts.
 
 ### Visual Identity & Theme
-- **Color Palette**: Dark romantic sanctuary palette with 60% dominant obsidian/slate canvas (`#0b0f19`), 30% structural surfaces (`#111827`, `#1e293b`), and 10% high-intent romantic accents (rose `#f43f5e`, pink `#ec4899`, amber `#f59e0b`).
-- **Typography & Hierarchy**: Refined sans display typography with `text-wrap: balance` for question prompts; tabular figures (`tabular-nums`) for timers, percentages, and counters; zero static pill wrappers.
-- **Pop-up Scoping**: Modals and galleries render with absolute positioning relative to the chat section container, ensuring the laptop sidebar is never occluded or pushed.
+
+- **Color Palette & Distribution (60-30-10 Rule)**:
+  - **60% Dominant Canvas**: Deep Emerald Obsidian (`#021a12`, `#031f16`, `#01140e`).
+  - **30% Structural Surfaces**: Forest Velvet surfaces (`#064e3b`, `#065f46`), deep emerald borders (`#047857/40`), and warm parchment typography (`#fef3c7`, `#f3f4f6`).
+  - **10% Radiant Gold Accents**: Sun Gold (`#fbbf24`), Imperial Amber (`#f59e0b`), and Warm Brass (`#d97706`) for active CTAs, progress bars, milestone rings, and celebration sparks.
+- **Typography & Hierarchy**:
+  - High-character display headers using `Plus Jakarta Sans` with balanced tracking and gold gradients (`bg-gradient-to-r from-amber-200 via-yellow-300 to-amber-400 bg-clip-text text-transparent`).
+  - Body text in crisp neutral off-white (`#f1f5f9`, `#e2e8f0`) with enhanced dark-mode legibility and 1.6 line height.
+  - Tabular numerals (`tabular-nums`) for timers, memory dates, and countdown clocks.
+- **Ergonomics & Touch**:
+  - Minimum 44px tap targets for mobile thumb zones.
+  - Modals anchor inside chat container on desktop (`absolute inset-0 z-40`) to preserve sidebar visibility.
 
 ---
 
 ## 3. Key Product Decisions & Trade-Offs
 
-- **Decision 1: Chat-Area Contained Modals vs. Global Fullscreen Fixed Modals**:
-  - *Chosen Approach*: Anchor pop-ups and full-feature panels inside the chat area container (`absolute inset-0 z-40 overflow-y-auto`) on screens $\ge 1024\text{px}$ (laptop/desktop), falling back to full-screen overlays on small mobile screens.
-  - *Why*: Directly solves the user's issue where modals centered over the whole screen covered the sidebar or misaligned when the sidebar remained stationary.
-  - *Alternatives Considered*: Shifting the sidebar with CSS transforms (disorienting and shifts chat width unexpectedly).
-
-- **Decision 2: Plus Menu Breakpoint Rules**:
-  - *Chosen Approach*: Plus menu trigger button is strictly shown on mobile and tablet views where action buttons cannot fit horizontally (`lg:hidden`). On desktop/laptop views (`hidden lg:flex`), individual camera, video, gallery, document, and priority controls render inline with spacious hitboxes.
-  - *Why*: Eliminates unnecessary extra clicks on wide screens while keeping mobile input bars clean and clutter-free.
-
-- **Decision 3: Double-Blind Reveal for Daily Questions**:
-  - *Chosen Approach*: Persist answered state in the conversation's Firestore subdocument / local vault. Partner's text is masked client-side until both have non-empty responses.
-  - *Why*: Encourages genuine, uninfluenced vulnerability and turns answering into an exciting shared reveal.
+- **Decision 1: Global Theme Migration via Tailwind Utility Tokens**:
+  - *Chosen Approach*: Update standard brand color references across components from rose/slate to emerald/gold/amber tokens, with coordinated CSS custom variables.
+  - *Why*: Delivers an immediate, cohesive visual transformation without brittle hardcoded hex values or stylesheet conflicts.
+- **Decision 2: Persistent Memories Timeline in Firestore Subcollection**:
+  - *Chosen Approach*: Store couple memories under `conversations/{id}/memories/{memoryId}` with real-time snapshot synchronization and local fallback caching.
+  - *Why*: Allows both partners to see newly added memories, milestone completions, and photos instantaneously on their respective devices.
+- **Decision 3: Dedicated Adinkra SVG Icon Suite**:
+  - *Chosen Approach*: Handcraft crisp, scalable SVG components for authentic Adinkra symbols (*Odo Nnyew Fie Kwan*, *Akoma*, *Osram Ne Nsoromma*, *Dono*).
+  - *Why*: Eliminates reliance on external images or fonts, guaranteeing instant render performance and razor-sharp clarity on retina displays.
+- **Decision 4: Performance Enhancements**:
+  - *Chosen Approach*: Optimize MessageInput typing debounce, isolate heartbeat overlay render triggers, memoize message list items, and leverage GPU compositor properties (`transform`, `opacity`).
+  - *Why*: Guarantees 60fps scrolling and instant keyboard responsiveness even with hundreds of media messages.
 
 ---
 
 ## 4. Technical Architecture & Data Strategy
 
-### Architecture & Component Hierarchy
+### System Architecture Diagram
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│ App.tsx (Root State, Realtime Subscriptions, Layout Controller)         │
-├──────────────────────────────┬─────────────────────────────────────────┤
-│ Sidebar.tsx                  │ Chat Viewport Container (flex-1)        │
-│ • Conversations list         │ ├─────────────────────────────────────┤ │
-│ • All Media Gallery trigger  │ │ ChatWindow.tsx                      │ │
-│ • Contacts & Calls           │ │ • Header (Status, Single Gallery,   │ │
-│ • Width: w-88 (laptop)       │ │   Intimacy Hub Button)              │ │
-│                              │ │ • Messages Area (Scrollable)        │ │
-│                              │ │ • MessageInput.tsx                  │ │
-│                              │ │   - Laptop: Inline action buttons   │ │
-│                              │ │   - Mobile: Plus (+) 3x2 grid menu  │ │
-│                              │ ├─────────────────────────────────────┤ │
-│                              │ │ Chat-Anchored Pop-ups (absolute)    │ │
-│                              │ │ • IntimacyHubModal.tsx              │ │
-│                              │ │   ├─ DailyPromptView.tsx            │ │
-│                              │ │   ├─ BucketListView.tsx             │ │
-│                              │ │   ├─ MoodRadarView.tsx              │ │
-│                              │ │   └─ LoveVouchersView.tsx           │ │
-│                              │ │ • MediaGalleryModal.tsx (Chat Scope)│ │
-│                              │ └─────────────────────────────────────┘ │
-└──────────────────────────────┴─────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│ App.tsx (Root Layout, Theme Provider, Firestore Realtime Hub)                          │
+├────────────────────────────────────────┬───────────────────────────────────────────────┤
+│ Sidebar.tsx                            │ Chat Area Container (flex-1)                  │
+│ • Emerald & Gold Navigation            │ ├───────────────────────────────────────────┤ │
+│ • Conversations & Partner Presence     │ │ ChatWindow.tsx                            │ │
+│ • Adinkra Sacred Emblem Badge          │ │ • Royal Header (One-Word Status, Memory   │ │
+│                                        │ │   Vault Trigger, Intimacy Hub, Calls)     │ │
+│                                        │ │ • MessageList (Memoized, GPU accelerated) │ │
+│                                        │ │ • MessageInput.tsx                        │ │
+│                                        │ │   - Emerald/Gold 3x2 Unmeshed Plus Menu   │ │
+│                                        │ ├───────────────────────────────────────────┤ │
+│                                        │ │ Chat-Anchored Modals (absolute inset-0)   │ │
+│                                        │ │ • MemoriesTimelineModal.tsx               │ │
+│                                        │ │   ├─ RelationshipCounter.tsx              │ │
+│                                        │ │   ├─ MilestoneCountdown.tsx               │ │
+│                                        │ │   └─ MemoryFeed & AddMemoryModal          │ │
+│                                        │ │ • IntimacyHubModal.tsx (Emerald Restyled) │ │
+│                                        │ │ • HeartbeatPulseOverlay.tsx (Akoma Crest) │ │
+│                                        │ └───────────────────────────────────────────┘ │
+└────────────────────────────────────────┴───────────────────────────────────────────────┘
 ```
 
 ### Data Models & State Mapping
 
 ```typescript
-// 1. Daily Prompt
-interface DailyPromptData {
-  dateKey: string; // "YYYY-MM-DD"
-  questionId: string;
-  questionText: string;
-  responses: {
-    [userId: string]: {
-      text: string;
-      answeredAt: string;
-    };
-  };
-  revealed: boolean;
-}
-
-// 2. Bucket List Item
-interface BucketListItem {
+// 1. Couple Memory Item
+export interface CoupleMemory {
   id: string;
+  conversationId: string;
   title: string;
-  category: 'romantic' | 'adventure' | 'cozy' | 'foodie' | 'spontaneous';
-  completed: boolean;
-  completedAt?: string;
+  description?: string;
+  date: string; // YYYY-MM-DD
+  category: 'first_date' | 'milestone' | 'travel' | 'romantic' | 'celebration';
+  imageUrl?: string;
+  location?: string;
+  partnerReflection?: string;
   addedByUserId: string;
-  memoryNote?: string;
+  addedByUserName: string;
+  createdAt: string;
+  favorite?: boolean;
 }
 
-// 3. Mood & Heartbeat Radar
-interface IntimacyMoodState {
-  batteryPercent: number; // 20 to 100
-  currentNeed: 'cuddle' | 'talk' | 'listening' | 'fun' | 'space';
-  customNote?: string;
-  lastHeartbeatSent?: string;
-}
-
-// 4. Love Voucher
-interface LoveVoucher {
+// 2. Anniversary & Milestone Record
+export interface CoupleMilestone {
   id: string;
   title: string;
-  description: string;
-  icon: string;
-  issuerId: string;
-  recipientId: string;
-  status: 'available' | 'redeemed';
-  redeemedAt?: string;
+  targetDate: string; // YYYY-MM-DD
+  category: 'anniversary' | 'first_kiss' | 'first_trip' | 'wedding' | 'custom';
+  ritualIdea?: string;
+  giftRecommendation?: string;
+  completed?: boolean;
+}
+
+// 3. Relationship Journey Stats
+export interface RelationshipStats {
+  startDate: string; // YYYY-MM-DD
+  daysTogether: number;
+  totalMemoriesLogged: number;
+  nextMilestoneTitle: string;
+  daysToNextMilestone: number;
 }
 ```
 
-### Interactive State Transitions
-- **Daily Prompt Reveal**: Submitting an answer writes to Firestore subcollection `conversations/{id}/intimacy/daily_prompt`. Real-time listener checks if both participants have answered; if yes, triggers celebratory unlock animation.
-- **Heartbeat Broadcast**: Emits a lightweight real-time pulse event via Firestore / state broadcast. Recipient's chat window shows a glowing screen pulse overlay and soft cardiac resonance sound.
-- **Voucher Redemption**: Updating a voucher's status to `redeemed` automatically dispatches a system celebration message into the chat conversation.
-- **Responsive Geometry**: Modals listen to parent container bounds; when rendered inside the chat area, `absolute inset-0` confines them strictly to the right of the sidebar.
+### Interactive State & Component Mapping
+
+1. **`MemoriesTimelineModal.tsx`**:
+   - Displays live days-in-love counter using `differenceInDays(now, partnerStartDate)`.
+   - Filter chips (*All, Milestones, Romantic, Travel*) for filtering the chronological memory stream.
+   - Form to log new memories with photo preview and partner tags.
+   - Syncs via Firestore snapshot listener on `conversations/{id}/memories`.
+2. **`AdinkraIcons.tsx`**:
+   - Reusable SVG vectors for *Odo Nnyew Fie Kwan*, *Akoma*, and *Osram Ne Nsoromma*.
+3. **Theme & CSS Tokens (`index.css` & component classes)**:
+   - Primary: Emerald 500/600/700 with Emerald 950 deep canvas.
+   - Accent: Warm Gold / Amber 400/500/600 with radiant drop shadows.
+   - Glow effects and luxury hairline gold borders (`border-amber-500/30`, `bg-amber-500/10`).

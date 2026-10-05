@@ -23,6 +23,7 @@ import { CameraVideoModal } from './CameraVideoModal';
 import { MediaSendPreviewModal } from './MediaSendPreviewModal';
 import { compressImage } from '../../lib/imageUtils';
 import { MessagePriority, MessageType } from '../../types';
+import { AkomaIcon } from '../common/AdinkraIcons';
 
 interface MessageInputProps {
   onSendMessage: (text: string, priority?: MessagePriority) => void;
@@ -43,6 +44,7 @@ interface MessageInputProps {
   recipientName?: string;
   recipientActivity?: string;
   onOpenIntimacyHub?: () => void;
+  onOpenMemoriesVault?: () => void;
 }
 
 interface PendingDocument {
@@ -69,7 +71,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   recipientIsBusy = false,
   recipientName = 'Contact',
   recipientActivity = 'Busy',
-  onOpenIntimacyHub
+  onOpenIntimacyHub,
+  onOpenMemoriesVault
 }) => {
   const [text, setText] = useState('');
   const [showGifPicker, setShowGifPicker] = useState(false);
@@ -260,7 +263,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   };
 
   return (
-    <div className="relative p-2.5 sm:p-3 bg-slate-900/90 border-t border-rose-950/40 backdrop-blur-md w-full max-w-full overflow-visible">
+    <div className="relative p-2.5 sm:p-3 bg-[#021810]/95 border-t border-amber-500/25 backdrop-blur-md w-full max-w-full overflow-visible">
       {/* Video Note Recorder Modal (portaled to document.body, centered overlay) */}
       {isRecordingVideoNote && (
         <VideoNoteRecorder
@@ -450,8 +453,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 onClick={() => setShowPlusMenu((prev) => !prev)}
                 className={`w-10 h-10 rounded-2xl flex items-center justify-center border transition-all active:scale-95 shadow-sm cursor-pointer ${
                   showPlusMenu
-                    ? 'bg-rose-500/25 text-rose-300 border-rose-400 rotate-45'
-                    : 'bg-slate-800 text-slate-300 hover:text-white border-slate-700 hover:bg-slate-700'
+                    ? 'bg-amber-500/25 text-amber-300 border-amber-400 rotate-45'
+                    : 'bg-emerald-950 text-emerald-200 hover:text-amber-300 border-emerald-800 hover:bg-emerald-900'
                 }`}
                 title="Options & Attachments"
                 aria-label="Add attachment"
@@ -465,8 +468,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 onClick={() => setIsUrgent(!isUrgent)}
                 className={`w-10 h-10 rounded-2xl flex items-center justify-center border transition-all active:scale-95 shadow-sm cursor-pointer ${
                   isUrgent
-                    ? 'bg-gradient-to-tr from-rose-600 to-amber-500 text-white ring-2 ring-rose-400 shadow-rose-600/40 border-rose-400'
-                    : 'bg-slate-800 text-slate-400 hover:text-amber-400 border-slate-700 hover:bg-slate-700'
+                    ? 'bg-gradient-to-tr from-amber-600 to-rose-600 text-white ring-2 ring-amber-400 shadow-amber-600/40 border-amber-400'
+                    : 'bg-emerald-950 text-emerald-300 hover:text-amber-400 border-emerald-800 hover:bg-emerald-900'
                 }`}
                 title={isUrgent ? 'Urgent Mode Active (Bypasses Quiet Mode)' : 'Mark as Urgent'}
                 aria-label="Urgent Priority"
@@ -477,7 +480,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               {/* Plus (+) Action Palette - Spacious 3x2 Rectangular Grid */}
               {showPlusMenu && (
                 <div
-                  className="absolute bottom-full mb-3 left-0 rounded-3xl bg-slate-900/98 border border-slate-700/80 shadow-2xl p-4 sm:p-5 z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-bottom-2 select-none grid grid-cols-3 gap-3.5 sm:gap-4 w-[288px] sm:w-[320px] max-w-[calc(100vw-2rem)]"
+                  className="absolute bottom-full mb-3 left-0 rounded-3xl bg-[#021e14]/98 border border-amber-500/35 shadow-2xl p-4 sm:p-5 z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-bottom-2 select-none grid grid-cols-3 gap-3.5 sm:gap-4 w-[288px] sm:w-[320px] max-w-[calc(100vw-2rem)]"
                   style={{ filter: 'drop-shadow(0 25px 35px rgba(0, 0, 0, 0.9))' }}
                 >
                   {/* 1. Take Photo Camera */}
@@ -487,11 +490,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                       setShowPlusMenu(false);
                       setIsTakingPhoto(true);
                     }}
-                    className="w-full aspect-square min-w-[64px] min-h-[64px] rounded-2xl bg-gradient-to-tr from-rose-500 to-pink-500 text-white flex items-center justify-center shadow-lg shadow-rose-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+                    className="w-full aspect-square min-w-[64px] min-h-[64px] rounded-2xl bg-gradient-to-tr from-amber-600 via-yellow-500 to-amber-500 text-slate-950 flex items-center justify-center shadow-lg shadow-amber-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
                     aria-label="Camera"
                     title="Take Photo"
                   >
-                    <Camera className="w-7 h-7 sm:w-8 sm:h-8 text-white shrink-0" strokeWidth={2.2} />
+                    <Camera className="w-7 h-7 sm:w-8 sm:h-8 text-slate-950 shrink-0" strokeWidth={2.2} />
                   </button>
 
                   {/* 2. Photo Gallery */}
@@ -501,7 +504,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                       setShowPlusMenu(false);
                       imageInputRef.current?.click();
                     }}
-                    className="w-full aspect-square min-w-[64px] min-h-[64px] rounded-2xl bg-gradient-to-tr from-purple-500 to-indigo-500 text-white flex items-center justify-center shadow-lg shadow-purple-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+                    className="w-full aspect-square min-w-[64px] min-h-[64px] rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
                     aria-label="Photos"
                     title="Photo Gallery"
                   >
@@ -515,7 +518,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                       setShowPlusMenu(false);
                       setIsRecordingVideo(true);
                     }}
-                    className="w-full aspect-square min-w-[64px] min-h-[64px] rounded-2xl bg-gradient-to-tr from-rose-600 to-red-500 text-white flex items-center justify-center shadow-lg shadow-rose-600/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+                    className="w-full aspect-square min-w-[64px] min-h-[64px] rounded-2xl bg-gradient-to-tr from-emerald-700 to-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-700/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
                     aria-label="Video"
                     title="Record Video"
                   >
@@ -529,7 +532,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                       setShowPlusMenu(false);
                       docInputRef.current?.click();
                     }}
-                    className="w-full aspect-square min-w-[64px] min-h-[64px] rounded-2xl bg-gradient-to-tr from-blue-500 to-cyan-500 text-white flex items-center justify-center shadow-lg shadow-blue-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+                    className="w-full aspect-square min-w-[64px] min-h-[64px] rounded-2xl bg-gradient-to-tr from-amber-700 to-yellow-600 text-white flex items-center justify-center shadow-lg shadow-amber-600/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
                     aria-label="Document"
                     title="Attach File"
                   >
@@ -543,7 +546,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                       setShowPlusMenu(false);
                       onOpenIntimacyHub?.();
                     }}
-                    className="w-full aspect-square min-w-[64px] min-h-[64px] rounded-2xl bg-gradient-to-tr from-fuchsia-500 to-rose-500 text-white flex items-center justify-center shadow-lg shadow-fuchsia-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+                    className="w-full aspect-square min-w-[64px] min-h-[64px] rounded-2xl bg-gradient-to-tr from-amber-500 via-rose-600 to-amber-600 text-white flex items-center justify-center shadow-lg shadow-amber-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
                     aria-label="Intimacy Hub"
                     title="Connection & Intimacy Hub"
                   >
@@ -557,11 +560,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                       setShowPlusMenu(false);
                       setShowGifPicker(true);
                     }}
-                    className="w-full aspect-square min-w-[64px] min-h-[64px] rounded-2xl bg-gradient-to-tr from-violet-500 to-pink-500 text-white flex items-center justify-center shadow-lg shadow-violet-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+                    className="w-full aspect-square min-w-[64px] min-h-[64px] rounded-2xl bg-gradient-to-tr from-emerald-500 to-amber-400 text-slate-950 flex items-center justify-center shadow-lg shadow-emerald-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
                     aria-label="GIF"
                     title="Send Cuddle GIF"
                   >
-                    <Sparkles className="w-7 h-7 sm:w-8 sm:h-8 text-white shrink-0" strokeWidth={2.2} />
+                    <Sparkles className="w-7 h-7 sm:w-8 sm:h-8 text-slate-950 shrink-0" strokeWidth={2.2} />
                   </button>
                 </div>
               )}
@@ -569,6 +572,18 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
             {/* Laptop / Desktop Direct Action Icons */}
             <div className="hidden lg:flex items-center gap-0.5 pb-1">
+              {/* Memories & Milestones Vault button on Desktop */}
+              {onOpenMemoriesVault && (
+                <button
+                  type="button"
+                  onClick={onOpenMemoriesVault}
+                  className="p-2 rounded-xl text-amber-400 hover:text-amber-300 hover:bg-amber-500/20 active:scale-95 transition-all"
+                  title="Shared Memories & Milestones Vault (Odo Nnyew Fie Kwan)"
+                >
+                  <AkomaIcon className="w-5 h-5 text-amber-400" strokeWidth={2.2} />
+                </button>
+              )}
+
               {/* Intimacy Hub button on Desktop */}
               {onOpenIntimacyHub && (
                 <button
@@ -642,10 +657,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             </div>
 
             {/* Expanding Textarea */}
-            <div className={`flex-1 min-h-[42px] max-h-32 rounded-2xl bg-slate-800/90 border px-3 py-2 flex items-center transition-all ${
+            <div className={`flex-1 min-h-[42px] max-h-32 rounded-2xl bg-[#021f16] border px-3 py-2 flex items-center transition-all ${
               isUrgent
-                ? 'border-rose-500/80 ring-2 ring-rose-500/30'
-                : 'border-slate-700/80 focus-within:border-rose-500/70 focus-within:ring-1 focus-within:ring-rose-500/30'
+                ? 'border-amber-400 ring-2 ring-amber-400/40'
+                : 'border-amber-500/25 focus-within:border-amber-400 focus-within:ring-1 focus-within:ring-amber-400/30'
             }`}>
               <textarea
                 ref={textareaRef}
@@ -659,21 +674,21 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 }}
                 onKeyDown={handleKeyDown}
                 placeholder={isUrgent ? '⚡ Send as URGENT message...' : 'Cuddles encrypted message...'}
-                className="w-full bg-transparent resize-none text-sm text-slate-100 placeholder-slate-400 focus:outline-none leading-relaxed"
+                className="w-full bg-transparent resize-none text-sm text-emerald-50 placeholder-emerald-600 focus:outline-none leading-relaxed"
               />
             </div>
 
             {/* Action Buttons: If text entered -> Distinctive Upward Speed Send Button. If empty -> Mic & Video Note */}
             <div className="flex items-center gap-1 pb-0.5 sm:pb-1 shrink-0">
               {text.trim() || pendingImage || pendingDocument ? (
-                /* Distinctive Send Button with Modern ArrowUp Icon inside romantic glowing gradient */
+                /* Distinctive Send Button with Modern ArrowUp Icon inside radiant gold gradient */
                 <button
                   type="button"
                   onClick={handleSend}
-                  className={`w-10 h-10 rounded-2xl text-white flex items-center justify-center shadow-lg active:scale-95 transition-all ${
+                  className={`w-10 h-10 rounded-2xl text-slate-950 flex items-center justify-center shadow-lg active:scale-95 transition-all cursor-pointer ${
                     isUrgent
-                      ? 'bg-gradient-to-tr from-rose-600 via-red-600 to-amber-500 hover:from-rose-500 hover:to-amber-400 shadow-rose-600/35 ring-2 ring-rose-400'
-                      : 'bg-gradient-to-tr from-rose-500 via-pink-600 to-indigo-600 hover:from-rose-600 hover:via-pink-500 hover:to-indigo-500 shadow-rose-500/25'
+                      ? 'bg-gradient-to-tr from-amber-500 via-rose-600 to-amber-400 hover:from-amber-400 hover:to-yellow-300 shadow-amber-500/35 ring-2 ring-amber-400 text-white'
+                      : 'bg-gradient-to-tr from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 shadow-amber-500/30'
                   }`}
                   title={isUrgent ? 'Send URGENT message' : 'Send Encrypted Message'}
                   aria-label="Send message"
@@ -686,7 +701,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                   <button
                     type="button"
                     onClick={() => setIsRecordingVideoNote(true)}
-                    className="w-10 h-10 sm:w-auto sm:h-auto sm:p-2.5 rounded-2xl bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 active:scale-95 border border-slate-700/60 shadow-sm transition-all flex items-center justify-center"
+                    className="w-10 h-10 sm:w-auto sm:h-auto sm:p-2.5 rounded-2xl bg-emerald-950/80 hover:bg-emerald-900 text-emerald-200 hover:text-amber-300 active:scale-95 border border-emerald-800/80 shadow-sm transition-all flex items-center justify-center cursor-pointer"
                     title="Record Circular Video Note"
                     aria-label="Record Video Note"
                   >
@@ -697,7 +712,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                   <button
                     type="button"
                     onClick={() => setIsRecordingVoice(true)}
-                    className="w-10 h-10 sm:w-auto sm:h-auto sm:p-2.5 rounded-2xl bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 active:scale-95 border border-slate-700/60 shadow-sm transition-all flex items-center justify-center"
+                    className="w-10 h-10 sm:w-auto sm:h-auto sm:p-2.5 rounded-2xl bg-emerald-950/80 hover:bg-emerald-900 text-emerald-200 hover:text-amber-300 active:scale-95 border border-emerald-800/80 shadow-sm transition-all flex items-center justify-center cursor-pointer"
                     title="Record Voice Note"
                     aria-label="Record Voice Note"
                   >

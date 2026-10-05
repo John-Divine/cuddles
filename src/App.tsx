@@ -84,6 +84,7 @@ import { RequestsModal } from './components/contacts/RequestsModal';
 import { PWAInstallModal } from './components/pwa/PWAInstallModal';
 import { OfflineIndicator } from './components/pwa/OfflineIndicator';
 import { MediaGalleryModal } from './components/gallery/MediaGalleryModal';
+import { MemoriesTimelineModal } from './components/memories/MemoriesTimelineModal';
 import { getConversationDisplayDetails } from './lib/conversationResolver';
 
 export default function App() {
@@ -192,6 +193,7 @@ export default function App() {
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [showMediaGalleryModal, setShowMediaGalleryModal] = useState(false);
+  const [showGlobalMemoriesModal, setShowGlobalMemoriesModal] = useState(false);
   const [mediaGalleryScope, setMediaGalleryScope] = useState<'all' | 'conversation'>('all');
   const [mediaGalleryTargetConvId, setMediaGalleryTargetConvId] = useState<string | null>(null);
 
@@ -1855,7 +1857,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex flex-col h-[100dvh] w-full max-w-[100vw] bg-slate-950 text-slate-100 overflow-hidden overflow-x-hidden select-none font-sans antialiased">
+    <div className="flex flex-col h-[100dvh] w-full max-w-[100vw] bg-[#02140e] text-emerald-50 overflow-hidden overflow-x-hidden select-none font-sans antialiased">
       <OfflineIndicator />
 
       {/* Main Container */}
@@ -1883,6 +1885,7 @@ export default function App() {
             setShowAddContactModal(true);
           }}
           onOpenMediaGallery={handleOpenAllMediaGallery}
+          onOpenMemoriesVault={() => setShowGlobalMemoriesModal(true)}
           onStartCall={(convId, type) => {
             setActiveConversationId(convId);
             handleStartCall(type);
@@ -2207,6 +2210,24 @@ export default function App() {
             ✕
           </button>
         </div>
+      )}
+
+      {/* Global Shared Memories & Milestones Vault Modal (From Sidebar or Navigation) */}
+      {showGlobalMemoriesModal && (
+        <MemoriesTimelineModal
+          isOpen={showGlobalMemoriesModal}
+          onClose={() => setShowGlobalMemoriesModal(false)}
+          conversationId={activeConversationId || 'partner_sanctuary'}
+          conversationTitle={activeConversation?.title || 'Our Sanctuary'}
+          currentUserId={currentUser.id}
+          currentUserName={currentUser.name}
+          partnerName={partners[0]?.name || 'My Love'}
+          onShareToChat={(text) => {
+            if (activeConversationId) {
+              handleSendMessage(text);
+            }
+          }}
+        />
       )}
     </div>
   );

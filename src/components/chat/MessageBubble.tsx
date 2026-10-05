@@ -368,10 +368,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 : message.type === 'video_note'
                 ? 'bg-transparent p-0 shadow-none'
                 : message.priority === 'urgent' || message.priority === 'emergency'
-                ? 'bg-gradient-to-br from-red-600 via-rose-600 to-amber-600 text-white border-2 border-amber-400/80 shadow-xl shadow-rose-600/30 px-3.5 py-2.5 ring-2 ring-amber-400/40 animate-pulse'
+                ? 'bg-gradient-to-br from-amber-600 via-rose-600 to-amber-700 text-white border-2 border-amber-400 shadow-xl shadow-amber-600/30 px-3.5 py-2.5 ring-2 ring-amber-400/40 animate-pulse'
                 : isMe
-                ? 'bg-gradient-to-br from-rose-600 via-pink-600 to-rose-700 text-white rounded-br-xs px-3.5 py-2.5 shadow-rose-950/40'
-                : 'bg-slate-800 text-slate-100 border border-rose-900/30 rounded-bl-xs px-3.5 py-2.5'
+                ? 'bg-gradient-to-br from-amber-600 via-amber-500 to-yellow-500 text-slate-950 font-medium rounded-br-xs px-3.5 py-2.5 shadow-md shadow-amber-950/40 border border-amber-400/40'
+                : 'bg-emerald-900/90 text-emerald-50 border border-amber-500/25 rounded-bl-xs px-3.5 py-2.5 shadow-md'
             }`}
           >
             {/* Deleted for everyone placeholder */}
