@@ -446,8 +446,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
           {/* Main Input Row */}
           <div className="flex items-end gap-1.5 sm:gap-2 relative w-full max-w-full min-w-0">
-            {/* Plus (+) Button & Expandable Action Menu */}
-            <div className="relative pb-0.5 shrink-0 flex items-center gap-1.5" ref={plusMenuRef}>
+            {/* Plus (+) Button & Expandable Action Menu (Mobile/Tablet View Only - Hidden on Laptop) */}
+            <div className="relative pb-0.5 shrink-0 lg:hidden flex items-center gap-1.5" ref={plusMenuRef}>
               <button
                 type="button"
                 onClick={() => setShowPlusMenu((prev) => !prev)}
@@ -460,21 +460,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 aria-label="Add attachment"
               >
                 <Plus size={22} className="w-5 h-5 transition-transform duration-200 shrink-0" strokeWidth={2.4} />
-              </button>
-
-              {/* Mobile Quick Urgent Priority Toggle */}
-              <button
-                type="button"
-                onClick={() => setIsUrgent(!isUrgent)}
-                className={`w-10 h-10 rounded-2xl flex items-center justify-center border transition-all active:scale-95 shadow-sm cursor-pointer ${
-                  isUrgent
-                    ? 'bg-gradient-to-tr from-amber-600 to-rose-600 text-white ring-2 ring-amber-400 shadow-amber-600/40 border-amber-400'
-                    : 'bg-emerald-950 text-emerald-300 hover:text-amber-400 border-emerald-800 hover:bg-emerald-900'
-                }`}
-                title={isUrgent ? 'Urgent Mode Active (Bypasses Quiet Mode)' : 'Mark as Urgent'}
-                aria-label="Urgent Priority"
-              >
-                <Zap className={`w-4.5 h-4.5 ${isUrgent ? 'fill-white text-white' : ''}`} />
               </button>
 
               {/* Plus (+) Action Palette - Spacious 3x2 Rectangular Grid */}
@@ -640,20 +625,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               >
                 <Sparkles className="w-5 h-5" />
               </button>
-
-              {/* Quick Urgent / Priority Toggle */}
-              <button
-                type="button"
-                onClick={() => setIsUrgent(!isUrgent)}
-                className={`p-2 rounded-xl active:scale-95 transition-all ${
-                  isUrgent
-                    ? 'bg-rose-500/20 text-rose-400 ring-1 ring-rose-500/50'
-                    : 'text-slate-400 hover:text-amber-400 hover:bg-slate-800/80'
-                }`}
-                title={isUrgent ? 'Urgent message (bypasses quiet mode)' : 'Mark as Urgent'}
-              >
-                <Zap className={`w-4.5 h-4.5 ${isUrgent ? 'fill-rose-400' : ''}`} />
-              </button>
             </div>
 
             {/* Expanding Textarea */}
@@ -678,8 +649,23 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               />
             </div>
 
-            {/* Action Buttons: If text entered -> Distinctive Upward Speed Send Button. If empty -> Mic & Video Note */}
+            {/* Action Buttons: Unified Urgent Toggle, Send Button, Voice/Video */}
             <div className="flex items-center gap-1 pb-0.5 sm:pb-1 shrink-0">
+              {/* Single Global Urgent Toggle (Strictly in one spot) */}
+              <button
+                type="button"
+                onClick={() => setIsUrgent(!isUrgent)}
+                className={`p-2.5 rounded-2xl active:scale-95 transition-all border cursor-pointer ${
+                  isUrgent
+                    ? 'bg-gradient-to-tr from-amber-600 to-rose-600 text-white ring-2 ring-amber-400 shadow-amber-600/40 border-amber-400'
+                    : 'bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 hover:text-amber-400 border-emerald-800/80 shadow-sm'
+                }`}
+                title={isUrgent ? 'Urgent Mode Active (Bypasses Quiet Mode)' : 'Mark as Urgent'}
+                aria-label="Urgent Priority"
+              >
+                <Zap className={`w-4 h-4 ${isUrgent ? 'fill-white text-white' : ''}`} />
+              </button>
+
               {text.trim() || pendingImage || pendingDocument ? (
                 /* Distinctive Send Button with Modern ArrowUp Icon inside radiant gold gradient */
                 <button

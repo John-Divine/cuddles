@@ -20,7 +20,9 @@ import {
   X,
   Trash2,
   CheckSquare,
-  Square
+  Square,
+  Copy,
+  Plus
 } from 'lucide-react';
 import { Message } from '../../types';
 import {
@@ -44,7 +46,30 @@ interface MessageBubbleProps {
   onDeleteMessage?: (message: Message) => void;
 }
 
-const REACTION_PALETTE = ['❤️', '🔥', '😂', '👍', '🥰', '✨'];
+const QUICK_REACTIONS = ['❤️', '🔥', '😂', '👍', '🥰', '✨', '😮', '🙏'];
+
+const EMOJI_PACK_CATEGORIES = [
+  {
+    id: 'love',
+    label: '💕 Love',
+    emojis: ['❤️', '💖', '💝', '💘', '💕', '💓', '💗', '💞', '💌', '💍', '🌹', '💐', '😘', '🥰', '😍', '😻']
+  },
+  {
+    id: 'smileys',
+    label: '😄 Smiles',
+    emojis: ['😀', '😂', '🥹', '😊', '😇', '😋', '😎', '🥳', '🤩', '😭', '🥺', '😮', '😴', '🤗', '🤭', '🤫']
+  },
+  {
+    id: 'gestures',
+    label: '👍 Hands',
+    emojis: ['👍', '👎', '👏', '🙌', '🫶', '🤝', '✌️', '🤞', '👊', '🤙', '🙏', '🤌', '💪', '🔥', '✨', '⭐']
+  },
+  {
+    id: 'sanctuary',
+    label: '👑 Royal',
+    emojis: ['✨', '👑', '🦁', '☀️', '🌙', '⭐', '🔥', '🏆', '💎', '🕊️', '🌿', '🎉', '🥂', '🎂', '💯', '🪄']
+  }
+];
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
@@ -104,6 +129,32 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [showImageZoom, setShowImageZoom] = useState(false);
   const [justSavedNotification, setJustSavedNotification] = useState<string | null>(null);
+
+  // Message Action Popover & Full Emoji Pack State
+  const [showActionPopover, setShowActionPopover] = useState(false);
+  const [showEmojiPack, setShowEmojiPack] = useState(false);
+  const [activePackCategory, setActivePackCategory] = useState<'love' | 'smileys' | 'gestures' | 'sanctuary'>('love');
+  const [copiedText, setCopiedText] = useState(false);
+  const [popoverCoords, setPopoverCoords] = useState<{ top: number; left: number; placeAbove: boolean } | null>(null);
+  const bubbleRef = useRef<HTMLDivElement | null>(null);
+
+  const openActionPopover = () => {
+    if (bubbleRef.current) {
+      const rect = bubbleRef.current.getBoundingClientRect();
+      const placeAbove = rect.top > 240;
+      const left = isMe
+        ? Math.max(16, rect.right - 300)
+        : Math.min(window.innerWidth - 316, Math.max(16, rect.left));
+      setPopoverCoords({
+        top: placeAbove ? Math.max(16, rect.top - 8) : Math.min(window.innerHeight - 180, rect.bottom + 8),
+        left,
+        placeAbove
+      });
+      setShowActionPopover(true);
+      setShowEmojiPack(false);
+      setCopiedText(false);
+    }
+  };
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const videoNoteRef = useRef<HTMLVideoElement | null>(null);
@@ -277,8 +328,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
         try { navigator.vibrate(40); } catch (_) {}
       }
-      onStartSelection?.(message.id);
-    }, 450);
+      if (!isSelectionMode) {
+        openActionPopover();
+      } else {
+        onToggleSelect?.(message.id);
+      }
+    }, 400);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
@@ -303,13 +358,19 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
-    onStartSelection?.(message.id);
+    if (!isSelectionMode) {
+      openActionPopover();
+    } else {
+      onToggleSelect?.(message.id);
+    }
   };
 
   const handleBubbleClick = (e: React.MouseEvent) => {
     if (isSelectionMode) {
       e.stopPropagation();
       onToggleSelect?.(message.id);
+    } else {
+      openActionPopover();
     }
   };
 
@@ -320,7 +381,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       onTouchEnd={handleTouchEnd}
       onContextMenu={handleContextMenu}
       onClick={handleBubbleClick}
-      className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} my-1 px-1 sm:px-2 group relative transition-all w-full max-w-full overflow-hidden ${
+      className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} my-1 px-1 sm:px-2 group relative transition-all w-full max-w-full overflow-visible ${
         isSelectionMode ? 'cursor-pointer' : ''
       }`}
     >
@@ -357,7 +418,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           />
         )}
 
-        <div className="relative min-w-0 max-w-full">
+        <div ref={bubbleRef} className="relative min-w-0 max-w-full">
           {/* Main Bubble */}
           <div
             className={`relative rounded-2xl overflow-hidden transition-all shadow-md ${
@@ -965,7 +1026,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             </div>
           )}
 
-          {/* Quick Reaction & Delete Action on Hover (Desktop only to prevent horizontal overflow on touch/mobile) */}
+          {/* Quick Reaction & Delete Action on Hover (Desktop) */}
           {!isSelectionMode && !message.isDeletedForEveryone && (
             <div
               className={`hidden sm:flex absolute top-0 opacity-0 group-hover:opacity-100 transition-opacity items-center gap-1 ${
@@ -974,42 +1035,26 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             >
               <button
                 type="button"
-                onClick={() => setShowReactionPicker(!showReactionPicker)}
-                className="p-1 rounded-full bg-slate-800 border border-slate-700 text-slate-400 hover:text-amber-400 shadow-md cursor-pointer"
-                title="Add reaction"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openActionPopover();
+                }}
+                className="p-1 rounded-full bg-emerald-950 border border-emerald-800 text-emerald-300 hover:text-amber-400 shadow-md cursor-pointer"
+                title="Add reaction & actions"
               >
                 <Smile className="w-3.5 h-3.5" />
               </button>
               <button
                 type="button"
-                onClick={() => onDeleteMessage?.(message)}
-                className="p-1 rounded-full bg-slate-800 border border-slate-700 text-slate-400 hover:text-rose-400 shadow-md cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteMessage?.(message);
+                }}
+                className="p-1 rounded-full bg-emerald-950 border border-emerald-800 text-slate-400 hover:text-rose-400 shadow-md cursor-pointer"
                 title="Delete message"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
-            </div>
-          )}
-
-          {/* Reaction Palette Popup */}
-          {showReactionPicker && (
-            <div
-              className={`absolute -top-9 z-30 flex items-center gap-1 p-1 bg-slate-900 border border-slate-700 rounded-full shadow-xl animate-in zoom-in-95 duration-100 ${
-                isMe ? 'right-0' : 'left-0'
-              }`}
-            >
-              {REACTION_PALETTE.map((emoji) => (
-                <button
-                  key={emoji}
-                  onClick={() => {
-                    onAddReaction(message.id, emoji);
-                    setShowReactionPicker(false);
-                  }}
-                  className="p-1 text-sm hover:scale-125 transition-transform rounded-full hover:bg-slate-800"
-                >
-                  {emoji}
-                </button>
-              ))}
             </div>
           )}
         </div>
@@ -1058,6 +1103,156 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             Ephemeral Photo • Saved to local device vault & purged from cloud upon download
           </div>
         </div>,
+        document.body
+      )}
+
+      {/* WhatsApp-Style Message Action & Emoji Pack Popover Portal */}
+      {showActionPopover && typeof document !== 'undefined' && createPortal(
+        <>
+          {/* Backdrop: click outside closes popover */}
+          <div
+            className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-[1px] animate-in fade-in duration-100"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowActionPopover(false);
+            }}
+          />
+
+          {/* Floating Popover Card */}
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="fixed z-[9999] rounded-3xl bg-[#021e14]/98 border border-amber-500/40 p-3 shadow-2xl backdrop-blur-2xl text-white select-none w-[295px] sm:w-[330px] animate-in zoom-in-95 fade-in duration-150"
+            style={{
+              filter: 'drop-shadow(0 25px 35px rgba(0, 0, 0, 0.9))',
+              top: popoverCoords?.placeAbove ? 'auto' : `${popoverCoords?.top ?? 100}px`,
+              bottom: popoverCoords?.placeAbove ? `${Math.max(16, window.innerHeight - (popoverCoords?.top ?? 200))}px` : 'auto',
+              left: `${popoverCoords?.left ?? 16}px`
+            }}
+          >
+            {/* 1. Quick Reaction Bar with + for Full Emoji Pack */}
+            <div className="flex items-center justify-between gap-1 pb-2 border-b border-amber-500/20">
+              <div className="flex items-center gap-1 sm:gap-1.5 flex-1 justify-between">
+                {QUICK_REACTIONS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => {
+                      onAddReaction(message.id, emoji);
+                      setShowActionPopover(false);
+                    }}
+                    className="p-1 sm:p-1.5 text-lg sm:text-xl rounded-full hover:scale-130 active:scale-95 hover:bg-emerald-900/60 transition-transform cursor-pointer"
+                    title={`React with ${emoji}`}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+
+              {/* + Button to toggle Emoji Pack */}
+              <button
+                type="button"
+                onClick={() => setShowEmojiPack((prev) => !prev)}
+                className={`p-1.5 ml-1 rounded-full border transition-all cursor-pointer ${
+                  showEmojiPack
+                    ? 'bg-amber-500/30 text-amber-300 border-amber-400 rotate-45'
+                    : 'bg-emerald-950/80 text-emerald-300 hover:text-amber-300 border-emerald-800 hover:bg-emerald-900'
+                }`}
+                title={showEmojiPack ? 'Close Emoji Pack' : 'More Emojis (Emoji Pack)'}
+                aria-label="More Emojis"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* 2. Expandable Categorized Emoji Pack */}
+            {showEmojiPack && (
+              <div className="py-2.5 border-b border-amber-500/20 animate-in fade-in slide-in-from-top-1 duration-150">
+                {/* Category Tabs */}
+                <div className="flex items-center gap-1 pb-2 overflow-x-auto">
+                  {EMOJI_PACK_CATEGORIES.map((cat) => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setActivePackCategory(cat.id as any)}
+                      className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                        activePackCategory === cat.id
+                          ? 'bg-amber-500/30 text-amber-300 border border-amber-400/50'
+                          : 'text-slate-400 hover:text-slate-200 hover:bg-emerald-950'
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Emoji Pack Grid */}
+                <div className="grid grid-cols-8 gap-1 p-1 bg-emerald-950/40 rounded-2xl max-h-36 overflow-y-auto">
+                  {EMOJI_PACK_CATEGORIES.find((c) => c.id === activePackCategory)?.emojis.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => {
+                        onAddReaction(message.id, emoji);
+                        setShowActionPopover(false);
+                      }}
+                      className="p-1 text-base sm:text-lg rounded-xl hover:scale-130 active:scale-95 hover:bg-emerald-900/60 transition-transform cursor-pointer flex items-center justify-center"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 3. Action Buttons Row: Copy Text, Select, Delete */}
+            <div className="flex items-center justify-between pt-2 gap-2 text-xs">
+              {message.text && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(message.text || '');
+                    setCopiedText(true);
+                    setTimeout(() => {
+                      setCopiedText(false);
+                      setShowActionPopover(false);
+                    }, 800);
+                  }}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 text-emerald-200 hover:text-white border border-emerald-800/60 transition-colors cursor-pointer"
+                  title="Copy text to clipboard"
+                >
+                  {copiedText ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedText ? 'Copied!' : 'Copy'}</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowActionPopover(false);
+                  onStartSelection?.(message.id);
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 text-emerald-200 hover:text-white border border-emerald-800/60 transition-colors cursor-pointer"
+                title="Select messages for multi-delete"
+              >
+                <CheckSquare className="w-3.5 h-3.5" />
+                <span>Select</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowActionPopover(false);
+                  onDeleteMessage?.(message);
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900 text-rose-300 hover:text-white border border-rose-800/60 transition-colors cursor-pointer ml-auto"
+                title="Delete this message"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete</span>
+              </button>
+            </div>
+          </div>
+        </>,
         document.body
       )}
     </div>

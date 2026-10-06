@@ -66,7 +66,7 @@ import {
 } from './lib/firebase';
 import { saveMediaToDeviceVault, getMediaFromDeviceVault, clearDeviceVault } from './lib/deviceMediaStorage';
 import { encryptMessage } from './lib/encryption';
-import { playSentSound, playReceivedSound, playUrgentSound, playConnectSound, playEndCallSound } from './lib/audio';
+import { playSentSound, playReceivedSound, playUrgentSound, playConnectSound, playEndCallSound, stopRingtone } from './lib/audio';
 
 import { AuthScreen } from './components/auth/AuthScreen';
 import { Sidebar } from './components/layout/Sidebar';
@@ -437,46 +437,74 @@ export default function App() {
   useEffect(() => {
     if (!activeAccount) return;
 
-    const unsubscribe = subscribeToIncomingCalls(activeAccount.id, (callSignal) => {
-      // Ignore if user is already participating in this exact call
-      if (activeCall && activeCall.id === callSignal.id) return;
+    const unsubscribe = subscribeToIncomingCalls(
+      activeAccount.id,
+      (callSignal) => {
+        // Ignore if user is already participating in this exact call
+        if (activeCall && activeCall.id === callSignal.id) return;
 
-      const callerContact = contacts.find((c) => c.id === callSignal.callerId) || {
-        id: callSignal.callerId,
-        username: callSignal.callerName.toLowerCase().replace(/\s+/g, ''),
-        name: callSignal.callerName,
-        avatar: callSignal.callerAvatar,
-        relationshipType: 'friend' as RelationshipType,
-        status: 'Calling you on Cuddles...',
-        moodEmoji: '📞',
-        online: true,
-        safetyFingerprint: 'CALL'
-      };
+        const callerContact = contacts.find((c) => c.id === callSignal.callerId) || {
+          id: callSignal.callerId,
+          username: callSignal.callerName.toLowerCase().replace(/\s+/g, ''),
+          name: callSignal.callerName,
+          avatar: callSignal.callerAvatar,
+          relationshipType: 'friend' as RelationshipType,
+          status: 'Calling you on Cuddles...',
+          moodEmoji: '📞',
+          online: true,
+          safetyFingerprint: 'CALL'
+        };
 
-      const matchedConv = conversations.find((c) => c.id === callSignal.conversationId) || {
-        id: callSignal.conversationId,
-        title: callSignal.callerName,
-        avatar: callSignal.callerAvatar,
-        isGroup: false,
-        participantIds: [activeAccount.id, callSignal.callerId],
-        partnerIds: [],
-        createdAt: new Date().toISOString(),
-        isE2EESecure: true,
-        sharedKeyFingerprint: 'CALL'
-      };
+        const matchedConv = conversations.find((c) => c.id === callSignal.conversationId) || {
+          id: callSignal.conversationId,
+          title: callSignal.callerName,
+          avatar: callSignal.callerAvatar,
+          isGroup: false,
+          participantIds: [activeAccount.id, callSignal.callerId],
+          partnerIds: [],
+          createdAt: new Date().toISOString(),
+          isE2EESecure: true,
+          sharedKeyFingerprint: 'CALL'
+        };
 
-      setIncomingCall({
-        callId: callSignal.id,
-        caller: callerContact,
-        conversation: matchedConv,
-        type: callSignal.callType
-      });
-    });
+        setIncomingCall({
+          callId: callSignal.id,
+          caller: callerContact,
+          conversation: matchedConv,
+          type: callSignal.callType
+        });
+      },
+      (dismissedCallId) => {
+        setIncomingCall((curr) => {
+          if (curr && curr.callId === dismissedCallId) {
+            stopRingtone();
+            playEndCallSound();
+            return null;
+          }
+          return curr;
+        });
+      }
+    );
 
     return () => {
       if (typeof unsubscribe === 'function') unsubscribe();
     };
   }, [activeAccount?.id, contacts, conversations, activeCall]);
+
+  // Synchronized call cancellation: If caller ends/hangs up while ringing, dismiss recipient's dialog instantly
+  useEffect(() => {
+    if (!incomingCall) return;
+    const unsub = subscribeToCallStatus(incomingCall.callId, (updatedCall) => {
+      if (updatedCall.status === 'ended' || updatedCall.status === 'declined') {
+        stopRingtone();
+        setIncomingCall(null);
+        playEndCallSound();
+      }
+    });
+    return () => {
+      unsub();
+    };
+  }, [incomingCall?.callId]);
 
   // Real-time listener for conversation updates
   useEffect(() => {
@@ -1293,45 +1321,51 @@ export default function App() {
     });
   };
 
-  // Start Group or 1-on-1 Call with synchronized real-time Firestore signaling
+  // Start 1-on-1 Call with synchronized real-time Firestore signaling
   const handleStartCall = async (type: 'audio' | 'video') => {
     if (!activeConversation || !activeAccount) return;
 
-    const targetParticipantIds = activeConversation.participantIds.filter((id) => id !== activeAccount.id);
+    // Strictly 1-on-1 by default: Identify the specific contact to call
+    const otherParticipantId = activeConversation.participantIds.find((id) => id !== activeAccount.id);
+    const targetRecipient = activeRecipient || contacts.find((c) => c.id === otherParticipantId) || {
+      id: otherParticipantId || 'contact',
+      name: activeConversation.title || 'Contact',
+      avatar: activeConversation.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${otherParticipantId || 'contact'}`,
+      relationshipType: 'partner' as RelationshipType
+    };
 
-    const callParticipants = activeConversation.participantIds.map((id) => {
-      if (id === currentUser.id) {
-        return {
-          id: currentUser.id,
-          name: currentUser.name,
-          avatar: currentUser.avatar,
-          isMuted: false,
-          isVideoOff: type === 'audio',
-          isSpeaking: false,
-          isLocal: true,
-          relationshipType: currentUser.relationshipType
-        };
-      }
-      const contact = contacts.find((c) => c.id === id);
-      return {
-        id: id,
-        name: contact?.name || 'Contact',
-        avatar: contact?.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + id,
+    const targetParticipantIds = [targetRecipient.id];
+
+    const callParticipants = [
+      {
+        id: currentUser.id,
+        name: currentUser.name,
+        avatar: currentUser.avatar,
+        isMuted: false,
+        isVideoOff: type === 'audio',
+        isSpeaking: false,
+        isLocal: true,
+        relationshipType: currentUser.relationshipType
+      },
+      {
+        id: targetRecipient.id,
+        name: targetRecipient.name,
+        avatar: targetRecipient.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${targetRecipient.id}`,
         isMuted: false,
         isVideoOff: type === 'audio',
         isSpeaking: false,
         isLocal: false,
-        relationshipType: contact?.relationshipType
-      };
-    });
+        relationshipType: targetRecipient.relationshipType
+      }
+    ];
 
     const callId = `call_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
     const newCall: ActiveCall = {
       id: callId,
       conversationId: activeConversation.id,
-      conversationTitle: activeConversation.title,
-      isGroup: activeConversation.isGroup,
+      conversationTitle: targetRecipient.name,
+      isGroup: false,
       callType: type,
       status: 'connected',
       startedAt: new Date().toISOString(),
@@ -1341,11 +1375,11 @@ export default function App() {
     setActiveCall(newCall);
     setIsCallMinimized(false);
 
-    // Write call signal to Firestore so recipients' devices ring immediately
+    // Write call signal to Firestore so recipient's device rings immediately
     const signal: CallSignal = {
       id: callId,
       conversationId: activeConversation.id,
-      conversationTitle: activeConversation.title,
+      conversationTitle: targetRecipient.name,
       callerId: activeAccount.id,
       callerName: activeAccount.name,
       callerAvatar: activeAccount.avatar,
@@ -2119,37 +2153,34 @@ export default function App() {
             await answerCallInFirestore(call.callId, activeAccount.id);
             setActiveConversationId(call.conversation.id);
 
-            const callParticipants = call.conversation.participantIds.map((id) => {
-              if (id === activeAccount.id) {
-                return {
-                  id: activeAccount.id,
-                  name: activeAccount.name,
-                  avatar: activeAccount.avatar,
-                  isMuted: false,
-                  isVideoOff: call.type === 'audio',
-                  isSpeaking: false,
-                  isLocal: true,
-                  relationshipType: currentUser.relationshipType
-                };
-              }
-              const contact = contacts.find((c) => c.id === id);
-              return {
-                id: id,
-                name: contact?.name || call.caller.name,
-                avatar: contact?.avatar || call.caller.avatar,
+            const callParticipants = [
+              {
+                id: activeAccount.id,
+                name: activeAccount.name,
+                avatar: activeAccount.avatar,
+                isMuted: false,
+                isVideoOff: call.type === 'audio',
+                isSpeaking: false,
+                isLocal: true,
+                relationshipType: currentUser.relationshipType
+              },
+              {
+                id: call.caller.id,
+                name: call.caller.name,
+                avatar: call.caller.avatar,
                 isMuted: false,
                 isVideoOff: call.type === 'audio',
                 isSpeaking: false,
                 isLocal: false,
-                relationshipType: contact?.relationshipType || call.caller.relationshipType
-              };
-            });
+                relationshipType: call.caller.relationshipType
+              }
+            ];
 
             const connectedCall: ActiveCall = {
               id: call.callId,
               conversationId: call.conversation.id,
-              conversationTitle: call.conversation.title,
-              isGroup: call.conversation.isGroup,
+              conversationTitle: call.caller.name,
+              isGroup: false,
               callType: call.type,
               status: 'connected',
               startedAt: new Date().toISOString(),

@@ -511,72 +511,29 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         </div>
 
         {/* Action Controls: Memories Vault, Intimacy Hub, Chat Media Gallery, Audio Call & Video Call */}
-        <div className="flex items-center gap-1 sm:gap-2">
-          {/* Shared Memories Timeline & Milestone Vault */}
-          <button
-            type="button"
-            onClick={() => setShowMemoriesVault(true)}
-            className="p-2 sm:p-2.5 rounded-xl bg-gradient-to-tr from-amber-500/25 via-yellow-500/20 to-amber-500/10 border border-amber-400/50 hover:border-amber-300 hover:bg-amber-500/35 text-amber-300 hover:text-amber-200 active:scale-95 transition-all flex items-center justify-center cursor-pointer shadow-md shadow-amber-500/15"
-            title="Shared Memories & Milestones Vault (Odo Nnyew Fie Kwan)"
-            aria-label="Memories Vault"
-          >
-            <AkomaIcon className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-amber-300" strokeWidth={2.4} />
-          </button>
-
-          {/* Connection & Intimacy Hub */}
-          <button
-            type="button"
-            onClick={() => setShowIntimacyHub(true)}
-            className="p-2 sm:p-2.5 rounded-xl bg-gradient-to-tr from-emerald-500/20 to-teal-500/20 border border-emerald-500/40 hover:border-emerald-400 hover:bg-emerald-500/30 text-emerald-300 hover:text-emerald-200 active:scale-95 transition-all flex items-center justify-center cursor-pointer shadow-sm"
-            title="Connection & Intimacy Hub (Daily Prompts, Bucket List, Mood Radar, Vouchers)"
-            aria-label="Intimacy Hub"
-          >
-            <Heart className="w-4 h-4 sm:w-4.5 sm:h-4.5 fill-emerald-500/25 text-emerald-300" />
-          </button>
-
-          {/* Dedicated Chat Media Gallery Icon (Strictly for this chat, no dropdown) */}
-          {onOpenMediaGallery && (
-            <button
-              type="button"
-              onClick={() => onOpenMediaGallery('conversation', conversation?.id)}
-              className="p-2 sm:p-2.5 rounded-xl bg-emerald-950/80 border border-emerald-800/80 hover:border-amber-500/40 hover:bg-emerald-900 text-amber-300/90 hover:text-amber-200 active:scale-95 transition-all flex items-center justify-center cursor-pointer shadow-sm"
-              title={`View ${displayHeaderTitle}'s Media`}
-              aria-label="Chat Media Gallery"
-            >
-              <ImageIcon className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
-            </button>
-          )}
-
+        {/* Action Controls: Audio Call, Video Call, and Clean 3-Dots Options Menu */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Audio Call */}
           <button
             onClick={() => onStartCall('audio')}
-            className="p-2 sm:p-2.5 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 active:scale-95 transition-all border border-slate-700/60"
+            className="p-2 sm:p-2.5 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 text-emerald-200 hover:text-white active:scale-95 transition-all border border-emerald-800/80 cursor-pointer shadow-sm"
             title="Start Encrypted Audio Call"
             aria-label="Start Audio Call"
           >
-            <Phone className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+            <Phone className="w-5 h-5 sm:w-5 sm:h-5 text-emerald-300" />
           </button>
 
           {/* Video Call */}
           <button
             onClick={() => onStartCall('video')}
-            className="p-2 sm:p-2.5 rounded-xl bg-slate-800 hover:bg-rose-500/30 text-slate-300 hover:text-rose-300 active:scale-95 transition-all border border-slate-700/60"
+            className="p-2 sm:p-2.5 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 text-emerald-200 hover:text-white active:scale-95 transition-all border border-emerald-800/80 cursor-pointer shadow-sm"
             title="Start Encrypted Video Call"
             aria-label="Start Video Call"
           >
-            <Video className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+            <Video className="w-5 h-5 sm:w-5 sm:h-5 text-emerald-300" />
           </button>
 
-          {/* Safety modal shortcut (desktop) */}
-          <button
-            onClick={() => setShowSafetyModal(true)}
-            className="hidden sm:flex p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/60"
-            title="Verify Security Number"
-          >
-            <Lock className="w-4 h-4 text-emerald-400" />
-          </button>
-
-          {/* More options menu (3 Dots) - Matching Plus Menu Expression */}
+          {/* More options menu (3 Dots) - Houses Secondary Feature Items */}
           <div className="relative shrink-0" ref={optionsMenuRef}>
             <button
               type="button"
@@ -594,33 +551,110 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
             {showOptionsMenu && (
               <div
-                className="absolute right-0 top-12 rounded-3xl bg-[#021e14]/98 border border-amber-500/35 shadow-2xl p-3 sm:p-3.5 z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-top-2 select-none"
+                className="absolute right-0 top-12 rounded-3xl bg-[#021e14]/98 border border-amber-500/35 shadow-2xl p-2.5 sm:p-3 z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-top-2 select-none w-64 sm:w-72"
                 style={{ filter: 'drop-shadow(0 25px 35px rgba(0, 0, 0, 0.9))' }}
               >
-                {/* Disappearing Messages Timer - Single Necessary Icon with vibrant Plus Menu appearance */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowOptionsMenu(false);
-                    onUpdateDisappearingTimer?.(conversation.disappearingTimerMinutes ? 0 : 1440);
-                  }}
-                  className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex flex-col items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95 cursor-pointer relative ${
-                    conversation.disappearingTimerMinutes
-                      ? 'bg-gradient-to-tr from-amber-500 to-orange-500 text-white shadow-amber-500/35 ring-2 ring-amber-400'
-                      : 'bg-gradient-to-tr from-amber-500 to-orange-500 text-white shadow-amber-500/25'
-                  }`}
-                  aria-label="Disappearing Messages"
-                  title={
-                    conversation.disappearingTimerMinutes
-                      ? `Disappearing Messages ON (${conversation.disappearingTimerMinutes >= 60 ? `${conversation.disappearingTimerMinutes / 60}h` : `${conversation.disappearingTimerMinutes}m`}) - Click to turn off`
-                      : 'Turn on 24h Disappearing Messages'
-                  }
-                >
-                  <Clock className="w-6 h-6 sm:w-7 sm:h-7 text-white shrink-0" strokeWidth={2.2} />
-                  {conversation.disappearingTimerMinutes ? (
-                    <span className="text-[10px] font-bold text-white leading-none mt-1">24h</span>
-                  ) : null}
-                </button>
+                <div className="flex flex-col gap-1">
+                  {/* 1. Shared Memories & Milestones Vault */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowOptionsMenu(false);
+                      setShowMemoriesVault(true);
+                    }}
+                    className="w-full flex items-center gap-3 p-2 rounded-2xl hover:bg-emerald-900/60 active:bg-emerald-900 text-left transition-colors cursor-pointer group"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-500 text-slate-950 flex items-center justify-center shrink-0 shadow-md">
+                      <AkomaIcon className="w-5 h-5 text-slate-950" strokeWidth={2.4} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-amber-300 truncate">Memories & Milestones</div>
+                      <div className="text-[10px] text-emerald-400/70 truncate">Timeline & relationship counter</div>
+                    </div>
+                  </button>
+
+                  {/* 2. Connection & Intimacy Hub */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowOptionsMenu(false);
+                      setShowIntimacyHub(true);
+                    }}
+                    className="w-full flex items-center gap-3 p-2 rounded-2xl hover:bg-emerald-900/60 active:bg-emerald-900 text-left transition-colors cursor-pointer group"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-rose-500 via-pink-500 to-amber-500 text-white flex items-center justify-center shrink-0 shadow-md">
+                      <Heart className="w-4.5 h-4.5 fill-white text-white" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-rose-300 truncate">Intimacy & Prompts Hub</div>
+                      <div className="text-[10px] text-emerald-400/70 truncate">Daily prompts, radar & vouchers</div>
+                    </div>
+                  </button>
+
+                  {/* 3. Dedicated Chat Media Gallery */}
+                  {onOpenMediaGallery && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowOptionsMenu(false);
+                        onOpenMediaGallery('conversation', conversation?.id);
+                      }}
+                      className="w-full flex items-center gap-3 p-2 rounded-2xl hover:bg-emerald-900/60 active:bg-emerald-900 text-left transition-colors cursor-pointer group"
+                    >
+                      <div className="w-9 h-9 rounded-xl bg-emerald-900 border border-emerald-700 text-emerald-200 flex items-center justify-center shrink-0 shadow-md">
+                        <ImageIcon className="w-4.5 h-4.5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-bold text-emerald-200 truncate">Media & Documents</div>
+                        <div className="text-[10px] text-emerald-400/70 truncate">Photos, audio & videos in chat</div>
+                      </div>
+                    </button>
+                  )}
+
+                  {/* 4. Disappearing Messages Timer */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowOptionsMenu(false);
+                      onUpdateDisappearingTimer?.(conversation.disappearingTimerMinutes ? 0 : 1440);
+                    }}
+                    className="w-full flex items-center gap-3 p-2 rounded-2xl hover:bg-emerald-900/60 active:bg-emerald-900 text-left transition-colors cursor-pointer group"
+                  >
+                    <div
+                      className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-md ${
+                        conversation.disappearingTimerMinutes
+                          ? 'bg-gradient-to-tr from-amber-500 to-orange-500 text-white ring-2 ring-amber-400'
+                          : 'bg-emerald-950 border border-emerald-800 text-slate-300'
+                      }`}
+                    >
+                      <Clock className="w-4.5 h-4.5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-amber-300 truncate">Disappearing Messages</div>
+                      <div className="text-[10px] text-emerald-400/70 truncate">
+                        {conversation.disappearingTimerMinutes ? 'Active (24 hours)' : 'Off (Keep forever)'}
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* 5. End-to-End Encryption Safety Number */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowOptionsMenu(false);
+                      setShowSafetyModal(true);
+                    }}
+                    className="w-full flex items-center gap-3 p-2 rounded-2xl hover:bg-emerald-900/60 active:bg-emerald-900 text-left transition-colors cursor-pointer group"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-emerald-950 border border-emerald-800 text-emerald-400 flex items-center justify-center shrink-0 shadow-md">
+                      <ShieldCheck className="w-4.5 h-4.5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-emerald-300 truncate">Verify Security</div>
+                      <div className="text-[10px] text-emerald-400/70 truncate">End-to-End Encryption keys</div>
+                    </div>
+                  </button>
+                </div>
               </div>
             )}
           </div>

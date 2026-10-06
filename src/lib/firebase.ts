@@ -951,7 +951,8 @@ export async function initiateCallInFirestore(call: CallSignal): Promise<void> {
  */
 export function subscribeToIncomingCalls(
   userId: string,
-  onIncomingCall: (call: CallSignal) => void
+  onIncomingCall: (call: CallSignal) => void,
+  onCallDismissed?: (callId: string) => void
 ): Unsubscribe {
   try {
     const callsCol = collection(db, 'calls');
@@ -961,8 +962,19 @@ export function subscribeToIncomingCalls(
         const now = Date.now();
         snapshot.forEach((docSnap) => {
           const data = docSnap.data() as CallSignal;
+          if (!data) return;
+
+          // If a call directed to this user has ended or declined, notify dismissal immediately
           if (
-            data &&
+            (data.status === 'ended' || data.status === 'declined') &&
+            data.targetParticipantIds &&
+            data.targetParticipantIds.includes(userId)
+          ) {
+            onCallDismissed?.(data.id || docSnap.id);
+            return;
+          }
+
+          if (
             data.status === 'ringing' &&
             data.callerId !== userId &&
             data.targetParticipantIds &&
