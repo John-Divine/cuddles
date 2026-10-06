@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Heart,
   Users,
@@ -19,6 +19,7 @@ import {
   UserPlus,
   Download,
   Image as ImageIcon,
+  MoreVertical,
   X
 } from 'lucide-react';
 import { Conversation, UserProfile } from '../../types';
@@ -93,6 +94,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
     (!currentUser.username || p.username?.trim().toLowerCase().replace(/^@/, '') !== currentUser.username.trim().toLowerCase().replace(/^@/, ''))
   );
 
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!showMenu) return;
+    const handleOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+    document.addEventListener('pointerdown', handleOutside);
+    return () => document.removeEventListener('pointerdown', handleOutside);
+  }, [showMenu]);
+
   return (
     <aside
       className={
@@ -103,87 +118,224 @@ export const Sidebar: React.FC<SidebarProps> = ({
             }`
       }
     >
-      {/* Header Action Bar: Spacious, Prominent Icons in Royal Emerald & Gold */}
-      <div className="p-3 pt-3 sm:pt-3.5 border-b border-amber-500/20 bg-[#021e14]/98 flex items-center justify-between gap-1.5 sm:gap-2">
-        {/* Gallery Icon - Large & Prominent: All Media Gallery */}
-        {onOpenMediaGallery && (
+      {/* Streamlined, Spacious Nav Header: Profile on Left, Bell + Menu on Right */}
+      <div className="p-3 sm:py-3.5 border-b border-amber-500/20 bg-[#021e14]/98 flex items-center justify-between gap-2 select-none">
+        {/* Left: User Profile Avatar & App Identity */}
+        <div className="flex items-center gap-2.5 min-w-0">
           <button
-            onClick={onOpenMediaGallery}
-            className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-600/25 to-yellow-600/15 hover:from-amber-600/35 hover:to-yellow-600/25 border border-amber-500/40 text-amber-400 flex items-center justify-center active:scale-95 transition-all shadow-md cursor-pointer shrink-0"
-            title="All Media Gallery (All Chats & Collections)"
-            aria-label="All Media Gallery"
+            onClick={onOpenProfileModal}
+            className="relative w-11 h-11 rounded-2xl hover:ring-2 hover:ring-amber-400/60 transition-all active:scale-95 flex items-center justify-center cursor-pointer shrink-0"
+            title={`Your Profile & Account Settings (@${currentUser.username || 'user'}) - Click to change photo`}
+            aria-label="Your Profile"
           >
-            <ImageIcon className="w-6.5 h-6.5 text-amber-400" />
+            <img
+              src={currentUser.avatar}
+              alt={currentUser.name}
+              className="w-10 h-10 rounded-full object-cover ring-2 ring-amber-400/80 shadow-md"
+            />
+            <span className="absolute -bottom-0.5 -right-0.5 text-xs bg-[#021e14] rounded-full p-0.5 border border-amber-500/30">
+              {currentUser.moodEmoji}
+            </span>
           </button>
-        )}
+          <div className="min-w-0">
+            <h2 className="text-base font-extrabold text-amber-200 tracking-tight leading-none truncate">
+              Cuddles
+            </h2>
+            <p className="text-[10px] text-emerald-400/80 truncate font-medium mt-0.5">
+              Couple Sanctuary
+            </p>
+          </div>
+        </div>
 
-        {/* Add Contact Icon */}
-        {onOpenAddContactModal && (
-          <button
-            onClick={onOpenAddContactModal}
-            className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-600/25 to-teal-600/15 hover:from-emerald-600/35 hover:to-teal-600/25 border border-emerald-500/40 text-emerald-300 flex items-center justify-center active:scale-95 transition-all shadow-md cursor-pointer shrink-0"
-            title="Add Partner or Friend by @Username"
-            aria-label="Add Contact"
-          >
-            <UserPlus className="w-6.5 h-6.5" />
-          </button>
-        )}
+        {/* Right: Notifications Bell, Consolidated 3-Dots Menu, Mobile Close */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Connection Requests Icon */}
+          {onOpenRequestsModal && (
+            <button
+              onClick={onOpenRequestsModal}
+              className="relative p-2 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-800/80 text-emerald-300 hover:text-amber-300 flex items-center justify-center active:scale-95 transition-all shadow-sm cursor-pointer"
+              title="Connection Requests"
+              aria-label="Connection Requests"
+            >
+              <Bell className="w-5 h-5" />
+              {pendingRequestsCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-slate-950 text-[9px] font-extrabold flex items-center justify-center ring-2 ring-slate-900 animate-pulse">
+                  {pendingRequestsCount}
+                </span>
+              )}
+            </button>
+          )}
 
-        {/* Connection Requests Icon */}
-        {onOpenRequestsModal && (
-          <button
-            onClick={onOpenRequestsModal}
-            className="relative w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-600/25 to-yellow-600/15 hover:from-amber-600/35 hover:to-yellow-600/25 border border-amber-500/40 text-amber-400 flex items-center justify-center active:scale-95 transition-all shadow-md cursor-pointer shrink-0"
-            title="Connection Requests"
-            aria-label="Connection Requests"
-          >
-            <Bell className="w-6.5 h-6.5" />
-            {pendingRequestsCount > 0 && (
-              <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-amber-500 text-slate-950 text-[9px] font-extrabold flex items-center justify-center ring-2 ring-slate-900 animate-pulse">
-                {pendingRequestsCount}
-              </span>
+          {/* Consolidated 3-Dots Menu - Houses all auxiliary feature icons */}
+          <div className="relative" ref={menuRef}>
+            <button
+              type="button"
+              onClick={() => setShowMenu((prev) => !prev)}
+              className={`p-2 rounded-xl border active:scale-95 transition-all cursor-pointer flex items-center justify-center ${
+                showMenu
+                  ? 'bg-amber-500/25 text-amber-300 border-amber-400'
+                  : 'bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 hover:text-white border-emerald-800/80 shadow-sm'
+              }`}
+              title="More options & features"
+              aria-label="More options"
+            >
+              <MoreVertical className="w-5 h-5 shrink-0" />
+            </button>
+
+            {showMenu && (
+              <div
+                className="absolute right-0 top-12 rounded-3xl bg-[#021e14]/98 border border-amber-500/35 shadow-2xl p-2.5 z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-top-2 select-none w-64 text-white"
+                style={{ filter: 'drop-shadow(0 25px 35px rgba(0, 0, 0, 0.9))' }}
+              >
+                <div className="flex flex-col gap-1">
+                  {/* 1. All Media Gallery */}
+                  {onOpenMediaGallery && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowMenu(false);
+                        onOpenMediaGallery();
+                      }}
+                      className="w-full flex items-center gap-3 p-2 rounded-2xl hover:bg-emerald-900/60 active:bg-emerald-900 text-left transition-colors cursor-pointer group"
+                    >
+                      <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/30">
+                        <ImageIcon className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-bold text-amber-300 truncate">All Media Gallery</div>
+                        <div className="text-[10px] text-emerald-400/70 truncate">Photos, videos & notes across chats</div>
+                      </div>
+                    </button>
+                  )}
+
+                  {/* 2. Add Partner or Friend */}
+                  {onOpenAddContactModal && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowMenu(false);
+                        onOpenAddContactModal();
+                      }}
+                      className="w-full flex items-center gap-3 p-2 rounded-2xl hover:bg-emerald-900/60 active:bg-emerald-900 text-left transition-colors cursor-pointer group"
+                    >
+                      <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center shrink-0 border border-emerald-500/30">
+                        <UserPlus className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-bold text-emerald-200 truncate">Add Contact</div>
+                        <div className="text-[10px] text-emerald-400/70 truncate">Invite partner or friend by username</div>
+                      </div>
+                    </button>
+                  )}
+
+                  {/* 3. Day Schedules & Quiet Mode */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMenu(false);
+                      onOpenScheduleModal();
+                    }}
+                    className="w-full flex items-center gap-3 p-2 rounded-2xl hover:bg-emerald-900/60 active:bg-emerald-900 text-left transition-colors cursor-pointer group"
+                  >
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center shrink-0 border border-emerald-500/30">
+                      <Calendar className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-emerald-200 truncate">Day Schedules</div>
+                      <div className="text-[10px] text-emerald-400/70 truncate">Focus hours & quiet delivery mode</div>
+                    </div>
+                  </button>
+
+                  {/* 4. Shared Memories & Milestones */}
+                  {onOpenMemoriesVault && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowMenu(false);
+                        onOpenMemoriesVault();
+                      }}
+                      className="w-full flex items-center gap-3 p-2 rounded-2xl hover:bg-emerald-900/60 active:bg-emerald-900 text-left transition-colors cursor-pointer group"
+                    >
+                      <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-300 flex items-center justify-center shrink-0 border border-amber-500/30">
+                        <AkomaIcon className="w-4 h-4 text-amber-400" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-bold text-amber-300 truncate">Memories & Milestones</div>
+                        <div className="text-[10px] text-emerald-400/70 truncate">Anniversary vault & love timeline</div>
+                      </div>
+                    </button>
+                  )}
+
+                  {/* 5. Partners Sanctuary Modal */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMenu(false);
+                      onOpenPartnersModal();
+                    }}
+                    className="w-full flex items-center gap-3 p-2 rounded-2xl hover:bg-emerald-900/60 active:bg-emerald-900 text-left transition-colors cursor-pointer group"
+                  >
+                    <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-300 flex items-center justify-center shrink-0 border border-rose-500/30">
+                      <Heart className="w-4 h-4 fill-rose-500/30" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-rose-300 truncate">Manage Partners</div>
+                      <div className="text-[10px] text-emerald-400/70 truncate">Up to 2 priority partners</div>
+                    </div>
+                  </button>
+
+                  {/* 6. Friends Circle Modal */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMenu(false);
+                      onOpenFriendsModal();
+                    }}
+                    className="w-full flex items-center gap-3 p-2 rounded-2xl hover:bg-emerald-900/60 active:bg-emerald-900 text-left transition-colors cursor-pointer group"
+                  >
+                    <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-300 flex items-center justify-center shrink-0 border border-indigo-500/30">
+                      <Users className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-indigo-200 truncate">Friends Circle</div>
+                      <div className="text-[10px] text-emerald-400/70 truncate">Manage friends & connections</div>
+                    </div>
+                  </button>
+
+                  {/* 7. Profile & Settings */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMenu(false);
+                      onOpenProfileModal();
+                    }}
+                    className="w-full flex items-center gap-3 p-2 rounded-2xl hover:bg-emerald-900/60 active:bg-emerald-900 text-left transition-colors cursor-pointer group border-t border-amber-500/20 mt-1 pt-2"
+                  >
+                    <div className="w-8 h-8 rounded-xl bg-slate-800 text-slate-300 flex items-center justify-center shrink-0 border border-slate-700">
+                      <Settings className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-slate-200 truncate">Profile & Settings</div>
+                      <div className="text-[10px] text-emerald-400/70 truncate">Change profile photo & bio</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
             )}
-          </button>
-        )}
+          </div>
 
-        {/* Day Schedules & Quiet Mode Icon */}
-        <button
-          onClick={onOpenScheduleModal}
-          className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-700/25 to-emerald-600/15 hover:from-emerald-700/35 hover:to-emerald-600/25 border border-emerald-600/40 text-emerald-300 flex items-center justify-center active:scale-95 transition-all shadow-md cursor-pointer shrink-0"
-          title="Day Schedules & Quiet Mode"
-          aria-label="Day Schedules"
-        >
-          <Calendar className="w-6.5 h-6.5" />
-        </button>
-
-        {/* Current User Profile Avatar */}
-        <button
-          onClick={onOpenProfileModal}
-          className="relative w-12 h-12 rounded-2xl hover:ring-2 hover:ring-amber-400/60 transition-all active:scale-95 flex items-center justify-center cursor-pointer shrink-0"
-          title={`Your Profile & Account Settings (@${currentUser.username || 'user'})`}
-          aria-label="Your Profile"
-        >
-          <img
-            src={currentUser.avatar}
-            alt={currentUser.name}
-            className="w-11 h-11 rounded-full object-cover ring-2 ring-amber-400/80 shadow-md"
-          />
-          <span className="absolute -bottom-0.5 -right-0.5 text-xs">
-            {currentUser.moodEmoji}
-          </span>
-        </button>
-
-        {/* Close button for mobile drawer */}
-        {onCloseMobile && (
-          <button
-            onClick={onCloseMobile}
-            className="lg:hidden w-11 h-11 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 flex items-center justify-center transition-all active:scale-95 cursor-pointer shrink-0"
-            title="Close sidebar"
-            aria-label="Close sidebar"
-          >
-            <X className="w-5.5 h-5.5" />
-          </button>
-        )}
+          {/* Close button for mobile drawer */}
+          {onCloseMobile && (
+            <button
+              onClick={onCloseMobile}
+              className="lg:hidden p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 flex items-center justify-center transition-all active:scale-95 cursor-pointer"
+              title="Close sidebar"
+              aria-label="Close sidebar"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Partners Sanctuary Priority Bar (Max 2 Allowed) - Royal Emerald & Gold */}
@@ -268,7 +420,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               className="flex items-center justify-center p-2 rounded-2xl border border-dashed border-rose-500/40 text-rose-400 hover:bg-rose-500/10 text-xs gap-1 transition-all"
               title="Add second partner (max 2)"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <UserPlus className="w-3.5 h-3.5" />
               <span className="text-[10px] font-semibold">Slot 2</span>
             </button>
           )}

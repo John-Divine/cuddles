@@ -33,6 +33,7 @@ import {
   saveUserConversations,
   getUserMessages,
   saveUserMessages,
+  saveStoredAccount,
   deleteStoredAccount
 } from './lib/storage';
 import {
@@ -54,6 +55,8 @@ import {
   endCallInFirestore,
   declineCallInFirestore,
   subscribeToCallStatus,
+  subscribeToCallBroadcasts,
+  broadcastCallEvent,
   getDirectConversationId,
   subscribeToUserConversations,
   markMessageAsReadInFirestore,
@@ -505,6 +508,32 @@ export default function App() {
       unsub();
     };
   }, [incomingCall?.callId]);
+
+  // Zero-latency cross-tab and pad-to-pad call broadcast synchronization (Ends call immediately on both pads!)
+  useEffect(() => {
+    const unsub = subscribeToCallBroadcasts((event) => {
+      if (event.type === 'CALL_ENDED' || event.type === 'CALL_DECLINED') {
+        setIncomingCall((curr) => {
+          if (curr && curr.callId === event.callId) {
+            stopRingtone();
+            playEndCallSound();
+            return null;
+          }
+          return curr;
+        });
+        setActiveCall((curr) => {
+          if (curr && curr.id === event.callId) {
+            stopRingtone();
+            setIsCallMinimized(false);
+            playEndCallSound();
+            return null;
+          }
+          return curr;
+        });
+      }
+    });
+    return () => unsub();
+  }, []);
 
   // Real-time listener for conversation updates
   useEffect(() => {
@@ -1321,21 +1350,38 @@ export default function App() {
     });
   };
 
-  // Start 1-on-1 Call with synchronized real-time Firestore signaling
-  const handleStartCall = async (type: 'audio' | 'video') => {
-    if (!activeConversation || !activeAccount) return;
+  // Start strictly 1-on-1 Call (with Add Participant expansion)
+  const handleStartCall = async (type: 'audio' | 'video', targetContactId?: string) => {
+    if (!activeAccount) return;
 
-    // Strictly 1-on-1 by default: Identify the specific contact to call
-    const otherParticipantId = activeConversation.participantIds.find((id) => id !== activeAccount.id);
-    const targetRecipient = activeRecipient || contacts.find((c) => c.id === otherParticipantId) || {
-      id: otherParticipantId || 'contact',
-      name: activeConversation.title || 'Contact',
-      avatar: activeConversation.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${otherParticipantId || 'contact'}`,
-      relationshipType: 'partner' as RelationshipType
-    };
+    // Strictly 1-on-1: Identify the exact specific contact to call
+    let targetRecipient: UserProfile | null = null;
+    if (targetContactId) {
+      targetRecipient =
+        contacts.find((c) => c.id === targetContactId) ||
+        partners.find((p) => p.id === targetContactId) ||
+        null;
+    }
+    if (!targetRecipient && activeRecipient) {
+      targetRecipient = activeRecipient;
+    }
+    if (!targetRecipient && activeConversation) {
+      const otherParticipantId = activeConversation.participantIds.find((id) => id !== activeAccount.id);
+      if (otherParticipantId) {
+        targetRecipient =
+          contacts.find((c) => c.id === otherParticipantId) ||
+          partners.find((p) => p.id === otherParticipantId) ||
+          null;
+      }
+    }
+    if (!targetRecipient) {
+      targetRecipient = partners[0] || contacts[0] || null;
+    }
+    if (!targetRecipient) return;
 
     const targetParticipantIds = [targetRecipient.id];
 
+    // STRICTLY TWO PARTICIPANTS (Caller and Callee)
     const callParticipants = [
       {
         id: currentUser.id,
@@ -1363,7 +1409,7 @@ export default function App() {
 
     const newCall: ActiveCall = {
       id: callId,
-      conversationId: activeConversation.id,
+      conversationId: activeConversation?.id || `conv_${targetRecipient.id}`,
       conversationTitle: targetRecipient.name,
       isGroup: false,
       callType: type,
@@ -1378,7 +1424,7 @@ export default function App() {
     // Write call signal to Firestore so recipient's device rings immediately
     const signal: CallSignal = {
       id: callId,
-      conversationId: activeConversation.id,
+      conversationId: activeConversation?.id || `conv_${targetRecipient.id}`,
       conversationTitle: targetRecipient.name,
       callerId: activeAccount.id,
       callerName: activeAccount.name,
@@ -1389,6 +1435,13 @@ export default function App() {
       createdAt: new Date().toISOString()
     };
     await initiateCallInFirestore(signal);
+
+    // Broadcast across tabs/devices for zero-latency dismissal
+    broadcastCallEvent({
+      type: 'CALL_INITIATED',
+      callId,
+      call: signal
+    });
 
     // Listen for call events (e.g. participant ends or declines)
     if (callStatusUnsubscribeRef.current) {
@@ -2085,6 +2138,53 @@ export default function App() {
               onUpdateUser={(updates) => {
                 if (viewingProfile.isOwn) {
                   setCurrentUser((prev) => ({ ...prev, ...updates }));
+                  if (activeAccount) {
+                    const updatedAcc = { ...activeAccount, ...updates };
+                    setActiveAccount(updatedAcc);
+                    saveStoredAccount(updatedAcc);
+                  }
+                  // Update current user's avatar in conversation messages
+                  if (updates.avatar) {
+                    const newAvatar = updates.avatar;
+                    setMessagesMap((prev) => {
+                      const updated = { ...prev };
+                      for (const cid in updated) {
+                        updated[cid] = updated[cid].map((m) =>
+                          m.senderId === currentUser.id ? { ...m, senderAvatar: newAvatar } : m
+                        );
+                      }
+                      return updated;
+                    });
+                  }
+                } else {
+                  const targetId = viewingProfile.user.id;
+                  setContacts((prev) =>
+                    prev.map((c) => (c.id === targetId ? { ...c, ...updates } : c))
+                  );
+                  setConversations((prev) =>
+                    prev.map((conv) => {
+                      if (conv.participantIds.includes(targetId)) {
+                        return {
+                          ...conv,
+                          avatar: updates.avatar || conv.avatar,
+                          title: updates.name || conv.title
+                        };
+                      }
+                      return conv;
+                    })
+                  );
+                  if (updates.avatar) {
+                    const newAvatar = updates.avatar;
+                    setMessagesMap((prev) => {
+                      const updated = { ...prev };
+                      for (const cid in updated) {
+                        updated[cid] = updated[cid].map((m) =>
+                          m.senderId === targetId ? { ...m, senderAvatar: newAvatar } : m
+                        );
+                      }
+                      return updated;
+                    });
+                  }
                 }
               }}
               onClose={() => setViewingProfile(null)}

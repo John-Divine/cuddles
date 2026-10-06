@@ -996,10 +996,73 @@ export function subscribeToIncomingCalls(
   }
 }
 
+// Cross-tab and zero-latency local call broadcast synchronization
+export type CallBroadcastEvent = {
+  type: 'CALL_INITIATED' | 'CALL_ANSWERED' | 'CALL_ENDED' | 'CALL_DECLINED';
+  callId: string;
+  userId?: string;
+  call?: CallSignal;
+  timestamp: number;
+};
+
+const callBroadcastChannel = typeof window !== 'undefined' && 'BroadcastChannel' in window
+  ? new BroadcastChannel('cuddles_call_signals_channel')
+  : null;
+
+export function broadcastCallEvent(event: Omit<CallBroadcastEvent, 'timestamp'>): void {
+  const payload: CallBroadcastEvent = { ...event, timestamp: Date.now() };
+  if (callBroadcastChannel) {
+    try {
+      callBroadcastChannel.postMessage(payload);
+    } catch (_) {}
+  }
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      localStorage.setItem('cuddles_call_signal_event', JSON.stringify(payload));
+    } catch (_) {}
+  }
+}
+
+export function subscribeToCallBroadcasts(onEvent: (event: CallBroadcastEvent) => void): () => void {
+  const channelListener = (e: MessageEvent) => {
+    if (e.data && e.data.type) {
+      onEvent(e.data as CallBroadcastEvent);
+    }
+  };
+
+  const storageListener = (e: StorageEvent) => {
+    if (e.key === 'cuddles_call_signal_event' && e.newValue) {
+      try {
+        const parsed = JSON.parse(e.newValue);
+        if (parsed && parsed.type) {
+          onEvent(parsed);
+        }
+      } catch (_) {}
+    }
+  };
+
+  if (callBroadcastChannel) {
+    callBroadcastChannel.addEventListener('message', channelListener);
+  }
+  if (typeof window !== 'undefined') {
+    window.addEventListener('storage', storageListener);
+  }
+
+  return () => {
+    if (callBroadcastChannel) {
+      callBroadcastChannel.removeEventListener('message', channelListener);
+    }
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('storage', storageListener);
+    }
+  };
+}
+
 /**
  * Answer an active call in Firestore
  */
 export async function answerCallInFirestore(callId: string, userId: string): Promise<void> {
+  broadcastCallEvent({ type: 'CALL_ANSWERED', callId, userId });
   try {
     const callRef = doc(db, 'calls', callId);
     await updateDoc(callRef, {
@@ -1017,6 +1080,7 @@ export async function answerCallInFirestore(callId: string, userId: string): Pro
  * End or terminate a call in Firestore
  */
 export async function endCallInFirestore(callId: string): Promise<void> {
+  broadcastCallEvent({ type: 'CALL_ENDED', callId });
   try {
     const callRef = doc(db, 'calls', callId);
     await updateDoc(callRef, {
@@ -1033,6 +1097,7 @@ export async function endCallInFirestore(callId: string): Promise<void> {
  * Decline an incoming call in Firestore
  */
 export async function declineCallInFirestore(callId: string): Promise<void> {
+  broadcastCallEvent({ type: 'CALL_DECLINED', callId });
   try {
     const callRef = doc(db, 'calls', callId);
     await updateDoc(callRef, {

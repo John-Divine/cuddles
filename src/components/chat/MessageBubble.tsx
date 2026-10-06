@@ -52,22 +52,32 @@ const EMOJI_PACK_CATEGORIES = [
   {
     id: 'love',
     label: '💕 Love',
-    emojis: ['❤️', '💖', '💝', '💘', '💕', '💓', '💗', '💞', '💌', '💍', '🌹', '💐', '😘', '🥰', '😍', '😻']
+    emojis: ['❤️', '💖', '💝', '💘', '💕', '💓', '💗', '💞', '💌', '💍', '🌹', '💐', '😘', '🥰', '😍', '😻', '💋', '👩‍❤️‍💋‍👨', '🫂', '🏩', '🍫', '🧸', '🕊️', '✨']
   },
   {
     id: 'smileys',
     label: '😄 Smiles',
-    emojis: ['😀', '😂', '🥹', '😊', '😇', '😋', '😎', '🥳', '🤩', '😭', '🥺', '😮', '😴', '🤗', '🤭', '🤫']
+    emojis: ['😀', '😃', '😄', '😁', '😆', '🥹', '😂', '🤣', '🥲', '☺️', '😊', '😇', '😋', '😜', '🤪', '😎', '🥳', '🤩', '😭', '🥺', '😮', '😴', '🤗', '🤭']
   },
   {
     id: 'gestures',
     label: '👍 Hands',
-    emojis: ['👍', '👎', '👏', '🙌', '🫶', '🤝', '✌️', '🤞', '👊', '🤙', '🙏', '🤌', '💪', '🔥', '✨', '⭐']
+    emojis: ['👍', '👎', '👏', '🙌', '🫶', '🤝', '✌️', '🤞', '👊', '🤙', '🙏', '🤌', '💪', '🫡', '💅', '💃', '🕺', '🔥', '⭐', '💯', '👑', '🪄', '🎉', '🍾']
   },
   {
-    id: 'sanctuary',
-    label: '👑 Royal',
-    emojis: ['✨', '👑', '🦁', '☀️', '🌙', '⭐', '🔥', '🏆', '💎', '🕊️', '🌿', '🎉', '🥂', '🎂', '💯', '🪄']
+    id: 'nature',
+    label: '🌸 Nature',
+    emojis: ['🌸', '🌺', '🌻', '🌼', '🌷', '🌿', '🍀', '🍁', '🍃', '🌴', '🌙', '☀️', '🌈', '⚡', '🌊', '🪐', '🦋', '🐝', '🐾', '🦁', '🐯', '🐼', '🐬', '🕊️']
+  },
+  {
+    id: 'food',
+    label: '🍕 Treats',
+    emojis: ['🍓', '🍒', '🍎', '🍉', '🍇', '🥑', '🍕', '🍔', '🍟', '🌮', '🍣', '🍦', '🍰', '🧁', '🍫', '🍿', '☕', '🧋', '🥂', '🍷', '🍹', '🎂', '🎁', '🎈']
+  },
+  {
+    id: 'activities',
+    label: '🏆 Fun',
+    emojis: ['⚽', '🏀', '🎾', '🎮', '🎲', '🎯', '🎨', '🎭', '🎪', '🎟️', '🎸', '🎹', '🎧', '🎤', '🎬', '📸', '✈️', '🚀', '🏖️', '🏕️', '🎡', '🎢', '🚗', '🚲']
   }
 ];
 
@@ -133,7 +143,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   // Message Action Popover & Full Emoji Pack State
   const [showActionPopover, setShowActionPopover] = useState(false);
   const [showEmojiPack, setShowEmojiPack] = useState(false);
-  const [activePackCategory, setActivePackCategory] = useState<'love' | 'smileys' | 'gestures' | 'sanctuary'>('love');
+  const [activePackCategory, setActivePackCategory] = useState<'love' | 'smileys' | 'gestures' | 'nature' | 'food' | 'activities'>('love');
   const [copiedText, setCopiedText] = useState(false);
   const [popoverCoords, setPopoverCoords] = useState<{ top: number; left: number; placeAbove: boolean } | null>(null);
   const bubbleRef = useRef<HTMLDivElement | null>(null);
@@ -141,18 +151,40 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const openActionPopover = () => {
     if (bubbleRef.current) {
       const rect = bubbleRef.current.getBoundingClientRect();
-      const placeAbove = rect.top > 240;
-      const left = isMe
-        ? Math.max(16, rect.right - 300)
-        : Math.min(window.innerWidth - 316, Math.max(16, rect.left));
+      const viewportHeight = window.innerHeight;
+      const viewportWidth = window.innerWidth;
+      const popoverWidth = Math.min(320, viewportWidth - 24);
+      const popoverHeight = 110;
+
+      let left: number;
+      if (viewportWidth < 640) {
+        left = Math.max(12, (viewportWidth - popoverWidth) / 2);
+      } else {
+        left = isMe
+          ? Math.max(12, rect.right - popoverWidth)
+          : Math.max(12, Math.min(viewportWidth - popoverWidth - 12, rect.left));
+      }
+
+      let top: number;
+      if (rect.top >= popoverHeight + 80) {
+        top = rect.top - popoverHeight - 8;
+      } else if (viewportHeight - rect.bottom >= popoverHeight + 80) {
+        top = rect.bottom + 8;
+      } else {
+        top = Math.max(70, (viewportHeight - popoverHeight) / 2);
+      }
+
+      const minTop = 64;
+      const maxTop = Math.max(minTop, viewportHeight - popoverHeight - 70);
+      top = Math.max(minTop, Math.min(maxTop, top));
+
       setPopoverCoords({
-        top: placeAbove ? Math.max(16, rect.top - 8) : Math.min(window.innerHeight - 180, rect.bottom + 8),
+        top,
         left,
-        placeAbove
+        placeAbove: false
       });
       setShowActionPopover(true);
       setShowEmojiPack(false);
-      setCopiedText(false);
     }
   };
 
@@ -319,12 +351,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   const touchTimerRef = useRef<NodeJS.Timeout | null>(null);
   const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
+  const isTouchGestureRef = useRef(false);
+  const wasLongPressRef = useRef(false);
 
   const handleTouchStart = (e: React.TouchEvent) => {
+    isTouchGestureRef.current = true;
+    wasLongPressRef.current = false;
     const touch = e.touches[0];
     touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
     if (touchTimerRef.current) clearTimeout(touchTimerRef.current);
     touchTimerRef.current = setTimeout(() => {
+      wasLongPressRef.current = true;
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
         try { navigator.vibrate(40); } catch (_) {}
       }
@@ -333,7 +370,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       } else {
         onToggleSelect?.(message.id);
       }
-    }, 400);
+    }, 450);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
@@ -349,11 +386,19 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     }
   };
 
+  const lastTouchEndTimeRef = useRef<number>(0);
+
   const handleTouchEnd = () => {
+    lastTouchEndTimeRef.current = Date.now();
     if (touchTimerRef.current) {
       clearTimeout(touchTimerRef.current);
       touchTimerRef.current = null;
     }
+    // Release touch flag after delay to block synthetic click from opening popup
+    setTimeout(() => {
+      isTouchGestureRef.current = false;
+      wasLongPressRef.current = false;
+    }, 400);
   };
 
   const handleContextMenu = (e: React.MouseEvent) => {
@@ -369,9 +414,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     if (isSelectionMode) {
       e.stopPropagation();
       onToggleSelect?.(message.id);
-    } else {
-      openActionPopover();
+      return;
     }
+    // User requirement: "The pop-up on mobile view should come up only when I press and hold on a message."
+    const isTouchRecent = Date.now() - lastTouchEndTimeRef.current < 600;
+    const isMobileViewport = typeof window !== 'undefined' && window.innerWidth < 768;
+    if (isTouchGestureRef.current || wasLongPressRef.current || isTouchRecent || isMobileViewport) {
+      return;
+    }
+    // On desktop view, mouse click opens popover
+    openActionPopover();
   };
 
   return (
@@ -1118,18 +1170,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             }}
           />
 
-          {/* Floating Popover Card */}
+          {/* Floating Popover Card (Quick Reactions + Actions) */}
           <div
             onClick={(e) => e.stopPropagation()}
-            className="fixed z-[9999] rounded-3xl bg-[#021e14]/98 border border-amber-500/40 p-3 shadow-2xl backdrop-blur-2xl text-white select-none w-[295px] sm:w-[330px] animate-in zoom-in-95 fade-in duration-150"
+            className="fixed z-[9999] rounded-3xl bg-[#021e14] border border-amber-500/50 p-3 shadow-2xl backdrop-blur-2xl text-white select-none w-[300px] sm:w-[330px] animate-in zoom-in-95 fade-in duration-150"
             style={{
               filter: 'drop-shadow(0 25px 35px rgba(0, 0, 0, 0.9))',
-              top: popoverCoords?.placeAbove ? 'auto' : `${popoverCoords?.top ?? 100}px`,
-              bottom: popoverCoords?.placeAbove ? `${Math.max(16, window.innerHeight - (popoverCoords?.top ?? 200))}px` : 'auto',
+              top: `${popoverCoords?.top ?? 100}px`,
               left: `${popoverCoords?.left ?? 16}px`
             }}
           >
-            {/* 1. Quick Reaction Bar with + for Full Emoji Pack */}
+            {/* 1. Quick Reaction Bar with Button for Full Emoji Pack */}
             <div className="flex items-center justify-between gap-1 pb-2 border-b border-amber-500/20">
               <div className="flex items-center gap-1 sm:gap-1.5 flex-1 justify-between">
                 {QUICK_REACTIONS.map((emoji) => (
@@ -1148,63 +1199,22 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 ))}
               </div>
 
-              {/* + Button to toggle Emoji Pack */}
+              {/* Emoji Pack Button to open Dedicated Full Emoji Pack Modal */}
               <button
                 type="button"
-                onClick={() => setShowEmojiPack((prev) => !prev)}
-                className={`p-1.5 ml-1 rounded-full border transition-all cursor-pointer ${
-                  showEmojiPack
-                    ? 'bg-amber-500/30 text-amber-300 border-amber-400 rotate-45'
-                    : 'bg-emerald-950/80 text-emerald-300 hover:text-amber-300 border-emerald-800 hover:bg-emerald-900'
-                }`}
-                title={showEmojiPack ? 'Close Emoji Pack' : 'More Emojis (Emoji Pack)'}
-                aria-label="More Emojis"
+                onClick={() => {
+                  setShowEmojiPack(true);
+                  setShowActionPopover(false);
+                }}
+                className="p-1.5 ml-1 rounded-full border border-amber-500/40 bg-emerald-950 hover:bg-amber-500/20 text-amber-300 transition-all cursor-pointer flex items-center justify-center shrink-0 shadow-sm"
+                title="Open Full Emoji Pack"
+                aria-label="Open Full Emoji Pack"
               >
-                <Plus className="w-4 h-4" />
+                <Smile className="w-4 h-4" />
               </button>
             </div>
 
-            {/* 2. Expandable Categorized Emoji Pack */}
-            {showEmojiPack && (
-              <div className="py-2.5 border-b border-amber-500/20 animate-in fade-in slide-in-from-top-1 duration-150">
-                {/* Category Tabs */}
-                <div className="flex items-center gap-1 pb-2 overflow-x-auto">
-                  {EMOJI_PACK_CATEGORIES.map((cat) => (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => setActivePackCategory(cat.id as any)}
-                      className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold whitespace-nowrap transition-colors cursor-pointer ${
-                        activePackCategory === cat.id
-                          ? 'bg-amber-500/30 text-amber-300 border border-amber-400/50'
-                          : 'text-slate-400 hover:text-slate-200 hover:bg-emerald-950'
-                      }`}
-                    >
-                      {cat.label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Emoji Pack Grid */}
-                <div className="grid grid-cols-8 gap-1 p-1 bg-emerald-950/40 rounded-2xl max-h-36 overflow-y-auto">
-                  {EMOJI_PACK_CATEGORIES.find((c) => c.id === activePackCategory)?.emojis.map((emoji) => (
-                    <button
-                      key={emoji}
-                      type="button"
-                      onClick={() => {
-                        onAddReaction(message.id, emoji);
-                        setShowActionPopover(false);
-                      }}
-                      className="p-1 text-base sm:text-lg rounded-xl hover:scale-130 active:scale-95 hover:bg-emerald-900/60 transition-transform cursor-pointer flex items-center justify-center"
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* 3. Action Buttons Row: Copy Text, Select, Delete */}
+            {/* 2. Action Buttons Row: Copy Text, Select, Delete */}
             <div className="flex items-center justify-between pt-2 gap-2 text-xs">
               {message.text && (
                 <button
@@ -1250,6 +1260,80 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Delete</span>
               </button>
+            </div>
+          </div>
+        </>,
+        document.body
+      )}
+
+      {/* Dedicated High-Z-Index Full Emoji Pack Modal Portal (100% visible, never cut off) */}
+      {showEmojiPack && typeof document !== 'undefined' && createPortal(
+        <>
+          <div
+            className="fixed inset-0 z-[10001] bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowEmojiPack(false);
+            }}
+          />
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-x-0 bottom-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[10002] rounded-t-3xl sm:rounded-3xl bg-[#021e14] border border-amber-500/50 p-4 shadow-2xl backdrop-blur-2xl text-white w-full sm:w-[380px] max-w-full animate-in slide-in-from-bottom sm:zoom-in-95 duration-200"
+            style={{ filter: 'drop-shadow(0 25px 40px rgba(0, 0, 0, 0.95))' }}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pb-2.5 border-b border-amber-500/25 mb-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                <h4 className="text-sm font-bold text-amber-200">Emoji Reactions Pack</h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEmojiPack(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Category Tabs */}
+            <div className="flex items-center gap-1.5 py-2 overflow-x-auto no-scrollbar">
+              {EMOJI_PACK_CATEGORIES.map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setActivePackCategory(cat.id as any)}
+                  className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                    activePackCategory === cat.id
+                      ? 'bg-amber-500/30 text-amber-300 border border-amber-400/50'
+                      : 'text-slate-400 hover:text-slate-200 bg-emerald-950/70'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Large, Spacious Emoji Grid */}
+            <div className="grid grid-cols-8 gap-1.5 p-2 bg-emerald-950/60 rounded-2xl max-h-56 overflow-y-auto">
+              {EMOJI_PACK_CATEGORIES.find((c) => c.id === activePackCategory)?.emojis.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => {
+                    onAddReaction(message.id, emoji);
+                    setShowEmojiPack(false);
+                  }}
+                  className="w-9 h-9 text-xl rounded-xl hover:bg-emerald-900 active:scale-95 flex items-center justify-center transition-transform hover:scale-125 cursor-pointer"
+                  title={`React with ${emoji}`}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+
+            <div className="pt-2 text-center text-[11px] text-emerald-400/70">
+              Tap any emoji to attach reaction to message
             </div>
           </div>
         </>,

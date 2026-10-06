@@ -63,7 +63,7 @@ interface ChatWindowProps {
   onAddReaction: (messageId: string, emoji: string) => void;
   onDownloadAttachment?: (messageId: string) => void;
   onDeleteMessages?: (messageIds: string[], deleteForEveryone: boolean) => Promise<void> | void;
-  onStartCall: (type: 'audio' | 'video') => void;
+  onStartCall: (type: 'audio' | 'video', targetContactId?: string) => void;
   onToggleMobileSidebar: () => void;
   onBackToChatList?: () => void;
   onViewProfile?: (user: UserProfile) => void;
@@ -105,10 +105,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const optionsMenuRef = useRef<HTMLDivElement | null>(null);
   const [selectedVideoNote, setSelectedVideoNote] = useState<Message | null>(null);
   const [selectedVideoFile, setSelectedVideoFile] = useState<Message | null>(null);
-  const [copiedUsername, setCopiedUsername] = useState(false);
   const [showIntimacyHub, setShowIntimacyHub] = useState(false);
   const [showMemoriesVault, setShowMemoriesVault] = useState(false);
   const [incomingHeartbeat, setIncomingHeartbeat] = useState<HeartbeatPulseEvent | null>(null);
+  const [showGroupCallPicker, setShowGroupCallPicker] = useState<'audio' | 'video' | null>(null);
 
   // Subscribe to live heartbeat pulses
   useEffect(() => {
@@ -142,6 +142,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set());
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [copiedUsername, setCopiedUsername] = useState(false);
 
   const handleStartSelection = (messageId: string) => {
     setIsSelectionMode(true);
@@ -515,9 +516,22 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Audio Call */}
           <button
-            onClick={() => onStartCall('audio')}
+            onClick={() => {
+              const otherMembers = (conversation?.participantIds || [])
+                .filter((id) => id !== currentUser.id)
+                .map((id) => allContacts.find((c) => c.id === id) || {
+                  id,
+                  name: 'Member',
+                  avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${id}`
+                });
+              if (conversation?.isGroup && otherMembers.length > 1) {
+                setShowGroupCallPicker('audio');
+              } else {
+                onStartCall('audio', recipient?.id || otherMembers[0]?.id);
+              }
+            }}
             className="p-2 sm:p-2.5 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 text-emerald-200 hover:text-white active:scale-95 transition-all border border-emerald-800/80 cursor-pointer shadow-sm"
-            title="Start Encrypted Audio Call"
+            title="Start Encrypted 1-on-1 Audio Call"
             aria-label="Start Audio Call"
           >
             <Phone className="w-5 h-5 sm:w-5 sm:h-5 text-emerald-300" />
@@ -525,9 +539,22 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
           {/* Video Call */}
           <button
-            onClick={() => onStartCall('video')}
+            onClick={() => {
+              const otherMembers = (conversation?.participantIds || [])
+                .filter((id) => id !== currentUser.id)
+                .map((id) => allContacts.find((c) => c.id === id) || {
+                  id,
+                  name: 'Member',
+                  avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${id}`
+                });
+              if (conversation?.isGroup && otherMembers.length > 1) {
+                setShowGroupCallPicker('video');
+              } else {
+                onStartCall('video', recipient?.id || otherMembers[0]?.id);
+              }
+            }}
             className="p-2 sm:p-2.5 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 text-emerald-200 hover:text-white active:scale-95 transition-all border border-emerald-800/80 cursor-pointer shadow-sm"
-            title="Start Encrypted Video Call"
+            title="Start Encrypted 1-on-1 Video Call"
             aria-label="Start Video Call"
           >
             <Video className="w-5 h-5 sm:w-5 sm:h-5 text-emerald-300" />
@@ -662,21 +689,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       </header>
     )}
 
-      {/* Recipient Busy & Focus Schedule Banner */}
-      {isBusy && recipient && (
-        <div className="shrink-0 w-full max-w-full overflow-hidden bg-amber-950/50 border-b border-amber-600/30 px-3 py-1.5 sm:px-3.5 sm:py-2 flex items-center justify-between gap-2 text-xs text-amber-200 z-10 animate-in slide-in-from-top-2">
-          <div className="flex items-center gap-2 min-w-0 flex-1 truncate">
-            <Moon className="w-4 h-4 text-amber-400 shrink-0" />
-            <span className="truncate">
-              <strong>{recipient.name}</strong> is {recipient.currentSchedule?.activityTitle} (until {recipient.currentSchedule?.untilTime})
-            </span>
-          </div>
-          <span className="text-[10px] sm:text-[11px] font-bold text-amber-300 shrink-0 flex items-center gap-1">
-            <Zap className="w-3 h-3 text-amber-400 fill-current" />
-            <span className="hidden sm:inline">Urgent available</span>
-          </span>
-        </div>
-      )}
+
 
       {/* Ephemeral Text & Device Media Notice */}
       <div className="shrink-0 w-full max-w-full overflow-hidden bg-slate-900/60 border-b border-rose-950/30 px-2 sm:px-3 py-1 text-center text-[10px] sm:text-[11px] text-slate-400 flex items-center justify-center gap-1.5">
@@ -859,6 +872,57 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               >
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Group Call Member Picker: Choose which 1 person to call 1-on-1 */}
+      {showGroupCallPicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-md animate-in fade-in">
+          <div className="w-full max-w-sm rounded-3xl bg-[#021e14] border border-amber-500/40 p-5 shadow-2xl text-white">
+            <div className="flex items-center justify-between pb-3 border-b border-amber-500/20 mb-3">
+              <h4 className="text-sm font-bold text-amber-200 flex items-center gap-2">
+                {showGroupCallPicker === 'video' ? <Video className="w-4 h-4 text-emerald-400" /> : <Phone className="w-4 h-4 text-emerald-400" />}
+                <span>Select Member to Call</span>
+              </h4>
+              <button
+                onClick={() => setShowGroupCallPicker(null)}
+                className="text-slate-400 hover:text-white text-xs p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-xs text-slate-300 mb-3">
+              Calls start as 1-on-1 for privacy. You can add more members once connected.
+            </p>
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              {(conversation?.participantIds || [])
+                .filter((id) => id !== currentUser.id)
+                .map((id) => allContacts.find((c) => c.id === id) || {
+                  id,
+                  name: 'Group Member',
+                  avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${id}`
+                })
+                .map((member) => (
+                  <button
+                    key={member.id}
+                    onClick={() => {
+                      const callType = showGroupCallPicker;
+                      setShowGroupCallPicker(null);
+                      onStartCall(callType, member.id);
+                    }}
+                    className="w-full flex items-center justify-between p-2.5 rounded-2xl bg-emerald-950/70 hover:bg-emerald-900 border border-emerald-800/60 transition-colors cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <img src={member.avatar} alt={member.name} className="w-9 h-9 rounded-full object-cover ring-1 ring-amber-400/60 shrink-0" />
+                      <span className="text-xs font-semibold text-white truncate">{member.name}</span>
+                    </div>
+                    <span className="text-[11px] font-bold text-amber-400 px-3 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 group-hover:bg-amber-500/25 shrink-0">
+                      Call
+                    </span>
+                  </button>
+                ))}
             </div>
           </div>
         </div>

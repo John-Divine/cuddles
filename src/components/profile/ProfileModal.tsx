@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   User,
   Sparkles,
@@ -49,11 +49,35 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [partnerNickname, setPartnerNickname] = useState(user.partnerNickname || '');
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [justUploadedNotice, setJustUploadedNotice] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { isInstalled, platformName } = usePWAInstall();
+
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) {
+      alert('Image size exceeds 15MB limit.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        const newAvatar = reader.result;
+        setAvatar(newAvatar);
+        setJustUploadedNotice(true);
+        setTimeout(() => setJustUploadedNotice(false), 3000);
+        if (onUpdateUser) {
+          onUpdateUser({ avatar: newAvatar });
+        }
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isOwnProfile || !onUpdateUser) return;
+    if (!onUpdateUser) return;
     onUpdateUser({
       name: name.trim(),
       status: status.trim(),
@@ -67,16 +91,30 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   };
 
   const handlePresetAvatar = (seed: string) => {
-    setAvatar(`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed)}`);
+    const newAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed)}`;
+    setAvatar(newAvatar);
+    if (onUpdateUser) {
+      onUpdateUser({ avatar: newAvatar });
+    }
   };
 
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/75 p-3 sm:p-4 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-rose-950/50 p-5 sm:p-6 shadow-2xl text-slate-100 flex flex-col max-h-[90vh]">
+      <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-amber-500/30 p-5 sm:p-6 shadow-2xl text-slate-100 flex flex-col max-h-[90vh]">
+        {/* Hidden File Input for Image Upload */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          accept="image/*"
+          onChange={handleAvatarUpload}
+          className="hidden"
+          aria-label="Upload profile image"
+        />
+
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-800">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-2xl bg-rose-500/15 text-rose-400 border border-rose-500/30">
+            <div className="p-2 rounded-2xl bg-amber-500/15 text-amber-400 border border-amber-500/30">
               {isOwnProfile ? <User className="w-5 h-5" /> : <Heart className="w-5 h-5" />}
             </div>
             <div>
@@ -84,13 +122,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 {isOwnProfile ? 'Your Cuddles Profile' : `${user.name}'s Profile`}
               </h3>
               <p className="text-xs text-slate-400">
-                {isOwnProfile ? 'Editable on-device profile & cloud privacy' : 'Contact details & current schedule'}
+                {isOwnProfile ? 'Change photo, name & account privacy' : 'Upload photo, nickname & contact details'}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-slate-800 transition-colors text-sm"
+            className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-slate-800 transition-colors text-sm cursor-pointer"
           >
             ✕
           </button>
@@ -98,33 +136,60 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
         {/* Profile Content */}
         <div className="mt-4 space-y-4 overflow-y-auto pr-1 flex-1">
-          {/* Avatar display */}
+          {/* Avatar display with Upload Photo Overlay */}
           <div className="flex flex-col items-center justify-center gap-2.5">
-            <div className="relative">
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="relative group cursor-pointer"
+              title="Click to upload profile picture"
+            >
               <img
-                src={isOwnProfile ? avatar : user.avatar}
+                src={avatar || user.avatar}
                 alt={user.name}
-                className="w-20 h-20 rounded-full object-cover ring-4 ring-rose-500/40 shadow-xl"
+                className="w-22 h-22 rounded-full object-cover ring-4 ring-amber-500/50 shadow-xl group-hover:brightness-75 transition-all"
               />
               <span className="absolute -bottom-1 -right-1 text-base bg-slate-900 rounded-full p-1 shadow border border-slate-700">
                 {isOwnProfile ? moodEmoji : user.moodEmoji || '💕'}
               </span>
+
+              {/* Hover Camera Overlay */}
+              <div className="absolute inset-0 rounded-full flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 text-white backdrop-blur-[1px]">
+                <Camera className="w-6 h-6 text-amber-300 drop-shadow" />
+                <span className="text-[10px] font-bold text-amber-200 mt-0.5">Upload</span>
+              </div>
             </div>
 
-            {isOwnProfile && (
-              <div className="flex gap-1.5 flex-wrap justify-center">
-                {['Alex', 'Sam', 'Taylor', 'Jordan', 'Riley', 'Morgan'].map((preset) => (
-                  <button
-                    type="button"
-                    key={preset}
-                    onClick={() => handlePresetAvatar(preset)}
-                    className="px-2.5 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-[10px] text-slate-300 border border-slate-700 font-medium transition-colors"
-                  >
-                    {preset}
-                  </button>
-                ))}
-              </div>
-            )}
+            {/* Direct Upload Button for Any User */}
+            <div className="flex flex-col items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-600/30 to-yellow-600/20 hover:from-amber-600/40 hover:to-yellow-600/30 border border-amber-500/40 text-amber-300 text-xs font-semibold flex items-center gap-2 transition-all active:scale-95 cursor-pointer shadow-sm"
+              >
+                <Camera className="w-3.5 h-3.5 text-amber-400" />
+                <span>Upload Profile Picture</span>
+              </button>
+
+              {justUploadedNotice && (
+                <span className="text-[11px] text-emerald-400 font-medium animate-in fade-in flex items-center gap-1">
+                  <Check className="w-3 h-3 text-emerald-400" /> Profile photo updated successfully!
+                </span>
+              )}
+            </div>
+
+            {/* Preset Avatars quick selection */}
+            <div className="flex gap-1.5 flex-wrap justify-center pt-1">
+              {['Alex', 'Sam', 'Taylor', 'Jordan', 'Riley', 'Morgan'].map((preset) => (
+                <button
+                  type="button"
+                  key={preset}
+                  onClick={() => handlePresetAvatar(preset)}
+                  className="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-[10px] text-slate-300 border border-slate-700 font-medium transition-colors cursor-pointer"
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* If viewing other contact's profile */}

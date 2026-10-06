@@ -64,6 +64,29 @@ function formatBytes(bytes: number): string {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
+const CHAT_EMOJI_CATEGORIES = [
+  {
+    id: 'love',
+    label: '💕 Love & Romance',
+    emojis: ['❤️', '💖', '💝', '💘', '💕', '💓', '💗', '💞', '💌', '💍', '🌹', '💐', '😘', '🥰', '😍', '😻', '💋', '🫂', '🏩', '🍫', '🧸', '🌺', '💒', '💏']
+  },
+  {
+    id: 'smileys',
+    label: '😄 Smileys & Mood',
+    emojis: ['😀', '😂', '🥹', '😊', '😇', '😋', '😎', '🥳', '🤩', '😭', '🥺', '😮', '😴', '🤗', '🤭', '🤫', '🤔', '🤤', '😌', '🫠', '😜', '😍', '🤩', '🥳']
+  },
+  {
+    id: 'gestures',
+    label: '👍 Hands & Vibes',
+    emojis: ['👍', '👎', '👏', '🙌', '🫶', '🤝', '✌️', '🤞', '👊', '🤙', '🙏', '🤌', '💪', '🔥', '✨', '⭐', '💯', '🪄', '👋', '🫡', '👀', '💃', '🕺', '🎉']
+  },
+  {
+    id: 'royal',
+    label: '👑 Royal Sanctuary',
+    emojis: ['👑', '🦁', '☀️', '🌙', '⭐', '🏆', '💎', '🕊️', '🌿', '🎉', '🥂', '🎂', '🕯️', '🎁', '🌟', '🪞', '🏰', '🛡️', '💫', '🏵️', '☕', '🍾', '🌺', '🦋']
+  }
+];
+
 export const MessageInput: React.FC<MessageInputProps> = ({
   onSendMessage,
   onSendMedia,
@@ -89,21 +112,30 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [fileError, setFileError] = useState<string | null>(null);
   const [isUrgent, setIsUrgent] = useState(false);
   const [showPlusMenu, setShowPlusMenu] = useState(false);
+  const [showEmojiPack, setShowEmojiPack] = useState(false);
+  const [showDesktopAttachMenu, setShowDesktopAttachMenu] = useState(false);
+  const [activeEmojiCategory, setActiveEmojiCategory] = useState<'love' | 'smileys' | 'gestures' | 'royal'>('love');
 
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const docInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const plusMenuRef = useRef<HTMLDivElement | null>(null);
+  const emojiPackRef = useRef<HTMLDivElement | null>(null);
+  const desktopAttachRef = useRef<HTMLDivElement | null>(null);
 
-  // Close plus menu when clicking outside
+  // Close menus when clicking outside
   useEffect(() => {
-    if (!showPlusMenu) return;
     const handleOutsideClick = (e: MouseEvent | PointerEvent) => {
-      if (plusMenuRef.current && !plusMenuRef.current.contains(e.target as Node)) {
+      if (showPlusMenu && plusMenuRef.current && !plusMenuRef.current.contains(e.target as Node)) {
         setShowPlusMenu(false);
       }
+      if (showEmojiPack && emojiPackRef.current && !emojiPackRef.current.contains(e.target as Node)) {
+        setShowEmojiPack(false);
+      }
+      if (showDesktopAttachMenu && desktopAttachRef.current && !desktopAttachRef.current.contains(e.target as Node)) {
+        setShowDesktopAttachMenu(false);
+      }
     };
-    // Use timeout to prevent the current toggle event from immediately dismissing
     const timer = setTimeout(() => {
       document.addEventListener('pointerdown', handleOutsideClick);
     }, 10);
@@ -111,7 +143,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       clearTimeout(timer);
       document.removeEventListener('pointerdown', handleOutsideClick);
     };
-  }, [showPlusMenu]);
+  }, [showPlusMenu, showEmojiPack, showDesktopAttachMenu]);
 
   const handleSend = () => {
     if (pendingDocument) {
@@ -343,29 +375,15 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         />
       )}
 
-      {/* Smart Schedule / Quiet Delivery Notice */}
-          {recipientIsBusy && (
-            <div className="mb-2 px-3 py-1.5 rounded-xl bg-slate-800/90 border border-amber-500/30 flex items-center justify-between gap-2 text-xs">
-              <div className="flex items-center gap-1.5 text-amber-300 truncate">
-                <Moon className="w-3.5 h-3.5 shrink-0 text-amber-400" />
-                <span className="truncate">
-                  {recipientName} is scheduled: <strong className="text-white">{recipientActivity}</strong>
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsUrgent(!isUrgent)}
-                className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold transition-all shrink-0 ${
-                  isUrgent
-                    ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30'
-                    : 'bg-slate-700 text-slate-300 hover:text-white'
-                }`}
-              >
-                <Zap className="w-3 h-3 fill-current text-amber-300" />
-                {isUrgent ? 'Urgent Mode ON' : 'Make Urgent'}
-              </button>
-            </div>
-          )}
+      {/* Smart Schedule / Quiet Delivery Notice - Information Only (Single Urgent Toggle in Input Bar) */}
+      {recipientIsBusy && (
+        <div className="mb-2 px-3.5 py-1.5 rounded-xl bg-slate-900/90 border border-amber-500/25 flex items-center gap-2 text-xs text-amber-300">
+          <Moon className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+          <span className="truncate">
+            {recipientName} is scheduled: <strong className="text-white">{recipientActivity}</strong> (messages delivered quietly)
+          </span>
+        </div>
+      )}
 
           {/* File size warning alert */}
           {fileError && (
@@ -555,77 +573,211 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               )}
             </div>
 
-            {/* Laptop / Desktop Direct Action Icons */}
-            <div className="hidden lg:flex items-center gap-0.5 pb-1">
-              {/* Memories & Milestones Vault button on Desktop */}
-              {onOpenMemoriesVault && (
+            {/* Laptop / Desktop Consolidated Attachments Menu (No clutter, No redundant plus sign) */}
+            <div className="hidden lg:flex items-center gap-1 pb-1 shrink-0">
+              {/* Consolidated Desktop Attachments Dropdown */}
+              <div className="relative" ref={desktopAttachRef}>
                 <button
                   type="button"
-                  onClick={onOpenMemoriesVault}
-                  className="p-2 rounded-xl text-amber-400 hover:text-amber-300 hover:bg-amber-500/20 active:scale-95 transition-all"
-                  title="Shared Memories & Milestones Vault (Odo Nnyew Fie Kwan)"
+                  onClick={() => setShowDesktopAttachMenu((prev) => !prev)}
+                  className={`p-2 rounded-xl border transition-all active:scale-95 cursor-pointer flex items-center justify-center ${
+                    showDesktopAttachMenu
+                      ? 'bg-amber-500/25 text-amber-300 border-amber-400'
+                      : 'bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 hover:text-white border-emerald-800/80 shadow-sm'
+                  }`}
+                  title="Attach media or document"
+                  aria-label="Attachments"
                 >
-                  <AkomaIcon className="w-5 h-5 text-amber-400" strokeWidth={2.2} />
+                  <Paperclip className="w-5 h-5" />
                 </button>
-              )}
 
-              {/* Intimacy Hub button on Desktop */}
-              {onOpenIntimacyHub && (
-                <button
-                  type="button"
-                  onClick={onOpenIntimacyHub}
-                  className="p-2 rounded-xl text-rose-400 hover:text-rose-300 hover:bg-rose-500/20 active:scale-95 transition-all"
-                  title="Connection & Intimacy Hub (Daily Prompts, Bucket List, Mood Radar, Vouchers)"
-                >
-                  <Heart className="w-5 h-5 fill-rose-500/20" />
-                </button>
-              )}
+                {showDesktopAttachMenu && (
+                  <div
+                    className="absolute bottom-full mb-2 left-0 rounded-3xl bg-[#021e14]/98 border border-amber-500/35 shadow-2xl p-2.5 z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-bottom-2 select-none w-56 text-white"
+                    style={{ filter: 'drop-shadow(0 25px 35px rgba(0, 0, 0, 0.9))' }}
+                  >
+                    <div className="flex flex-col gap-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowDesktopAttachMenu(false);
+                          imageInputRef.current?.click();
+                        }}
+                        className="w-full flex items-center gap-2.5 p-2 rounded-2xl hover:bg-emerald-900/60 active:bg-emerald-900 text-left transition-colors cursor-pointer"
+                      >
+                        <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-300 flex items-center justify-center shrink-0 border border-emerald-500/30">
+                          <ImageIcon className="w-4 h-4" />
+                        </div>
+                        <span className="text-xs font-semibold text-emerald-100">Photo Gallery</span>
+                      </button>
 
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowDesktopAttachMenu(false);
+                          setIsTakingPhoto(true);
+                        }}
+                        className="w-full flex items-center gap-2.5 p-2 rounded-2xl hover:bg-emerald-900/60 active:bg-emerald-900 text-left transition-colors cursor-pointer"
+                      >
+                        <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/30">
+                          <Camera className="w-4 h-4" />
+                        </div>
+                        <span className="text-xs font-semibold text-amber-200">Take Photo</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowDesktopAttachMenu(false);
+                          setIsRecordingVideo(true);
+                        }}
+                        className="w-full flex items-center gap-2.5 p-2 rounded-2xl hover:bg-emerald-900/60 active:bg-emerald-900 text-left transition-colors cursor-pointer"
+                      >
+                        <div className="w-7 h-7 rounded-lg bg-emerald-600/20 text-emerald-300 flex items-center justify-center shrink-0 border border-emerald-600/30">
+                          <Video className="w-4 h-4" />
+                        </div>
+                        <span className="text-xs font-semibold text-emerald-100">Record Video</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowDesktopAttachMenu(false);
+                          docInputRef.current?.click();
+                        }}
+                        className="w-full flex items-center gap-2.5 p-2 rounded-2xl hover:bg-emerald-900/60 active:bg-emerald-900 text-left transition-colors cursor-pointer"
+                      >
+                        <div className="w-7 h-7 rounded-lg bg-yellow-500/20 text-yellow-300 flex items-center justify-center shrink-0 border border-yellow-500/30">
+                          <Paperclip className="w-4 h-4" />
+                        </div>
+                        <span className="text-xs font-semibold text-yellow-100">Document / File</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Emoji Pack Button */}
               <button
                 type="button"
-                onClick={() => setIsTakingPhoto(true)}
-                className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 active:scale-95 transition-all"
-                title="Take Photo with Camera"
+                onClick={() => setShowEmojiPack((prev) => !prev)}
+                className={`p-2 rounded-xl border transition-all active:scale-95 cursor-pointer flex items-center justify-center ${
+                  showEmojiPack
+                    ? 'bg-amber-500/25 text-amber-300 border-amber-400'
+                    : 'bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 hover:text-white border-emerald-800/80 shadow-sm'
+                }`}
+                title="Open Emoji Pack"
+                aria-label="Emoji Pack"
               >
-                <Camera className="w-5 h-5" />
+                <Smile className="w-5 h-5" />
               </button>
 
-              <button
-                type="button"
-                onClick={() => setIsRecordingVideo(true)}
-                className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 active:scale-95 transition-all"
-                title="Record Video with Camera"
-              >
-                <Video className="w-5 h-5" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => imageInputRef.current?.click()}
-                className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 active:scale-95 transition-all"
-                title="Attach Photo (Max 50MB)"
-              >
-                <ImageIcon className="w-5 h-5" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => docInputRef.current?.click()}
-                className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 active:scale-95 transition-all"
-                title="Attach Document or Video (Max 50MB)"
-              >
-                <Paperclip className="w-5 h-5" />
-              </button>
-
+              {/* Cuddle GIF Picker Button */}
               <button
                 type="button"
                 onClick={() => setShowGifPicker(!showGifPicker)}
-                className="p-2 rounded-xl text-slate-400 hover:text-purple-400 hover:bg-slate-800/80 active:scale-95 transition-all"
+                className="p-2 rounded-xl text-emerald-300 hover:text-amber-300 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-800/80 active:scale-95 transition-all cursor-pointer shadow-sm"
                 title="Send Cuddle GIF"
+                aria-label="Send GIF"
               >
                 <Sparkles className="w-5 h-5" />
               </button>
             </div>
+
+            {/* Mobile-Only Emoji Pack Button (Compact, beside textarea) */}
+            <div className="lg:hidden pb-0.5 shrink-0 flex items-center">
+              <button
+                type="button"
+                onClick={() => setShowEmojiPack((prev) => !prev)}
+                className={`w-10 h-10 rounded-2xl flex items-center justify-center border transition-all active:scale-95 shadow-sm cursor-pointer ${
+                  showEmojiPack
+                    ? 'bg-amber-500/25 text-amber-300 border-amber-400'
+                    : 'bg-emerald-950 text-emerald-200 hover:text-amber-300 border-emerald-800 hover:bg-emerald-900'
+                }`}
+                title="Open Emoji Pack"
+                aria-label="Emoji Pack"
+              >
+                <Smile className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Full Feature Emoji Pack Drawer (Expandable Tray with Push Action) */}
+            {showEmojiPack && (
+              <div
+                ref={emojiPackRef}
+                className="absolute bottom-full mb-3 left-0 right-0 sm:left-2 sm:right-auto sm:w-96 rounded-3xl bg-[#021e14]/98 border border-amber-500/40 shadow-2xl p-3 sm:p-4 z-50 backdrop-blur-2xl animate-in fade-in slide-in-from-bottom-2 select-none text-white max-w-[calc(100vw-1rem)]"
+                style={{ filter: 'drop-shadow(0 25px 35px rgba(0, 0, 0, 0.9))' }}
+              >
+                <div className="flex items-center justify-between pb-2 border-b border-amber-500/25 mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-amber-400" />
+                    <span className="text-xs font-bold text-amber-200">Emoji Pack</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowEmojiPack(false)}
+                    className="text-xs text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Category Pills */}
+                <div className="flex items-center gap-1 pb-2 overflow-x-auto no-scrollbar">
+                  {CHAT_EMOJI_CATEGORIES.map((cat) => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setActiveEmojiCategory(cat.id as any)}
+                      className={`px-2.5 py-1 rounded-xl text-[11px] font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                        activeEmojiCategory === cat.id
+                          ? 'bg-amber-500/30 text-amber-300 border border-amber-400/50'
+                          : 'text-slate-400 hover:text-slate-200 bg-emerald-950/60'
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Grid of Emojis */}
+                <div className="grid grid-cols-8 gap-1.5 p-1 bg-emerald-950/50 rounded-2xl max-h-44 overflow-y-auto">
+                  {CHAT_EMOJI_CATEGORIES.find((c) => c.id === activeEmojiCategory)?.emojis.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => {
+                        setText((prev) => prev + emoji);
+                        if (textareaRef.current) {
+                          textareaRef.current.focus();
+                        }
+                      }}
+                      className="w-8 h-8 rounded-xl hover:bg-emerald-900/80 active:scale-90 text-lg flex items-center justify-center transition-transform cursor-pointer hover:scale-120"
+                      title={`Insert ${emoji}`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Push Actions Footer */}
+                <div className="flex items-center justify-between pt-2.5 mt-2 border-t border-amber-500/20 text-xs">
+                  <span className="text-[11px] text-emerald-400/80">Tap to insert or push</span>
+                  {text.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleSend();
+                        setShowEmojiPack(false);
+                      }}
+                      className="px-3 py-1 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-bold hover:from-amber-400 hover:to-yellow-400 transition-all active:scale-95 cursor-pointer shadow-md"
+                    >
+                      Push Message
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Expanding Textarea */}
             <div className={`flex-1 min-h-[42px] max-h-32 rounded-2xl bg-[#021f16] border px-3 py-2 flex items-center transition-all ${
