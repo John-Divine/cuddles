@@ -99,7 +99,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   };
 
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/75 p-3 sm:p-4 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 lg:left-[22rem] z-[150] flex items-center justify-center bg-black/80 p-3 sm:p-4 backdrop-blur-md animate-in fade-in duration-200">
       <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-amber-500/30 p-5 sm:p-6 shadow-2xl text-slate-100 flex flex-col max-h-[90vh]">
         {/* Hidden File Input for Image Upload */}
         <input

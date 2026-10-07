@@ -322,7 +322,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   };
 
   // Video file controls
-  const toggleVideoFilePlay = () => {
+  const toggleVideoFilePlay = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     if (!videoFileRef.current) return;
     if (isPlayingVideoFile) {
       videoFileRef.current.pause();
@@ -416,14 +417,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       onToggleSelect?.(message.id);
       return;
     }
-    // User requirement: "The pop-up on mobile view should come up only when I press and hold on a message."
-    const isTouchRecent = Date.now() - lastTouchEndTimeRef.current < 600;
-    const isMobileViewport = typeof window !== 'undefined' && window.innerWidth < 768;
-    if (isTouchGestureRef.current || wasLongPressRef.current || isTouchRecent || isMobileViewport) {
-      return;
-    }
-    // On desktop view, mouse click opens popover
-    openActionPopover();
+    // User requirement: "for messages, in laptop view, only when i right click on a message should popup on what to do with it appear, not when i just left click on it or try to play a video or something, fix that"
+    // Normal left-click does not open pop-up.
   };
 
   return (

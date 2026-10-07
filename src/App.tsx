@@ -2037,182 +2037,182 @@ export default function App() {
               />
             </div>
           )}
-
-          {/* All Pop-ups & Modals Anchored Inside Chat Section View Area on Laptop */}
-          {showPartnersModal && (
-            <PartnerModal
-              partners={partners}
-              onAddPartner={handleAddPartner}
-              onUpdatePartner={handleUpdatePartner}
-              onRemovePartner={handleRemovePartner}
-              onStartChat={handleStartChatWithContact}
-              onStartCall={(id, type) => {
-                handleStartChatWithContact(id);
-                handleStartCall(type);
-              }}
-              onOpenAddPartnerModal={() => {
-                setShowPartnersModal(false);
-                setAddContactType('partner');
-                setShowAddContactModal(true);
-              }}
-              onClose={() => setShowPartnersModal(false)}
-            />
-          )}
-
-          {showFriendsModal && (
-            <FriendsModal
-              friends={friends}
-              onAddFriend={handleAddFriend}
-              onRemoveFriend={handleRemoveFriend}
-              onStartChat={handleStartChatWithContact}
-              onStartCall={(id, type) => {
-                handleStartChatWithContact(id);
-                handleStartCall(type);
-              }}
-              onOpenAddFriendModal={() => {
-                setShowFriendsModal(false);
-                setAddContactType('friend');
-                setShowAddContactModal(true);
-              }}
-              onClose={() => setShowFriendsModal(false)}
-            />
-          )}
-
-          {showAddContactModal && activeAccount && (
-            <AddContactModal
-              isOpen={showAddContactModal}
-              onClose={() => setShowAddContactModal(false)}
-              currentUser={activeAccount}
-              currentPartnersCount={partners.length}
-              initialType={addContactType}
-              existingContacts={contacts}
-              onContactRequestSent={(req) => {
-                setContactRequests((prev) => [...prev.filter((r) => r.id !== req.id), req]);
-              }}
-            />
-          )}
-
-          {showRequestsModal && activeAccount && (
-            <RequestsModal
-              isOpen={showRequestsModal}
-              onClose={() => setShowRequestsModal(false)}
-              currentUser={activeAccount}
-              requests={contactRequests}
-              onAcceptRequest={handleAcceptContactRequest}
-              onDeclineRequest={(req) => {
-                setContactRequests((prev) =>
-                  prev.map((r) => (r.id === req.id ? { ...r, status: 'declined' } : r))
-                );
-              }}
-            />
-          )}
-
-          {showScheduleModal && (
-            <SchedulePanel
-              events={schedules}
-              partners={partners}
-              friends={friends}
-              currentUser={currentUser}
-              onUpdateUserSchedule={(schedule: DayScheduleStatus) => {
-                setCurrentUser((prev) => ({ ...prev, currentSchedule: schedule }));
-              }}
-              onAddEvent={(newEvent) => {
-                setSchedules((prev) => [
-                  ...prev,
-                  { ...newEvent, id: 'sch_' + Date.now() }
-                ]);
-              }}
-              onDeleteEvent={(id) => {
-                setSchedules((prev) => prev.filter((e) => e.id !== id));
-              }}
-              onClose={() => setShowScheduleModal(false)}
-            />
-          )}
-
-          {viewingProfile && (
-            <ProfileModal
-              user={viewingProfile.user}
-              isOwnProfile={viewingProfile.isOwn}
-              onSignOut={handleSignOut}
-              onDeleteAccount={handleDeleteAccount}
-              onUpdateUser={(updates) => {
-                if (viewingProfile.isOwn) {
-                  setCurrentUser((prev) => ({ ...prev, ...updates }));
-                  if (activeAccount) {
-                    const updatedAcc = { ...activeAccount, ...updates };
-                    setActiveAccount(updatedAcc);
-                    saveStoredAccount(updatedAcc);
-                  }
-                  // Update current user's avatar in conversation messages
-                  if (updates.avatar) {
-                    const newAvatar = updates.avatar;
-                    setMessagesMap((prev) => {
-                      const updated = { ...prev };
-                      for (const cid in updated) {
-                        updated[cid] = updated[cid].map((m) =>
-                          m.senderId === currentUser.id ? { ...m, senderAvatar: newAvatar } : m
-                        );
-                      }
-                      return updated;
-                    });
-                  }
-                } else {
-                  const targetId = viewingProfile.user.id;
-                  setContacts((prev) =>
-                    prev.map((c) => (c.id === targetId ? { ...c, ...updates } : c))
-                  );
-                  setConversations((prev) =>
-                    prev.map((conv) => {
-                      if (conv.participantIds.includes(targetId)) {
-                        return {
-                          ...conv,
-                          avatar: updates.avatar || conv.avatar,
-                          title: updates.name || conv.title
-                        };
-                      }
-                      return conv;
-                    })
-                  );
-                  if (updates.avatar) {
-                    const newAvatar = updates.avatar;
-                    setMessagesMap((prev) => {
-                      const updated = { ...prev };
-                      for (const cid in updated) {
-                        updated[cid] = updated[cid].map((m) =>
-                          m.senderId === targetId ? { ...m, senderAvatar: newAvatar } : m
-                        );
-                      }
-                      return updated;
-                    });
-                  }
-                }
-              }}
-              onClose={() => setViewingProfile(null)}
-            />
-          )}
-
-          <PWAInstallModal
-            isOpen={showInstallModal}
-            onClose={() => setShowInstallModal(false)}
-          />
-
-          {showMediaGalleryModal && (
-            <MediaGalleryModal
-              isOpen={showMediaGalleryModal}
-              onClose={() => setShowMediaGalleryModal(false)}
-              activeConversation={
-                mediaGalleryTargetConvId
-                  ? conversations.find((c) => c.id === mediaGalleryTargetConvId) || activeConversation
-                  : activeConversation
-              }
-              allConversations={conversations}
-              messagesMap={messagesMap}
-              initialScope={mediaGalleryScope}
-              targetConversationId={mediaGalleryTargetConvId}
-            />
-          )}
         </section>
       </div>
+
+      {/* All Pop-ups & Modals: Above Sidebar on Mobile (z-[150]), Anchored Over Chat Section View Area on Laptop (lg:left-[22rem]) */}
+      {showPartnersModal && (
+        <PartnerModal
+          partners={partners}
+          onAddPartner={handleAddPartner}
+          onUpdatePartner={handleUpdatePartner}
+          onRemovePartner={handleRemovePartner}
+          onStartChat={handleStartChatWithContact}
+          onStartCall={(id, type) => {
+            handleStartChatWithContact(id);
+            handleStartCall(type);
+          }}
+          onOpenAddPartnerModal={() => {
+            setShowPartnersModal(false);
+            setAddContactType('partner');
+            setShowAddContactModal(true);
+          }}
+          onClose={() => setShowPartnersModal(false)}
+        />
+      )}
+
+      {showFriendsModal && (
+        <FriendsModal
+          friends={friends}
+          onAddFriend={handleAddFriend}
+          onRemoveFriend={handleRemoveFriend}
+          onStartChat={handleStartChatWithContact}
+          onStartCall={(id, type) => {
+            handleStartChatWithContact(id);
+            handleStartCall(type);
+          }}
+          onOpenAddFriendModal={() => {
+            setShowFriendsModal(false);
+            setAddContactType('friend');
+            setShowAddContactModal(true);
+          }}
+          onClose={() => setShowFriendsModal(false)}
+        />
+      )}
+
+      {showAddContactModal && activeAccount && (
+        <AddContactModal
+          isOpen={showAddContactModal}
+          onClose={() => setShowAddContactModal(false)}
+          currentUser={activeAccount}
+          currentPartnersCount={partners.length}
+          initialType={addContactType}
+          existingContacts={contacts}
+          onContactRequestSent={(req) => {
+            setContactRequests((prev) => [...prev.filter((r) => r.id !== req.id), req]);
+          }}
+        />
+      )}
+
+      {showRequestsModal && activeAccount && (
+        <RequestsModal
+          isOpen={showRequestsModal}
+          onClose={() => setShowRequestsModal(false)}
+          currentUser={activeAccount}
+          requests={contactRequests}
+          onAcceptRequest={handleAcceptContactRequest}
+          onDeclineRequest={(req) => {
+            setContactRequests((prev) =>
+              prev.map((r) => (r.id === req.id ? { ...r, status: 'declined' } : r))
+            );
+          }}
+        />
+      )}
+
+      {showScheduleModal && (
+        <SchedulePanel
+          events={schedules}
+          partners={partners}
+          friends={friends}
+          currentUser={currentUser}
+          onUpdateUserSchedule={(schedule: DayScheduleStatus) => {
+            setCurrentUser((prev) => ({ ...prev, currentSchedule: schedule }));
+          }}
+          onAddEvent={(newEvent) => {
+            setSchedules((prev) => [
+              ...prev,
+              { ...newEvent, id: 'sch_' + Date.now() }
+            ]);
+          }}
+          onDeleteEvent={(id) => {
+            setSchedules((prev) => prev.filter((e) => e.id !== id));
+          }}
+          onClose={() => setShowScheduleModal(false)}
+        />
+      )}
+
+      {viewingProfile && (
+        <ProfileModal
+          user={viewingProfile.user}
+          isOwnProfile={viewingProfile.isOwn}
+          onSignOut={handleSignOut}
+          onDeleteAccount={handleDeleteAccount}
+          onUpdateUser={(updates) => {
+            if (viewingProfile.isOwn) {
+              setCurrentUser((prev) => ({ ...prev, ...updates }));
+              if (activeAccount) {
+                const updatedAcc = { ...activeAccount, ...updates };
+                setActiveAccount(updatedAcc);
+                saveStoredAccount(updatedAcc);
+              }
+              // Update current user's avatar in conversation messages
+              if (updates.avatar) {
+                const newAvatar = updates.avatar;
+                setMessagesMap((prev) => {
+                  const updated = { ...prev };
+                  for (const cid in updated) {
+                    updated[cid] = updated[cid].map((m) =>
+                      m.senderId === currentUser.id ? { ...m, senderAvatar: newAvatar } : m
+                    );
+                  }
+                  return updated;
+                });
+              }
+            } else {
+              const targetId = viewingProfile.user.id;
+              setContacts((prev) =>
+                prev.map((c) => (c.id === targetId ? { ...c, ...updates } : c))
+              );
+              setConversations((prev) =>
+                prev.map((conv) => {
+                  if (conv.participantIds.includes(targetId)) {
+                    return {
+                      ...conv,
+                      avatar: updates.avatar || conv.avatar,
+                      title: updates.name || conv.title
+                    };
+                  }
+                  return conv;
+                })
+              );
+              if (updates.avatar) {
+                const newAvatar = updates.avatar;
+                setMessagesMap((prev) => {
+                  const updated = { ...prev };
+                  for (const cid in updated) {
+                    updated[cid] = updated[cid].map((m) =>
+                      m.senderId === targetId ? { ...m, senderAvatar: newAvatar } : m
+                    );
+                  }
+                  return updated;
+                });
+              }
+            }
+          }}
+          onClose={() => setViewingProfile(null)}
+        />
+      )}
+
+      <PWAInstallModal
+        isOpen={showInstallModal}
+        onClose={() => setShowInstallModal(false)}
+      />
+
+      {showMediaGalleryModal && (
+        <MediaGalleryModal
+          isOpen={showMediaGalleryModal}
+          onClose={() => setShowMediaGalleryModal(false)}
+          activeConversation={
+            mediaGalleryTargetConvId
+              ? conversations.find((c) => c.id === mediaGalleryTargetConvId) || activeConversation
+              : activeConversation
+          }
+          allConversations={conversations}
+          messagesMap={messagesMap}
+          initialScope={mediaGalleryScope}
+          targetConversationId={mediaGalleryTargetConvId}
+        />
+      )}
 
       {/* Group & 1-on-1 Call Window with Add Participant Expansion */}
       {activeCall && !isCallMinimized && (

@@ -123,7 +123,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Left: User Profile Avatar & App Identity */}
         <div className="flex items-center gap-2.5 min-w-0">
           <button
-            onClick={onOpenProfileModal}
+            onClick={() => {
+              onCloseMobile?.();
+              onOpenProfileModal();
+            }}
             className="relative w-11 h-11 rounded-2xl hover:ring-2 hover:ring-amber-400/60 transition-all active:scale-95 flex items-center justify-center cursor-pointer shrink-0"
             title={`Your Profile & Account Settings (@${currentUser.username || 'user'}) - Click to change photo`}
             aria-label="Your Profile"
@@ -152,7 +155,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {/* Connection Requests Icon */}
           {onOpenRequestsModal && (
             <button
-              onClick={onOpenRequestsModal}
+              onClick={() => {
+                onCloseMobile?.();
+                onOpenRequestsModal();
+              }}
               className="relative p-2 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-800/80 text-emerald-300 hover:text-amber-300 flex items-center justify-center active:scale-95 transition-all shadow-sm cursor-pointer"
               title="Connection Requests"
               aria-label="Connection Requests"
@@ -194,6 +200,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       type="button"
                       onClick={() => {
                         setShowMenu(false);
+                        onCloseMobile?.();
                         onOpenMediaGallery();
                       }}
                       className="w-full flex items-center gap-3 p-2 rounded-2xl hover:bg-emerald-900/60 active:bg-emerald-900 text-left transition-colors cursor-pointer group"
@@ -214,6 +221,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       type="button"
                       onClick={() => {
                         setShowMenu(false);
+                        onCloseMobile?.();
                         onOpenAddContactModal();
                       }}
                       className="w-full flex items-center gap-3 p-2 rounded-2xl hover:bg-emerald-900/60 active:bg-emerald-900 text-left transition-colors cursor-pointer group"
@@ -233,6 +241,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     type="button"
                     onClick={() => {
                       setShowMenu(false);
+                      onCloseMobile?.();
                       onOpenScheduleModal();
                     }}
                     className="w-full flex items-center gap-3 p-2 rounded-2xl hover:bg-emerald-900/60 active:bg-emerald-900 text-left transition-colors cursor-pointer group"
@@ -252,6 +261,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       type="button"
                       onClick={() => {
                         setShowMenu(false);
+                        onCloseMobile?.();
                         onOpenMemoriesVault();
                       }}
                       className="w-full flex items-center gap-3 p-2 rounded-2xl hover:bg-emerald-900/60 active:bg-emerald-900 text-left transition-colors cursor-pointer group"
@@ -271,6 +281,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     type="button"
                     onClick={() => {
                       setShowMenu(false);
+                      onCloseMobile?.();
                       onOpenPartnersModal();
                     }}
                     className="w-full flex items-center gap-3 p-2 rounded-2xl hover:bg-emerald-900/60 active:bg-emerald-900 text-left transition-colors cursor-pointer group"
@@ -289,6 +300,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     type="button"
                     onClick={() => {
                       setShowMenu(false);
+                      onCloseMobile?.();
                       onOpenFriendsModal();
                     }}
                     className="w-full flex items-center gap-3 p-2 rounded-2xl hover:bg-emerald-900/60 active:bg-emerald-900 text-left transition-colors cursor-pointer group"
@@ -307,6 +319,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     type="button"
                     onClick={() => {
                       setShowMenu(false);
+                      onCloseMobile?.();
                       onOpenProfileModal();
                     }}
                     className="w-full flex items-center gap-3 p-2 rounded-2xl hover:bg-emerald-900/60 active:bg-emerald-900 text-left transition-colors cursor-pointer group border-t border-amber-500/20 mt-1 pt-2"
@@ -349,7 +362,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {onOpenMemoriesVault && (
               <button
                 type="button"
-                onClick={onOpenMemoriesVault}
+                onClick={() => {
+                  onCloseMobile?.();
+                  onOpenMemoriesVault();
+                }}
                 className="text-[11px] text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1 hover:underline cursor-pointer"
                 title="Open Shared Memories & Milestones (Odo Nnyew Fie Kwan)"
               >
@@ -358,7 +374,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             )}
             <button
-              onClick={onOpenPartnersModal}
+              onClick={() => {
+                onCloseMobile?.();
+                onOpenPartnersModal();
+              }}
               className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold underline underline-offset-2 cursor-pointer"
             >
               Manage
@@ -416,7 +435,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           {safePartners.length < 2 && (
             <button
-              onClick={onOpenPartnersModal}
+              onClick={() => {
+                onCloseMobile?.();
+                onOpenPartnersModal();
+              }}
               className="flex items-center justify-center p-2 rounded-2xl border border-dashed border-rose-500/40 text-rose-400 hover:bg-rose-500/10 text-xs gap-1 transition-all"
               title="Add second partner (max 2)"
             >

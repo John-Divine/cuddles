@@ -206,7 +206,7 @@ export const MemoriesTimelineModal: React.FC<MemoriesTimelineModalProps> = ({
 
   return (
     <div
-      className="absolute inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-xl animate-in fade-in duration-200 p-0 sm:p-4 overflow-hidden"
+      className="fixed inset-0 lg:left-[22rem] z-[150] flex items-center justify-center bg-black/85 backdrop-blur-xl animate-in fade-in duration-200 p-0 sm:p-4 overflow-hidden"
       role="dialog"
       aria-modal="true"
       aria-label="Shared Memories and Milestones Vault"
