@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Calendar, Plus, Clock, Heart, Users, Video, Bell, Trash2, CheckCircle2, Moon, Sun, Zap, Sparkles } from 'lucide-react';
 import { ScheduleEvent, UserProfile, DayScheduleStatus } from '../../types';
 
@@ -103,8 +104,8 @@ export const SchedulePanel: React.FC<SchedulePanelProps> = ({
     return `in ${hours}h ${minutes}m`;
   };
 
-  return (
-    <div className="fixed inset-0 lg:left-[22rem] z-[150] flex items-center justify-center bg-black/80 p-3 sm:p-4 backdrop-blur-md animate-in fade-in duration-200">
+  const modalContent = (
+    <div className="fixed inset-0 lg:left-[22rem] z-[9999] flex items-center justify-center bg-black/85 p-3 sm:p-4 backdrop-blur-md animate-in fade-in duration-200">
       <div className="w-full max-w-xl rounded-3xl bg-slate-900 border border-rose-950/50 p-5 sm:p-6 shadow-2xl text-slate-100 flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-800">
@@ -431,4 +432,6 @@ export const SchedulePanel: React.FC<SchedulePanelProps> = ({
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };

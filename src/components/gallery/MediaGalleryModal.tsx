@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Image as ImageIcon,
   Film,
@@ -242,8 +243,8 @@ export const MediaGalleryModal: React.FC<MediaGalleryModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 lg:left-[22rem] z-[150] flex items-center justify-center bg-black/90 p-0 sm:p-4 backdrop-blur-xl animate-in fade-in duration-200">
+  const modalContent = (
+    <div className="fixed inset-0 lg:left-[22rem] z-[9999] flex items-center justify-center bg-black/90 p-0 sm:p-4 backdrop-blur-xl animate-in fade-in duration-200">
       <div className="w-full max-w-5xl h-full sm:h-[92vh] sm:max-h-[850px] rounded-none sm:rounded-3xl bg-slate-900 border-0 sm:border border-slate-700/80 shadow-2xl text-slate-100 flex flex-col overflow-hidden">
         {/* Top Header */}
         <div className="shrink-0 p-3.5 sm:p-4 sm:px-6 bg-slate-900/98 border-b border-slate-800 flex items-center justify-between gap-3">
@@ -634,4 +635,6 @@ export const MediaGalleryModal: React.FC<MediaGalleryModalProps> = ({
       )}
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Calendar,
   Sparkles,
@@ -204,9 +205,9 @@ export const MemoriesTimelineModal: React.FC<MemoriesTimelineModalProps> = ({
     }
   };
 
-  return (
+  const modalContent = (
     <div
-      className="fixed inset-0 lg:left-[22rem] z-[150] flex items-center justify-center bg-black/85 backdrop-blur-xl animate-in fade-in duration-200 p-0 sm:p-4 overflow-hidden"
+      className="fixed inset-0 lg:left-[22rem] z-[9999] flex items-center justify-center bg-black/85 backdrop-blur-xl animate-in fade-in duration-200 p-0 sm:p-4 overflow-hidden"
       role="dialog"
       aria-modal="true"
       aria-label="Shared Memories and Milestones Vault"
@@ -909,4 +910,6 @@ export const MemoriesTimelineModal: React.FC<MemoriesTimelineModalProps> = ({
       )}
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };

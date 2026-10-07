@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   User,
   Sparkles,
@@ -98,8 +99,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 lg:left-[22rem] z-[150] flex items-center justify-center bg-black/80 p-3 sm:p-4 backdrop-blur-md animate-in fade-in duration-200">
+  const modalContent = (
+    <div className="fixed inset-0 lg:left-[22rem] z-[9999] flex items-center justify-center bg-black/85 p-3 sm:p-4 backdrop-blur-md animate-in fade-in duration-200">
       <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-amber-500/30 p-5 sm:p-6 shadow-2xl text-slate-100 flex flex-col max-h-[90vh]">
         {/* Hidden File Input for Image Upload */}
         <input
@@ -480,4 +481,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       />
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ShieldCheck, Lock, CheckCircle2, Copy, Check, QrCode } from 'lucide-react';
 import { generateSafetyNumbers } from '../../lib/encryption';
 import { Conversation } from '../../types';
@@ -23,8 +24,8 @@ export const SafetyNumberModal: React.FC<SafetyNumberModalProps> = ({ conversati
     setTimeout(() => setCopied(false), 2000);
   };
 
-  return (
-    <div className="fixed inset-0 lg:left-[22rem] z-[150] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+  const modalContent = (
+    <div className="fixed inset-0 lg:left-[22rem] z-[9999] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="w-full max-w-md rounded-2xl bg-slate-900 border border-slate-700 p-6 shadow-2xl text-slate-100 flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-800">
@@ -125,4 +126,6 @@ export const SafetyNumberModal: React.FC<SafetyNumberModalProps> = ({ conversati
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };

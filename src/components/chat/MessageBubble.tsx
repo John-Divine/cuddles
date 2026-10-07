@@ -240,7 +240,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   };
 
   // Voice note controls
-  const toggleAudio = () => {
+  const toggleAudio = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     if (!audioRef.current) return;
     if (isPlayingAudio) {
       audioRef.current.pause();
@@ -296,10 +297,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                   setIsPlayingVideoNote(true);
                 })
                 .catch((secondErr) => {
-                  console.warn('Inline playback failed on mobile device, opening popup modal:', secondErr);
-                  if (onOpenVideoNoteModal) {
-                    onOpenVideoNoteModal(message);
-                  }
+                  console.warn('Inline playback paused or restricted:', secondErr);
                 });
             }
           });

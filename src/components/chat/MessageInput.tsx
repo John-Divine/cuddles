@@ -19,7 +19,6 @@ import { GifPicker } from './GifPicker';
 import { VoiceRecorder } from './VoiceRecorder';
 import { VideoNoteRecorder } from './VideoNoteRecorder';
 import { CameraCaptureModal } from './CameraCaptureModal';
-import { CameraVideoModal } from './CameraVideoModal';
 import { MediaSendPreviewModal } from './MediaSendPreviewModal';
 import { compressImage } from '../../lib/imageUtils';
 import { MessagePriority, MessageType } from '../../types';
@@ -101,7 +100,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [showGifPicker, setShowGifPicker] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [isRecordingVideoNote, setIsRecordingVideoNote] = useState(false);
-  const [isRecordingVideo, setIsRecordingVideo] = useState(false);
   const [isTakingPhoto, setIsTakingPhoto] = useState(false);
   const [pendingImage, setPendingImage] = useState<string | null>(null);
   const [selectedImageFile, setSelectedImageFile] = useState<{
@@ -331,22 +329,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         />
       )}
 
-      {/* Normal Camera Video Recorder Modal */}
-      {isRecordingVideo && (
-        <CameraVideoModal
-          onCapture={(videoUrl, durationSeconds, caption) => {
-            setIsRecordingVideo(false);
-            onSendMedia('video', videoUrl, durationSeconds, {
-              fileName: `video_${Date.now()}.mp4`,
-              mimeType: 'video/mp4'
-            });
-            if (caption && caption.trim()) {
-              onSendMessage(caption.trim(), isUrgent ? 'urgent' : 'normal');
-            }
-          }}
-          onClose={() => setIsRecordingVideo(false)}
-        />
-      )}
+
 
       {/* Mobile Photo Gallery Send Preview Modal */}
       {selectedImageFile && (
@@ -514,18 +497,18 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                     <ImageIcon className="w-7 h-7 sm:w-8 sm:h-8 text-white shrink-0" strokeWidth={2.2} />
                   </button>
 
-                  {/* 3. Camera Video Recorder */}
+                  {/* 3. Emoji Pack */}
                   <button
                     type="button"
                     onClick={() => {
                       setShowPlusMenu(false);
-                      setIsRecordingVideo(true);
+                      setShowEmojiPack(true);
                     }}
-                    className="w-full aspect-square min-w-[64px] min-h-[64px] rounded-2xl bg-gradient-to-tr from-emerald-700 to-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-700/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
-                    aria-label="Video"
-                    title="Record Video"
+                    className="w-full aspect-square min-w-[64px] min-h-[64px] rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950 flex items-center justify-center shadow-lg shadow-amber-500/30 hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+                    aria-label="Emojis"
+                    title="Emoji Pack"
                   >
-                    <Video className="w-7 h-7 sm:w-8 sm:h-8 text-white shrink-0" strokeWidth={2.2} />
+                    <Smile className="w-7 h-7 sm:w-8 sm:h-8 text-slate-950 shrink-0" strokeWidth={2.2} />
                   </button>
 
                   {/* 4. Document / File */}
@@ -625,19 +608,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                         <span className="text-xs font-semibold text-amber-200">Take Photo</span>
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowDesktopAttachMenu(false);
-                          setIsRecordingVideo(true);
-                        }}
-                        className="w-full flex items-center gap-2.5 p-2 rounded-2xl hover:bg-emerald-900/60 active:bg-emerald-900 text-left transition-colors cursor-pointer"
-                      >
-                        <div className="w-7 h-7 rounded-lg bg-emerald-600/20 text-emerald-300 flex items-center justify-center shrink-0 border border-emerald-600/30">
-                          <Video className="w-4 h-4" />
-                        </div>
-                        <span className="text-xs font-semibold text-emerald-100">Record Video</span>
-                      </button>
+
 
                       <button
                         type="button"
